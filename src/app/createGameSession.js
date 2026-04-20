@@ -233,7 +233,13 @@ function buildNavMeshOverlay(navMesh) {
   return group;
 }
 
-export async function createGameSession({ canvas, roomId = 'default' } = {}) {
+export async function createGameSession({
+  canvas,
+  roomId = 'default',
+  roomVisibility = 'public',
+  onCopyInvite = null,
+  onCreatePrivateRoom = null,
+} = {}) {
   const scene = new THREE.Scene();
   applyAtmosphere(scene);
 
@@ -523,6 +529,8 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
   const toolbar = new GameToolbar({
     githubUrl: GITHUB_URL,
     displayName: getClientPreferredDisplayName(),
+    roomId,
+    roomVisibility,
     onToggleMusic: () => {
       primeAmbientAudio();
       setMusicMuted(!audioPrefs.musicMuted);
@@ -548,10 +556,14 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
       net.sendDisplayName(displayName);
       return displayName;
     },
+    onCopyInvite,
+    onCreatePrivateRoom,
   });
   toolbar.updateState({
     ...audioPrefs,
     displayName: getClientPreferredDisplayName(),
+    roomId,
+    roomVisibility,
   });
 
   const emoteManager = new EmoteManager({

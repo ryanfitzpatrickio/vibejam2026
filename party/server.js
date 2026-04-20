@@ -54,7 +54,8 @@ import { RAID_TASK_TYPES } from '../shared/raidLayout.js';
 
 const TICK_RATE = 30;
 const TICK_MS = 1000 / TICK_RATE;
-const MAX_PLAYERS = 8;
+const ROOM_HARD_CAP = 16;
+const BOT_FILL_TARGET = 8;
 /** Max extra push-balls a human may spawn per connection (lifetime). */
 const MAX_EXTRA_BALL_SPAWNS_PER_PLAYER = 10;
 const GRAB_RANGE = 1.5;
@@ -75,6 +76,7 @@ const WS_MESSAGE_BURST = 180;
 const MAX_DROPPED_MESSAGES_BEFORE_CLOSE = 180;
 const ADVERSARY_SAFE_RADIUS = 7.5;
 const ADVERSARY_SAFE_RADIUS_SQ = ADVERSARY_SAFE_RADIUS * ADVERSARY_SAFE_RADIUS;
+const ROOM_REGISTRY_PATH = '/api/rooms/event';
 
 const BOUNDS = LEVEL_WORLD_BOUNDS_XZ;
 function simulatePlayerTick(state, input, dt, bounds, colliders, vacuumPull) {
@@ -103,6 +105,27 @@ const connectAttempts = new Map();
 
 function getPartyEnv(room, key) {
   return room.env?.[key] ?? room.context?.env?.[key] ?? undefined;
+}
+
+function getCurrentRoomId(room) {
+  return String(room?.id ?? room?.name ?? 'default');
+}
+
+function inferRoomVisibility(roomId) {
+  return roomId === 'default' || String(roomId).startsWith('pub-') ? 'public' : 'private';
+}
+
+function normalizeRoomRegistryUrl(value) {
+  if (typeof value !== 'string' || value.trim() === '') return '';
+  try {
+    const url = new URL(value);
+    url.pathname = ROOM_REGISTRY_PATH;
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return '';
+  }
 }
 
 /** Hero avatar rotation. Add a key here when a new hero model ships. */
@@ -263,10 +286,18 @@ export default class GameServer {
   _benchTickMsMax = 0;
   /** @type {number[]} capped ring for percentile export */
   _benchTickSamples = [];
+  _roomRegistryUrl = '';
+  _roomRegistryToken = '';
+  _roomRegistryEnabled = false;
+  _roomRegistryFlushPending = false;
+  _roomRegistryInFlight = null;
 
   constructor(room) {
     this.room = room;
     this.stats = new StatsTracker(room);
+    this._roomRegistryUrl = normalizeRoomRegistryUrl(getPartyEnv(room, 'STATS_COLLECTOR_URL'));
+    this._roomRegistryToken = String(getPartyEnv(room, 'STATS_COLLECTOR_TOKEN') ?? '').trim();
+    this._roomRegistryEnabled = Boolean(this._roomRegistryUrl && this._roomRegistryToken);
     this.predators = [];
     this.pushBallWorld = createPushBallWorld();
     this.roombaCannonWorld = createRoombaCannonWorld();
@@ -283,6 +314,71 @@ export default class GameServer {
     /** Scattered collectibles for hero unlocks; session-lifetime. */
     this.unlockItems = this._scatterUnlockItems();
     this._unlockPickupCooldown = new Map();
+  }
+
+  _getRoomStatePayload() {
+    const roomId = getCurrentRoomId(this.room);
+    const humans = this.inputQueues.size;
+    const occupants = this.players.size;
+    const bots = Math.max(0, occupants - humans);
+    return {
+      type: 'room-state',
+      version: 1,
+      roomId,
+      visibility: inferRoomVisibility(roomId),
+      humans,
+      bots,
+      occupants,
+      capacity: ROOM_HARD_CAP,
+      botFillTarget: BOT_FILL_TARGET,
+      updatedAt: Date.now(),
+    };
+  }
+
+  async _flushRoomRegistryUpdate() {
+    if (!this._roomRegistryEnabled) return;
+    this._roomRegistryInFlight = fetch(this._roomRegistryUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this._roomRegistryToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(this._getRoomStatePayload()),
+    }).catch((error) => {
+      console.warn('[rooms] failed to publish room state:', error);
+    }).finally(() => {
+      this._roomRegistryInFlight = null;
+      if (this._roomRegistryFlushPending) {
+        this._roomRegistryFlushPending = false;
+        void this._flushRoomRegistryUpdate();
+      }
+    });
+    await this._roomRegistryInFlight;
+  }
+
+  _scheduleRoomRegistryUpdate() {
+    if (!this._roomRegistryEnabled) return;
+    if (this._roomRegistryInFlight) {
+      this._roomRegistryFlushPending = true;
+      return;
+    }
+    void this._flushRoomRegistryUpdate();
+  }
+
+  _sendToConnection(conn, message, byteLen = utf8ByteLength(message)) {
+    if (!conn) return false;
+    try {
+      conn.send(message);
+      this._benchBytesOut += byteLen;
+      this._benchMsgsOut += 1;
+      return true;
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : String(error);
+      if (!/after close/i.test(messageText)) {
+        console.warn('[net] failed to send websocket message:', messageText);
+      }
+      return false;
+    }
   }
 
   _scatterUnlockItems() {
@@ -371,7 +467,7 @@ export default class GameServer {
       return spawns[joinIndex % spawns.length];
     }
 
-    const angle = joinIndex * (Math.PI * 2 / MAX_PLAYERS);
+    const angle = joinIndex * (Math.PI * 2 / ROOM_HARD_CAP);
     return {
       x: Math.cos(angle) * 2,
       y: 0,
@@ -414,11 +510,11 @@ export default class GameServer {
   }
 
   /**
-   * Keeps (humans + bots) at MAX_PLAYERS when humans < MAX_PLAYERS; no bots at 8 humans.
+   * Keeps bot fill at BOT_FILL_TARGET while humans can continue up to ROOM_HARD_CAP.
    */
   _syncBots() {
     const humanCount = this.inputQueues.size;
-    const desiredBots = Math.max(0, MAX_PLAYERS - humanCount);
+    const desiredBots = Math.max(0, BOT_FILL_TARGET - humanCount);
     const botIds = this._listBotIdsSorted();
 
     while (botIds.length > desiredBots) {
@@ -526,14 +622,13 @@ export default class GameServer {
   async onStart() {
     await this.stats?.ready;
     this.tickInterval = setInterval(() => this.tick(), TICK_MS);
+    this._scheduleRoomRegistryUpdate();
   }
 
   onConnect(conn) {
-    if (this.inputQueues.size >= MAX_PLAYERS) {
+    if (this.inputQueues.size >= ROOM_HARD_CAP) {
       const errPayload = JSON.stringify({ type: 'error', message: 'Room full' });
-      this._benchBytesOut += utf8ByteLength(errPayload);
-      this._benchMsgsOut += 1;
-      conn.send(errPayload);
+      this._sendToConnection(conn, errPayload);
       conn.close();
       return;
     }
@@ -573,14 +668,13 @@ export default class GameServer {
       heroClaims: { ...this.heroClaims },
       unlockItems: this.unlockItems.filter((it) => !it.consumed),
     });
-    this._benchBytesOut += utf8ByteLength(initPayload);
-    this._benchMsgsOut += 1;
-    conn.send(initPayload);
+    this._sendToConnection(conn, initPayload);
 
     this.broadcast(JSON.stringify({
       type: 'player-joined',
       player: state,
     }), [conn.id]);
+    this._scheduleRoomRegistryUpdate();
   }
 
   _consumeMessageToken(connectionId, now = Date.now()) {
@@ -658,9 +752,7 @@ export default class GameServer {
             type: 'portal-spawn',
             player,
           });
-          this._benchBytesOut += utf8ByteLength(portalPayload);
-          this._benchMsgsOut += 1;
-          sender.send(portalPayload);
+          this._sendToConnection(sender, portalPayload);
           this.broadcast(JSON.stringify({
             type: 'player-joined',
             player,
@@ -783,6 +875,7 @@ export default class GameServer {
       id: conn.id,
     }));
     this._syncBots();
+    this._scheduleRoomRegistryUpdate();
   }
 
   _advanceRoundPhase(wallNow) {
@@ -1907,9 +2000,7 @@ export default class GameServer {
     const byteLen = utf8ByteLength(message);
     for (const conn of this.room.getConnections()) {
       if (!exclude.includes(conn.id)) {
-        this._benchBytesOut += byteLen;
-        this._benchMsgsOut += 1;
-        conn.send(message);
+        this._sendToConnection(conn, message, byteLen);
       }
     }
   }

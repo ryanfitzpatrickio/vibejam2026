@@ -13,7 +13,7 @@
  * Writes ./bench-results.json (gitignored) for `npm run bench:compare`.
  */
 
-const MAX_BENCH_CLIENTS = 8;
+const MAX_BENCH_CLIENTS = 16;
 
 import fs from 'node:fs';
 import path from 'node:path';

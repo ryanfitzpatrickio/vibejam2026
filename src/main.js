@@ -4,6 +4,7 @@ import { RendererModePanel, readRendererMode } from './hud/RendererModePanel.js'
 readRendererMode(); // migrate legacy localStorage `webgpu` → `webgl`
 
 const canvas = document.getElementById('canvas');
+const ROOM_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
 const modePanel = new RendererModePanel({
   visible: false,
@@ -15,6 +16,202 @@ let mobileControls = null;
 
 const isCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
 const shouldShowMobileControls = isCoarsePointer || navigator.maxTouchPoints > 0;
+let bootRoomId = 'default';
+let bootRoomVisibility = 'public';
+let handlingRoomRedirect = false;
+let matchmakeEndpointAvailable = null;
+
+function sanitizeRoomId(value) {
+  const roomId = String(value ?? '').trim().toLowerCase();
+  return ROOM_ID_RE.test(roomId) ? roomId : '';
+}
+
+function isTruthyFlag(value) {
+  return /^(1|true|yes|on)$/i.test(String(value ?? '').trim());
+}
+
+function inferRoomVisibility(roomId) {
+  return String(roomId).startsWith('priv-') ? 'private' : 'public';
+}
+
+function nextPublicOverflowRoomId(currentRoomId = 'default') {
+  const roomId = sanitizeRoomId(currentRoomId) || 'default';
+  if (roomId === 'default') return 'pub-1';
+  const match = /^pub-(\d+)$/.exec(roomId);
+  if (!match) return 'pub-1';
+  return `pub-${Number.parseInt(match[1], 10) + 1}`;
+}
+
+function isMatchmakeEndpointMissing(error) {
+  return /matchmake returned (404|405)/i.test(
+    error instanceof Error ? error.message : String(error),
+  );
+}
+
+function buildRoomUrl(roomId, { isPrivate = false } = {}) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('room', roomId);
+  if (isPrivate) {
+    url.searchParams.set('private', '1');
+  } else {
+    url.searchParams.delete('private');
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function replaceUrlRoom(roomId, { isPrivate = false } = {}) {
+  window.history.replaceState({}, '', buildRoomUrl(roomId, { isPrivate }));
+}
+
+function makeLocalPrivateRoomId() {
+  return `priv-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+}
+
+async function resolveBootRoomId() {
+  const url = new URL(window.location.href);
+  const explicitRoomId = sanitizeRoomId(url.searchParams.get('room'));
+  if (explicitRoomId) {
+    bootRoomId = explicitRoomId;
+    bootRoomVisibility = inferRoomVisibility(explicitRoomId);
+    return explicitRoomId;
+  }
+
+  const wantsPrivate = isTruthyFlag(url.searchParams.get('private'));
+  if (matchmakeEndpointAvailable !== false) {
+    try {
+      const response = await fetch('/api/matchmake', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: wantsPrivate ? 'private' : 'public',
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`matchmake returned ${response.status}`);
+      }
+      const payload = await response.json();
+      const roomId = sanitizeRoomId(payload?.roomId);
+      if (roomId) {
+        matchmakeEndpointAvailable = true;
+        bootRoomId = roomId;
+        bootRoomVisibility = payload?.visibility === 'private' || wantsPrivate ? 'private' : 'public';
+        if (bootRoomVisibility === 'private') {
+          replaceUrlRoom(roomId, { isPrivate: true });
+        }
+        return roomId;
+      }
+    } catch (error) {
+      if (isMatchmakeEndpointMissing(error)) {
+        matchmakeEndpointAvailable = false;
+      }
+      console.warn('[boot] matchmaking unavailable, falling back:', error);
+    }
+  }
+
+  if (wantsPrivate) {
+    const roomId = makeLocalPrivateRoomId();
+    bootRoomId = roomId;
+    bootRoomVisibility = 'private';
+    replaceUrlRoom(roomId, { isPrivate: true });
+    return roomId;
+  }
+  bootRoomId = 'default';
+  bootRoomVisibility = 'public';
+  return 'default';
+}
+
+async function requestMatchmake({ mode = 'public', excludeRoomId = '' } = {}) {
+  if (matchmakeEndpointAvailable !== false) {
+    try {
+      const response = await fetch('/api/matchmake', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode, excludeRoomId }),
+      });
+      if (!response.ok) {
+        throw new Error(`matchmake returned ${response.status}`);
+      }
+      const payload = await response.json();
+      const roomId = sanitizeRoomId(payload?.roomId);
+      if (!roomId) {
+        throw new Error('matchmake returned no room id');
+      }
+      matchmakeEndpointAvailable = true;
+      return {
+        roomId,
+        visibility: payload?.visibility === 'private' ? 'private' : 'public',
+        shareUrl: typeof payload?.shareUrl === 'string' ? payload.shareUrl : '',
+      };
+    } catch (error) {
+      if (!isMatchmakeEndpointMissing(error)) throw error;
+      matchmakeEndpointAvailable = false;
+      console.warn('[matchmake] endpoint unavailable, using local fallback:', error);
+    }
+  }
+  if (mode === 'private') {
+    const roomId = makeLocalPrivateRoomId();
+    return {
+      roomId,
+      visibility: 'private',
+      shareUrl: new URL(buildRoomUrl(roomId, { isPrivate: true }), window.location.href).toString(),
+    };
+  }
+  const roomId = nextPublicOverflowRoomId(excludeRoomId || bootRoomId);
+  return {
+    roomId,
+    visibility: 'public',
+    shareUrl: '',
+  };
+}
+
+function navigateToRoom(roomId, { visibility = inferRoomVisibility(roomId), replace = false } = {}) {
+  const href = buildRoomUrl(roomId, { isPrivate: visibility === 'private' });
+  handlingRoomRedirect = true;
+  if (replace) window.location.replace(href);
+  else window.location.assign(href);
+}
+
+async function copyCurrentInviteLink() {
+  const shareUrl = new URL(window.location.href);
+  shareUrl.searchParams.set('room', bootRoomId);
+  shareUrl.searchParams.set('private', '1');
+  const text = shareUrl.toString();
+  if (!navigator.clipboard?.writeText) {
+    throw new Error('Clipboard unavailable');
+  }
+  await navigator.clipboard.writeText(text);
+  return 'Copied invite';
+}
+
+async function createAndJoinPrivateRoom() {
+  const { roomId, visibility } = await requestMatchmake({ mode: 'private' });
+  navigateToRoom(roomId, { visibility });
+  return 'Opening private room';
+}
+
+function installRoomRecovery(currentRoomId, currentVisibility) {
+  return app?.net?.on?.(async (event) => {
+    if (event?.type !== 'error' || event?.message !== 'Room full' || handlingRoomRedirect) return;
+    if (currentVisibility === 'private') {
+      handlingRoomRedirect = true;
+      showFatalBootError(new Error('This private room is full. Create a new private room or join public matchmaking.'));
+      return;
+    }
+    try {
+      const next = await requestMatchmake({ mode: 'public', excludeRoomId: currentRoomId });
+      navigateToRoom(next.roomId || 'default', { visibility: next.visibility || 'public', replace: true });
+    } catch (error) {
+      handlingRoomRedirect = true;
+      showFatalBootError(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
+}
 
 function showFatalBootError(error) {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -47,7 +244,15 @@ function showFatalBootError(error) {
 }
 
 try {
-  app = await createGameSession({ canvas });
+  const roomId = await resolveBootRoomId();
+  app = await createGameSession({
+    canvas,
+    roomId,
+    roomVisibility: bootRoomVisibility,
+    onCopyInvite: bootRoomVisibility === 'private' ? copyCurrentInviteLink : null,
+    onCreatePrivateRoom: createAndJoinPrivateRoom,
+  });
+  installRoomRecovery(roomId, bootRoomVisibility);
 } catch (error) {
   showFatalBootError(error);
   throw error;
@@ -141,6 +346,7 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 function handleUnload() {
+  if (handlingRoomRedirect) return;
   try { app?.net?.disconnect?.(); } catch {}
   mobileControls?.dispose();
 }

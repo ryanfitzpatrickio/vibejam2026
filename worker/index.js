@@ -1,6 +1,14 @@
 const GLOBAL_STATS_KEY = 'stats:v1:global';
 const UNIQUE_PLAYER_BUCKET_COUNT = 8192;
 const LEADERBOARD_LIMIT = 10;
+const ROOM_REGISTRY_PREFIX = 'rooms:v1:room:';
+const DEFAULT_PUBLIC_ROOM_ID = 'default';
+const PUBLIC_ROOM_PREFIX = 'pub-';
+const PRIVATE_ROOM_PREFIX = 'priv-';
+const PUBLIC_ROOM_CAPACITY = 16;
+const DEFAULT_BOT_FILL_TARGET = 8;
+const ROOM_STATE_TTL_SECONDS = 60 * 60 * 24 * 7;
+const ROOM_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' 'wasm-unsafe-eval' https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com",
@@ -240,6 +248,232 @@ function estimateBitsetCardinality(bytes, bitCount) {
   return Math.round(-bitCount * Math.log(zeroes / bitCount));
 }
 
+function roomRegistryKey(roomId) {
+  return `${ROOM_REGISTRY_PREFIX}${roomId}`;
+}
+
+function sanitizeRoomId(value) {
+  const roomId = String(value ?? '').trim().toLowerCase();
+  return ROOM_ID_RE.test(roomId) ? roomId : '';
+}
+
+function inferRoomVisibility(roomId) {
+  if (roomId === DEFAULT_PUBLIC_ROOM_ID || roomId.startsWith(PUBLIC_ROOM_PREFIX)) return 'public';
+  return 'private';
+}
+
+function normalizeRoomVisibility(value, roomId) {
+  return value === 'public' || value === 'private'
+    ? value
+    : inferRoomVisibility(roomId);
+}
+
+function createRoomRecord(roomId, {
+  visibility = inferRoomVisibility(roomId),
+  humans = 0,
+  bots = 0,
+  occupants = humans + bots,
+  capacity = PUBLIC_ROOM_CAPACITY,
+  botFillTarget = DEFAULT_BOT_FILL_TARGET,
+  createdAt = Date.now(),
+  updatedAt = createdAt,
+} = {}) {
+  return {
+    version: 1,
+    roomId,
+    visibility,
+    humans: safePositiveInteger(humans),
+    bots: safePositiveInteger(bots),
+    occupants: safePositiveInteger(occupants),
+    capacity: safePositiveInteger(capacity) || PUBLIC_ROOM_CAPACITY,
+    botFillTarget: safePositiveInteger(botFillTarget) || DEFAULT_BOT_FILL_TARGET,
+    createdAt: safePositiveInteger(createdAt) || Date.now(),
+    updatedAt: safePositiveInteger(updatedAt) || Date.now(),
+  };
+}
+
+function makeRoomId(prefix) {
+  return `${prefix}${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+}
+
+async function listRoomRecords(kv) {
+  const page = await kv.list({ prefix: ROOM_REGISTRY_PREFIX, limit: 1000 });
+  if (!Array.isArray(page?.keys) || page.keys.length === 0) return [];
+  const records = await Promise.all(page.keys.map(async ({ name }) => {
+    try {
+      const text = await kv.get(name);
+      return text ? JSON.parse(text) : null;
+    } catch {
+      return null;
+    }
+  }));
+  return records.filter((record) => record && sanitizeRoomId(record.roomId));
+}
+
+async function upsertRoomRecord(kv, roomId, updates = {}) {
+  const key = roomRegistryKey(roomId);
+  const now = Date.now();
+  const existing = await readJson(kv, key);
+  const record = createRoomRecord(roomId, {
+    visibility: normalizeRoomVisibility(
+      updates.visibility ?? existing?.visibility,
+      roomId,
+    ),
+    humans: updates.humans ?? existing?.humans ?? 0,
+    bots: updates.bots ?? existing?.bots ?? 0,
+    occupants: updates.occupants ?? existing?.occupants ?? ((updates.humans ?? existing?.humans ?? 0) + (updates.bots ?? existing?.bots ?? 0)),
+    capacity: updates.capacity ?? existing?.capacity ?? PUBLIC_ROOM_CAPACITY,
+    botFillTarget: updates.botFillTarget ?? existing?.botFillTarget ?? DEFAULT_BOT_FILL_TARGET,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: updates.updatedAt ?? now,
+  });
+  await kv.put(key, JSON.stringify(record), { expirationTtl: ROOM_STATE_TTL_SECONDS });
+  return record;
+}
+
+function comparePublicRoomsForFill(a, b) {
+  const humansDelta = (Number(b?.humans) || 0) - (Number(a?.humans) || 0);
+  if (humansDelta !== 0) return humansDelta;
+  const createdDelta = (Number(a?.createdAt) || 0) - (Number(b?.createdAt) || 0);
+  if (createdDelta !== 0) return createdDelta;
+  return String(a?.roomId ?? '').localeCompare(String(b?.roomId ?? ''));
+}
+
+async function allocatePublicRoom(kv, { excludeRoomId = '' } = {}) {
+  const records = await listRoomRecords(kv);
+  const publicRooms = records.filter((record) => record.visibility === 'public');
+  const eligible = publicRooms
+    .filter((record) => record.roomId !== excludeRoomId)
+    .filter((record) => (safePositiveInteger(record.capacity) || PUBLIC_ROOM_CAPACITY) > safePositiveInteger(record.humans))
+    .sort(comparePublicRoomsForFill);
+
+  if (eligible.length > 0) return eligible[0];
+
+  const roomId = publicRooms.length === 0
+    ? DEFAULT_PUBLIC_ROOM_ID
+    : makeRoomId(PUBLIC_ROOM_PREFIX);
+  return await upsertRoomRecord(kv, roomId, {
+    visibility: 'public',
+    humans: 0,
+    bots: 0,
+    occupants: 0,
+    capacity: PUBLIC_ROOM_CAPACITY,
+    botFillTarget: DEFAULT_BOT_FILL_TARGET,
+  });
+}
+
+function buildPrivateShareUrl(request, roomId) {
+  const url = new URL(request.url);
+  url.pathname = '/';
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('room', roomId);
+  url.searchParams.set('private', '1');
+  return url.toString();
+}
+
+async function handleMatchmake(request, env) {
+  if (!env.GAME_STATS) {
+    return json({ error: 'GAME_STATS KV binding is not configured' }, 503);
+  }
+
+  let payload = {};
+  if (request.method === 'POST') {
+    try {
+      payload = await request.json();
+    } catch {
+      return json({ error: 'Invalid JSON' }, 400);
+    }
+  } else {
+    const url = new URL(request.url);
+    payload = {
+      mode: url.searchParams.get('mode'),
+      roomId: url.searchParams.get('roomId'),
+      excludeRoomId: url.searchParams.get('excludeRoomId'),
+    };
+  }
+
+  const explicitRoomId = sanitizeRoomId(payload?.roomId);
+  const excludeRoomId = sanitizeRoomId(payload?.excludeRoomId);
+  const mode = payload?.mode === 'private' || (explicitRoomId && inferRoomVisibility(explicitRoomId) === 'private')
+    ? 'private'
+    : 'public';
+
+  if (mode === 'private') {
+    const roomId = explicitRoomId || makeRoomId(PRIVATE_ROOM_PREFIX);
+    const record = await upsertRoomRecord(env.GAME_STATS, roomId, {
+      visibility: 'private',
+      humans: 0,
+      bots: 0,
+      occupants: 0,
+      capacity: PUBLIC_ROOM_CAPACITY,
+      botFillTarget: DEFAULT_BOT_FILL_TARGET,
+    });
+    return json({
+      ok: true,
+      roomId: record.roomId,
+      visibility: record.visibility,
+      capacity: record.capacity,
+      shareUrl: buildPrivateShareUrl(request, record.roomId),
+    });
+  }
+
+  const record = await allocatePublicRoom(env.GAME_STATS, { excludeRoomId });
+  return json({
+    ok: true,
+    roomId: record.roomId,
+    visibility: record.visibility,
+    capacity: record.capacity,
+  });
+}
+
+async function handleRoomEvent(request, env) {
+  if (!env.GAME_STATS) {
+    return json({ error: 'GAME_STATS KV binding is not configured' }, 503);
+  }
+  if (!authorize(request, env.STATS_COLLECTOR_TOKEN)) {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: 'Invalid JSON' }, 400);
+  }
+
+  if (payload?.type !== 'room-state' || payload?.version !== 1) {
+    return json({ error: 'Invalid room event' }, 400);
+  }
+
+  const roomId = sanitizeRoomId(payload.roomId);
+  if (!roomId) {
+    return json({ error: 'Invalid roomId' }, 400);
+  }
+
+  const humans = safePositiveInteger(payload.humans);
+  const bots = safePositiveInteger(payload.bots);
+  const record = await upsertRoomRecord(env.GAME_STATS, roomId, {
+    visibility: normalizeRoomVisibility(payload.visibility, roomId),
+    humans,
+    bots,
+    occupants: safePositiveInteger(payload.occupants) || (humans + bots),
+    capacity: safePositiveInteger(payload.capacity) || PUBLIC_ROOM_CAPACITY,
+    botFillTarget: safePositiveInteger(payload.botFillTarget) || DEFAULT_BOT_FILL_TARGET,
+    updatedAt: safePositiveInteger(payload.updatedAt) || Date.now(),
+  });
+
+  return json({
+    ok: true,
+    roomId: record.roomId,
+    visibility: record.visibility,
+    humans: record.humans,
+    bots: record.bots,
+    occupants: record.occupants,
+    capacity: record.capacity,
+  });
+}
+
 function applyUniquePlayerEstimate(global, playerHashes) {
   const hadBuckets = typeof global.uniquePlayerBuckets === 'string' && global.uniquePlayerBuckets !== '';
   const bitCount = safePositiveInteger(global.uniquePlayerBucketCount ?? UNIQUE_PLAYER_BUCKET_COUNT) || UNIQUE_PLAYER_BUCKET_COUNT;
@@ -389,6 +623,10 @@ export default {
 
     if (url.pathname === '/api/stats/event' && request.method === 'POST') {
       response = await handleStatsEvent(request, env);
+    } else if (url.pathname === '/api/rooms/event' && request.method === 'POST') {
+      response = await handleRoomEvent(request, env);
+    } else if (url.pathname === '/api/matchmake' && (request.method === 'POST' || request.method === 'GET')) {
+      response = await handleMatchmake(request, env);
     } else if (url.pathname === '/api/stats' && request.method === 'GET') {
       response = await handleStatsSummary(request, env);
     } else if (url.pathname === '/api/leaderboard' && request.method === 'GET') {

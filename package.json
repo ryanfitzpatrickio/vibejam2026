@@ -16,7 +16,8 @@
     "preview": "vite preview",
     "dev:trim-audio": "node scripts/trim-audio-silence.mjs",
     "bench:net": "node scripts/bench-network.mjs",
-    "bench:compare": "node scripts/bench-compare.mjs bench/baseline.json bench-results.json"
+    "bench:compare": "node scripts/bench-compare.mjs bench/baseline.json bench-results.json",
+    "bots:live": "node scripts/live-bots.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",

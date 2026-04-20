@@ -371,6 +371,110 @@ function NameRow(props) {
   );
 }
 
+function RoomActionButton(props) {
+  return (
+    <button
+      type="button"
+      onPointerDown={stopUi}
+      onClick={(e) => {
+        stopUi(e);
+        props.onClick?.();
+      }}
+      style={{
+        'border-radius': '10px',
+        border: '2px solid rgba(20,26,36,0.75)',
+        background: props.variant === 'secondary'
+          ? 'linear-gradient(180deg, #6b7382 0%, #4a525f 100%)'
+          : 'linear-gradient(180deg, #d4a24a 0%, #a06f1a 100%)',
+        color: '#fff',
+        font: HUD_LABEL_FONT,
+        'text-shadow': HUD_LABEL_SHADOW,
+        cursor: 'pointer',
+        'box-shadow': 'inset 0 1px 0 rgba(255,255,255,0.18), 0 2px 3px rgba(0,0,0,0.35)',
+        padding: '8px 12px',
+        'min-height': '38px',
+      }}
+    >
+      {props.label}
+    </button>
+  );
+}
+
+function RoomRow(props) {
+  const [status, setStatus] = createSignal('');
+
+  const runAction = async (fn, successText) => {
+    if (!fn) return;
+    try {
+      const result = await fn();
+      setStatus(typeof result === 'string' && result ? result : successText);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    window.setTimeout(() => setStatus(''), 2000);
+  };
+
+  return (
+    <div style={{ width: '100%', 'margin-bottom': '10px' }}>
+      <div
+        style={{
+          font: HUD_SMALL_LABEL_FONT,
+          color: '#fff',
+          'text-shadow': HUD_LABEL_SHADOW,
+          'letter-spacing': '0.06em',
+          'text-transform': 'uppercase',
+          'margin-bottom': '6px',
+        }}
+      >
+        Room
+      </div>
+      <div
+        style={{
+          ...HUD_TRACK_STYLE,
+          padding: '10px 12px',
+          color: '#fff',
+          'margin-bottom': '8px',
+        }}
+      >
+        <div style={{ display: 'flex', 'justify-content': 'space-between', gap: '10px', 'margin-bottom': '4px' }}>
+          <span style={{ font: HUD_LABEL_FONT, 'text-shadow': HUD_LABEL_SHADOW }}>ID</span>
+          <span style={{ font: HUD_VALUE_FONT, 'text-shadow': HUD_LABEL_SHADOW }}>{props.roomId || 'default'}</span>
+        </div>
+        <div style={{ display: 'flex', 'justify-content': 'space-between', gap: '10px' }}>
+          <span style={{ font: HUD_LABEL_FONT, 'text-shadow': HUD_LABEL_SHADOW }}>Mode</span>
+          <span style={{ font: HUD_VALUE_FONT, 'text-shadow': HUD_LABEL_SHADOW }}>
+            {props.roomVisibility === 'private' ? 'Private' : 'Public'}
+          </span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', 'flex-wrap': 'wrap' }}>
+        <Show when={props.roomVisibility === 'private'}>
+          <RoomActionButton
+            label="Copy Invite"
+            onClick={() => runAction(() => props.onCopyInvite?.(), 'Copied invite')}
+          />
+        </Show>
+        <RoomActionButton
+          label="New Private Room"
+          variant={props.roomVisibility === 'private' ? 'secondary' : undefined}
+          onClick={() => runAction(() => props.onCreatePrivateRoom?.(), 'Opening private room')}
+        />
+      </div>
+      <div
+        style={{
+          'min-height': '14px',
+          'margin-top': '4px',
+          color: '#a7f3d0',
+          font: HUD_SMALL_LABEL_FONT,
+          'text-shadow': HUD_LABEL_SHADOW,
+        }}
+      >
+        {status()}
+      </div>
+    </div>
+  );
+}
+
 // --- Leaderboard sections --------------------------------------------------
 function LeaderboardRow(props) {
   return (
@@ -649,6 +753,12 @@ function ToolbarView(props) {
             onChange={(v) => props.onChangeDisplayName?.(v)}
             onApplied={(v) => props.onAppliedDisplayName?.(v)}
           />
+          <RoomRow
+            roomId={s.roomId}
+            roomVisibility={s.roomVisibility}
+            onCopyInvite={() => props.onCopyInvite?.()}
+            onCreatePrivateRoom={() => props.onCreatePrivateRoom?.()}
+          />
           <SettingRow
             label="Music"
             on={!s.musicMuted}
@@ -737,9 +847,13 @@ export class GameToolbar {
     onOpenGithub,
     onChangeDisplayName,
     onOpenLeaderboard,
+    onCopyInvite,
+    onCreatePrivateRoom,
     displayName = 'Mouse',
     leaderboardRows = [],
     allTimeLeaderboards = null,
+    roomId = 'default',
+    roomVisibility = 'public',
   } = {}) {
     this.container = container;
     this.githubUrl = githubUrl;
@@ -748,6 +862,8 @@ export class GameToolbar {
     this.onOpenGithub = onOpenGithub;
     this.onChangeDisplayName = onChangeDisplayName;
     this.onOpenLeaderboard = onOpenLeaderboard;
+    this.onCopyInvite = onCopyInvite;
+    this.onCreatePrivateRoom = onCreatePrivateRoom;
 
     this._mount = document.createElement('div');
     container.appendChild(this._mount);
@@ -756,6 +872,8 @@ export class GameToolbar {
       musicMuted: false,
       sfxMuted: false,
       displayName: String(displayName || 'Mouse'),
+      roomId: String(roomId || 'default'),
+      roomVisibility: roomVisibility === 'private' ? 'private' : 'public',
       leaderboardRows: Array.isArray(leaderboardRows) ? leaderboardRows : [],
       allTimeLeaderboards,
       leaderboardStatus: '',
@@ -785,6 +903,8 @@ export class GameToolbar {
           onCloseLeaderboard={() => this.setLeaderboardOpen(false)}
           onChangeDisplayName={(raw) => this.onChangeDisplayName?.(raw) ?? raw}
           onAppliedDisplayName={(applied) => this.setDisplayName(applied)}
+          onCopyInvite={() => this.onCopyInvite?.()}
+          onCreatePrivateRoom={() => this.onCreatePrivateRoom?.()}
         />
       ),
       this._mount,
@@ -795,6 +915,8 @@ export class GameToolbar {
   get musicMuted() { return this._state.musicMuted; }
   get sfxMuted() { return this._state.sfxMuted; }
   get displayName() { return this._state.displayName; }
+  get roomId() { return this._state.roomId; }
+  get roomVisibility() { return this._state.roomVisibility; }
   get leaderboardRows() { return this._state.leaderboardRows; }
   get allTimeLeaderboards() { return this._state.allTimeLeaderboards; }
   get leaderboardStatus() { return this._state.leaderboardStatus; }
@@ -805,6 +927,8 @@ export class GameToolbar {
     musicMuted = this._state.musicMuted,
     sfxMuted = this._state.sfxMuted,
     displayName = this._state.displayName,
+    roomId = this._state.roomId,
+    roomVisibility = this._state.roomVisibility,
     leaderboardRows = this._state.leaderboardRows,
     allTimeLeaderboards = this._state.allTimeLeaderboards,
     leaderboardStatus = this._state.leaderboardStatus,
@@ -814,6 +938,8 @@ export class GameToolbar {
         musicMuted: !!musicMuted,
         sfxMuted: !!sfxMuted,
         displayName: String(displayName || 'Mouse'),
+        roomId: String(roomId || 'default'),
+        roomVisibility: roomVisibility === 'private' ? 'private' : 'public',
         leaderboardRows: Array.isArray(leaderboardRows) ? leaderboardRows : [],
         allTimeLeaderboards,
         leaderboardStatus: String(leaderboardStatus ?? ''),

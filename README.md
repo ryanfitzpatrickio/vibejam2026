@@ -9,8 +9,8 @@ Mouse Trouble is a browser multiplayer kitchen game built with Vite, Three.js, P
 The current build includes:
 
 - WebGL third-person play with a rigged mouse, animated eye atlas, cel-style materials, edge outlines, shadows, nameplates, and wall occlusion fading.
-- Server-authoritative multiplayer through PartyKit at 30 ticks per second, with client prediction, reconciliation, remote player interpolation, and room limits of 8 human players.
-- Mouse bots that fill empty seats up to 8 total players, chase cheese, and use the same shared movement/navmesh code as players.
+- Server-authoritative multiplayer through PartyKit at 30 ticks per second, with client prediction, reconciliation, remote player interpolation, public room overflow after 16 humans, and URL-addressable private rooms.
+- Mouse bots that fill empty seats up to 8 total occupants in quieter rooms, chase cheese, and use the same shared movement/navmesh code as players.
 - A kitchen level authored from JSON primitives, prefabs, custom GLB placements, texture atlases, lights, spawn markers, and Vibe Jam portals.
 - Server-side cat and roomba predators, cheese pickup/drop state, push balls, roomba cannon and mouse launch interactions.
 - HUD, scoreboard, player display names, audio controls, emotes, mobile touch controls, cat locator, chase alert, and all-time leaderboards.
@@ -175,6 +175,8 @@ npx partykit env add ALLOWED_ORIGINS
 The deployed Worker exposes:
 
 - `POST /api/stats/event`: accepts signed stat batches from PartyKit.
+- `POST /api/rooms/event`: accepts signed room occupancy updates from PartyKit for matchmaking.
+- `POST /api/matchmake`: returns a public overflow room or creates a private room allocation.
 - `GET /api/stats`: returns aggregate stats with `Authorization: Bearer $STATS_ADMIN_TOKEN`.
 - `GET /api/leaderboard`: returns public all-time leaderboards for longest cat chase and most cheese held.
 

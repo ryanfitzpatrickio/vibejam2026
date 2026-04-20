@@ -145,3 +145,4 @@ target/
 src-tauri/target/
 src-tauri/gen/
 .env.production
+/scripts/live-bots.mjs
