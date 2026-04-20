@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 function devLevelSavePlugin() {
   const layoutPath = path.resolve(process.cwd(), 'public/levels/kitchen-layout.json');
   const prefabPath = path.resolve(process.cwd(), 'public/levels/prefabs.json');
+  const vegetationLibraryPath = path.resolve(process.cwd(), 'public/levels/vegetation-library.json');
   const glbRegistryPath = path.resolve(process.cwd(), 'public/levels/glb-registry.json');
   const customGlbSourceDir = path.resolve(process.cwd(), 'assets/source/custom');
   const customGlbPublicDir = path.resolve(process.cwd(), 'public/models');
@@ -72,6 +73,10 @@ function devLevelSavePlugin() {
       server.middlewares.use(
         '/__dev/save-prefabs',
         handleJsonSave(prefabPath, '/levels/prefabs.json'),
+      );
+      server.middlewares.use(
+        '/__dev/save-vegetation-library',
+        handleJsonSave(vegetationLibraryPath, '/levels/vegetation-library.json'),
       );
 
       server.middlewares.use('/__dev/upload-glb', async (req, res) => {

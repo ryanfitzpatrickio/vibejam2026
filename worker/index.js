@@ -7,7 +7,7 @@ const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com",
   "media-src 'self' blob:",
-  "connect-src 'self' blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com https://*.partykit.dev https://*.partykit.io wss://*.partykit.dev wss://*.partykit.io wss://localhost:* ws://localhost:* http://localhost:*",
+  "connect-src 'self' blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com https://*.partykit.dev https://*.partykit.io https://party.ryanfitzpatrick.io wss://*.partykit.dev wss://*.partykit.io wss://party.ryanfitzpatrick.io wss://localhost:* ws://localhost:* http://localhost:*",
   "worker-src 'self' blob:",
   "font-src 'self' data:",
   "frame-src https://vibejam.cc https://vibej.am",

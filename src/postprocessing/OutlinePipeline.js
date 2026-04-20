@@ -120,7 +120,18 @@ export function createOutlinePipeline({
   depthTexture.type = THREE.UnsignedInt248Type;
   depthTexture.format = THREE.DepthStencilFormat;
 
-  const renderTarget = new THREE.WebGLRenderTarget(
+  const colorTarget = new THREE.WebGLRenderTarget(
+    Math.max(1, Math.floor(size.x * pixelRatio)),
+    Math.max(1, Math.floor(size.y * pixelRatio)),
+    {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      stencilBuffer: false,
+      colorSpace: THREE.LinearSRGBColorSpace,
+    },
+  );
+
+  const outlineTarget = new THREE.WebGLRenderTarget(
     Math.max(1, Math.floor(size.x * pixelRatio)),
     Math.max(1, Math.floor(size.y * pixelRatio)),
     {
@@ -136,9 +147,9 @@ export function createOutlinePipeline({
     vertexShader: VERT,
     fragmentShader: FRAG,
     uniforms: {
-      tColor: { value: renderTarget.texture },
+      tColor: { value: colorTarget.texture },
       tDepth: { value: depthTexture },
-      uTexelSize: { value: new THREE.Vector2(1 / renderTarget.width, 1 / renderTarget.height) },
+      uTexelSize: { value: new THREE.Vector2(1 / outlineTarget.width, 1 / outlineTarget.height) },
       uCameraNear: { value: 0.1 },
       uCameraFar: { value: 100 },
       uThickness: { value: thickness },
@@ -165,8 +176,25 @@ export function createOutlinePipeline({
   function setSize(width, height, nextPixelRatio = renderer.getPixelRatio()) {
     const w = Math.max(1, Math.floor(width * nextPixelRatio));
     const h = Math.max(1, Math.floor(height * nextPixelRatio));
-    renderTarget.setSize(w, h);
+    colorTarget.setSize(w, h);
+    outlineTarget.setSize(w, h);
     material.uniforms.uTexelSize.value.set(1 / w, 1 / h);
+  }
+
+  function setObjectsVisible(scene, visible) {
+    const mutated = [];
+    scene.traverse((object) => {
+      if (object.userData?.skipFullscreenOutline !== true) return;
+      mutated.push([object, object.visible]);
+      object.visible = visible;
+    });
+    return mutated;
+  }
+
+  function restoreObjectVisibility(entries) {
+    entries.forEach(([object, visible]) => {
+      object.visible = visible;
+    });
   }
 
   function render(scene, camera) {
@@ -185,9 +213,15 @@ export function createOutlinePipeline({
     material.uniforms.uExposure.value = renderer.toneMappingExposure ?? 1;
 
     const prevTarget = renderer.getRenderTarget();
-    renderer.setRenderTarget(renderTarget);
+    renderer.setRenderTarget(colorTarget);
     renderer.clear();
     renderer.render(scene, camera);
+
+    const hiddenForOutline = setObjectsVisible(scene, false);
+    renderer.setRenderTarget(outlineTarget);
+    renderer.clear();
+    renderer.render(scene, camera);
+    restoreObjectVisibility(hiddenForOutline);
 
     renderer.setRenderTarget(prevTarget);
     renderer.render(quadScene, quadCamera);
@@ -211,7 +245,8 @@ export function createOutlinePipeline({
 
   function dispose() {
     renderer.info.autoReset = true;
-    renderTarget.dispose();
+    colorTarget.dispose();
+    outlineTarget.dispose();
     depthTexture.dispose?.();
     material.dispose();
     quad.geometry.dispose();

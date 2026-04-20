@@ -168,6 +168,65 @@ function Counter(props) {
   );
 }
 
+function StatusDot(props) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: '10px',
+        height: '10px',
+        'border-radius': '999px',
+        background: props.color,
+        'box-shadow': `0 0 0 2px rgba(12,18,26,0.45), 0 0 8px ${props.glow ?? props.color}`,
+        'flex-shrink': '0',
+      }}
+    />
+  );
+}
+
+function LiveCountsRow(props) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        'align-items': 'center',
+        gap: '14px',
+        'justify-self': 'end',
+        'min-width': '0',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          'align-items': 'center',
+          gap: '7px',
+          color: '#fff',
+          font: VALUE_FONT,
+          'text-shadow': LABEL_SHADOW,
+          'white-space': 'nowrap',
+        }}
+      >
+        <StatusDot color="#62df7c" glow="rgba(98,223,124,0.7)" />
+        <span>{Math.max(0, Math.floor(Number(props.connectedCount) || 0))}</span>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          'align-items': 'center',
+          gap: '7px',
+          color: '#d8dee8',
+          font: VALUE_FONT,
+          'text-shadow': LABEL_SHADOW,
+          'white-space': 'nowrap',
+        }}
+      >
+        <StatusDot color="#8e98a8" glow="rgba(142,152,168,0.45)" />
+        <span>{Math.max(0, Math.floor(Number(props.botCount) || 0))}</span>
+      </div>
+    </div>
+  );
+}
+
 function formatSeconds(value) {
   return `${Math.max(0, Number(value) || 0).toFixed(1)}s`;
 }
@@ -400,11 +459,6 @@ export function HudView(props) {
     const n = Math.max(0, Math.floor(Number(props.state.cheese) || 0));
     return `${n} / ${cheeseMax()}`;
   });
-  const playerMax = createMemo(() => Math.max(1, Math.floor(Number(props.state.playerCountMax ?? 10))));
-  const playerText = createMemo(() => {
-    const n = Math.max(0, Math.floor(Number(props.state.playerCount) || 0));
-    return `${n} / ${playerMax()}`;
-  });
   const heroTimeActive = () => Math.max(0, Number(props.state.heroTimeRemaining) || 0) > 0;
   const heroStatusActive = () => heroTimeActive() && !!props.state.heroAvatar;
 
@@ -462,21 +516,10 @@ export function HudView(props) {
             labelColor="#f6d98a"
             valueText={cheeseText}
           />
-          <div
-            style={{
-              display: 'flex',
-              'flex-direction': 'column',
-              'align-items': 'flex-start',
-              'min-width': '112px',
-            }}
-          >
-            <Counter
-              iconName="MOUSE_HEAD_TARGET"
-              label="LIVE:"
-              labelColor="#d8e2ff"
-              valueText={playerText}
-            />
-          </div>
+          <LiveCountsRow
+            connectedCount={props.state.connectedCount}
+            botCount={props.state.botCount}
+          />
         </div>
 
         <Show when={humanRoleActive() || heroStatusActive()}>

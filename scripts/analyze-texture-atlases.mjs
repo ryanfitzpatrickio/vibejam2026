@@ -11,17 +11,21 @@ const OUTPUT_DIR = path.join(ROOT, 'public');
 const SHEET_DIR = path.join(ROOT, 'artifacts');
 
 function atlasIdFromFilename(filename) {
-  if (/^props\.(webp|jpg|jpeg|png)$/i.test(filename)) return 'props';
-  const match = /^textures(?:(\d+))?\.(webp|jpg|jpeg|png)$/i.exec(filename);
+  const match = /^(textures|props)(\d*)\.(webp|jpg|jpeg|png)$/i.exec(filename);
   if (!match) return null;
-  return match[1] ? `textures${match[1]}` : 'textures';
+  const prefix = match[1].toLowerCase();
+  const suffix = match[2] ?? '';
+  return suffix ? `${prefix}${suffix}` : prefix;
 }
 
 function atlasSortRank(id) {
-  if (id === 'textures') return 1;
-  if (id === 'props') return 1000;
-  const n = Number.parseInt(id.replace('textures', ''), 10);
-  return Number.isFinite(n) ? n : 999;
+  const match = /^(textures|props)(\d*)$/i.exec(id);
+  if (!match) return 9999;
+  const prefix = match[1].toLowerCase();
+  const suffix = match[2];
+  const base = prefix === 'textures' ? 0 : 1000;
+  const rank = suffix ? Number.parseInt(suffix, 10) : 0;
+  return base + (Number.isFinite(rank) ? rank : 999);
 }
 
 function run(command, args) {

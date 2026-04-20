@@ -62,11 +62,13 @@ function HeroPromptView(props) {
 export class HeroPrompt {
   constructor() {
     const [visible, setVisible] = createSignal(false);
+    const [enabled, setEnabled] = createSignal(true);
     const [avatar, setAvatar] = createSignal(null);
     this._setVisible = setVisible;
+    this._setEnabled = setEnabled;
     this._setAvatar = setAvatar;
     this._dispose = render(
-      () => <HeroPromptView visible={visible} avatar={avatar} />,
+      () => <HeroPromptView visible={() => enabled() && visible()} avatar={avatar} />,
       document.body,
     );
   }
@@ -74,6 +76,10 @@ export class HeroPrompt {
   setVisible(v, avatar = null) {
     this._setVisible(!!v);
     this._setAvatar(avatar);
+  }
+
+  setEnabled(enabled) {
+    this._setEnabled(enabled !== false);
   }
 
   dispose() {

@@ -48,9 +48,10 @@ export function createPlayerNameplate(anchor, text) {
 
   let occluded = false;
   let alive = true;
+  let visible = true;
 
   function applyVisual() {
-    if (occluded) {
+    if (!visible || occluded) {
       el.style.visibility = 'hidden';
       return;
     }
@@ -66,6 +67,10 @@ export function createPlayerNameplate(anchor, text) {
     },
     setAlive(v) {
       alive = !!v;
+      applyVisual();
+    },
+    setVisible(v) {
+      visible = !!v;
       applyVisual();
     },
     /** Hide when walls / props block camera line of sight to the name anchor. */

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { normalizePrefabPrimitive } from './prefabRegistry.js';
+import { createVegetationPlacementId, normalizeVegetationPlacement } from './vegetationRegistry.js';
 import { PROP_TEXTURE_ATLAS } from './textureAtlasRegistry.js';
 import { SPAWN_TYPES } from '../../shared/spawnPoints.js';
 import { NAV_AREA_TYPES } from '../../shared/navConfig.js';
@@ -346,6 +347,59 @@ export function createDefaultPortal(portalType, app) {
 }
 
 export async function loadPrefabLibraryFromAsset(url) {
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export function createDefaultVegetation(species, mode, app) {
+  const forward = new THREE.Vector3();
+  app.camera.getWorldDirection(forward);
+  forward.y = 0;
+  if (forward.lengthSq() < 0.0001) {
+    forward.set(0, 0, -1);
+  }
+  forward.normalize();
+
+  const spawn = app.mouse.position.clone().add(forward.multiplyScalar(2.4));
+  spawn.y = Math.max(app.mouse.position.y, 0);
+  const nextMode = mode === 'patch' || mode === 'line' ? mode : 'single';
+  const label = species?.name ?? 'vegetation';
+
+  return normalizeVegetationPlacement({
+    id: createVegetationPlacementId(),
+    name: `${label.toLowerCase().replace(/\s+/g, '-')}-${Math.random().toString(36).slice(2, 5)}`,
+    speciesId: species?.id ?? null,
+    mode: nextMode,
+    position: {
+      x: Number(spawn.x.toFixed(4)),
+      y: Number(spawn.y.toFixed(4)),
+      z: Number(spawn.z.toFixed(4)),
+    },
+    rotation: { x: 0, y: Math.atan2(forward.x, forward.z), z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    area: {
+      shape: 'rect',
+      width: species?.kind === 'hedge' ? 4 : 3,
+      depth: species?.kind === 'hedge' ? 0.9 : 2,
+      radius: 1.5,
+    },
+    density: nextMode === 'single' ? 1 : (species?.kind === 'grass' ? 42 : 18),
+    seed: Math.abs(createVegetationPlacementId().split('-').join('').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)),
+    line: {
+      length: species?.kind === 'hedge' ? 5 : 4,
+      width: species?.kind === 'hedge' ? 0.9 : 0.75,
+    },
+  });
+}
+
+export async function loadVegetationLibraryFromAsset(url) {
   try {
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {

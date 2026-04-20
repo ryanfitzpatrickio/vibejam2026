@@ -13,6 +13,10 @@ import { isNameplateOccluded } from '../utils/nameplateOcclusion.js';
 const LERP_SPEED = 12;
 const _nameplateWorldPos = new THREE.Vector3();
 
+function shortestAngleDelta(target, current) {
+  return THREE.MathUtils.euclideanModulo((target - current) + Math.PI, Math.PI * 2) - Math.PI;
+}
+
 // Distinct fur colors for remote players
 const REMOTE_COLORS = [
   '#8ec8e8', '#e88e8e', '#8ee8a8', '#d8a8e8',
@@ -27,6 +31,8 @@ export class RemotePlayerManager {
 
   /** Applied to new spawns and existing outline meshes. */
   edgeOutlinesVisible = true;
+  playersVisible = true;
+  nameplatesVisible = true;
 
   constructor({ scene }) {
     this.scene = scene;
@@ -58,7 +64,7 @@ export class RemotePlayerManager {
         entry.serverHeroAvatar = data.heroAvatar ?? null;
         entry.serverIsAdversary = !!data.isAdversary;
         entry.serverAdversaryRole = data.adversaryRole ?? null;
-        entry.mouse.visible = !entry.serverIsAdversary;
+        entry.mouse.visible = this.playersVisible && !entry.serverIsAdversary;
         entry.nameplate.setAlive(entry.serverAlive);
         if (typeof data.displayName === 'string' && data.displayName.trim()) {
           const next = data.displayName.trim();
@@ -105,10 +111,8 @@ export class RemotePlayerManager {
       entry.mouse.position.lerp(entry.targetPos, t);
 
       // Smooth rotation
-      let diff = entry.targetRot - entry.mouse.rotation.y;
-      if (diff > Math.PI) diff -= Math.PI * 2;
-      if (diff < -Math.PI) diff += Math.PI * 2;
-      entry.mouse.rotation.y += diff * t;
+      const diff = shortestAngleDelta(entry.targetRot, entry.mouse.getYaw());
+      entry.mouse.rotateYaw(diff * t);
 
       // Flip grabbed players upside-down so they look carried above the grabber.
       const beingCarried = !!entry.serverGrabbedBy && entry.serverAlive;
@@ -171,12 +175,16 @@ export class RemotePlayerManager {
         entry.heroBrain.update(dt);
       }
       syncNameplateWorldPosition(entry.nameplateAnchor, entry.mouse);
-      entry.nameplateAnchor.getWorldPosition(_nameplateWorldPos);
-      entry.nameplate.setOccluded(
-        camera
-          ? isNameplateOccluded(this.scene, camera, _nameplateWorldPos, entry.mouse, occlusionFrameIndex)
-          : false,
-      );
+      if (this.nameplatesVisible) {
+        entry.nameplateAnchor.getWorldPosition(_nameplateWorldPos);
+        entry.nameplate.setOccluded(
+          camera
+            ? isNameplateOccluded(this.scene, camera, _nameplateWorldPos, entry.mouse, occlusionFrameIndex)
+            : false,
+        );
+      } else {
+        entry.nameplate.setOccluded(true);
+      }
     }
   }
 
@@ -190,7 +198,7 @@ export class RemotePlayerManager {
       furColor: color,
     });
     mouse.name = `RemoteMouse_${id}`;
-    mouse.visible = !data.isAdversary;
+    mouse.visible = this.playersVisible && !data.isAdversary;
 
     await mouse.ready;
 
@@ -227,6 +235,7 @@ export class RemotePlayerManager {
       : `Mouse ${id.slice(0, 4)}`;
     const nameplate = createPlayerNameplate(nameplateAnchor, displayName);
     nameplate.setAlive(data.alive !== false);
+    nameplate.setVisible(this.nameplatesVisible);
     syncNameplateWorldPosition(nameplateAnchor, mouse);
 
     const audioManager = getAudioManager();
@@ -266,6 +275,28 @@ export class RemotePlayerManager {
       serverAdversaryRole: data.adversaryRole ?? null,
       heroBrain: null,
     });
+  }
+
+  getPlayersVisible() {
+    return this.playersVisible;
+  }
+
+  setPlayersVisible(visible) {
+    this.playersVisible = !!visible;
+    for (const entry of this.players.values()) {
+      entry.mouse.visible = this.playersVisible && !entry.serverIsAdversary;
+    }
+  }
+
+  getNameplatesVisible() {
+    return this.nameplatesVisible;
+  }
+
+  setNameplatesVisible(visible) {
+    this.nameplatesVisible = !!visible;
+    for (const entry of this.players.values()) {
+      entry.nameplate.setVisible(this.nameplatesVisible);
+    }
   }
 
   setEdgeOutlinesVisible(visible) {

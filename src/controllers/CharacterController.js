@@ -48,6 +48,10 @@ const CONFIG = Object.freeze({
   heavyCarrySpeedMult: 0.35,
 });
 
+function shortestAngleDelta(target, current) {
+  return THREE.MathUtils.euclideanModulo((target - current) + Math.PI, Math.PI * 2) - Math.PI;
+}
+
 export class CharacterController {
   constructor({
     mouse,
@@ -282,10 +286,8 @@ export class CharacterController {
 
     if (inputDir.lengthSq() > 0.01) {
       const targetAngle = Math.atan2(inputDir.x, inputDir.z);
-      let diff = targetAngle - this.mouse.rotation.y;
-      if (diff > Math.PI) diff -= Math.PI * 2;
-      if (diff < -Math.PI) diff += Math.PI * 2;
-      this.mouse.rotation.y += diff * Math.min(1, dt * CONFIG.turnSmooth);
+      const diff = shortestAngleDelta(targetAngle, this.mouse.getYaw());
+      this.mouse.rotateYaw(diff * Math.min(1, dt * CONFIG.turnSmooth));
     }
   }
 
@@ -325,6 +327,7 @@ export class CharacterController {
 
       this.collider.resolveAgainstBox(box, this.velocity, previousPosition, {
         grounded: this.grounded,
+        allowVerticalSupport: collider?.metadata?.nonWalkable !== true,
       });
       this.mouse.position.copy(this.collider.position);
     }

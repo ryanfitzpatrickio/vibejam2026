@@ -328,6 +328,10 @@ export class RoundRaidOverlay {
     });
   }
 
+  setVisible(visible) {
+    this._mount.style.display = visible === false ? 'none' : '';
+  }
+
   dispose() {
     document.removeEventListener('keydown', this._onKeyDown, true);
     cancelAnimationFrame(this._gamepadRaf);

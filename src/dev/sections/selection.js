@@ -22,6 +22,7 @@ export function installSelectionSection(editor) {
       entry.name = editor.nameInput.value
         || entry.type
         || (entry.lightType ? `${entry.lightType}-light` : null)
+        || (entry.speciesId ? 'vegetation' : null)
         || (entry.portalType ? `${entry.portalType}-portal` : 'editable');
     });
   });

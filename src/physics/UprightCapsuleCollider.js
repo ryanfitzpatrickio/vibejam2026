@@ -3,6 +3,10 @@ import { PHYSICS } from '../../shared/physics.js';
 
 const FACE_CONTACT_EPSILON = 0.001;
 
+function isNonWalkableCollider(collider) {
+  return collider?.metadata?.nonWalkable === true;
+}
+
 export class UprightCapsuleCollider {
   constructor({
     radius = 0.22,
@@ -26,6 +30,7 @@ export class UprightCapsuleCollider {
     for (const collider of colliders) {
       const box = collider?.aabb;
       if (!box) continue;
+      if (isNonWalkableCollider(collider)) continue;
 
       const withinX = this.position.x >= box.min.x - this.radius
         && this.position.x <= box.max.x + this.radius;
@@ -54,6 +59,7 @@ export class UprightCapsuleCollider {
   }
 
   resolveAgainstBox(box, velocity = null, previousPosition = null, options = {}) {
+    const allowVerticalSupport = options.allowVerticalSupport !== false;
     const capsuleMinY = this.position.y;
     const capsuleMaxY = this.position.y + this.height;
     const previousCapsuleMinY = previousPosition?.y ?? capsuleMinY;
@@ -76,7 +82,7 @@ export class UprightCapsuleCollider {
     }
 
     // Match shared/physics resolvePlayerCollisions: walk onto short ledges instead of sliding along walls.
-    if (options.grounded === true) {
+    if (allowVerticalSupport && options.grounded === true) {
       const maxStep = Number.isFinite(options.maxStepHeight) ? options.maxStepHeight : PHYSICS.maxStepHeight;
       const ledgeHeight = box.max.y - capsuleMinY;
       const isShortLedge = ledgeHeight > 0 && ledgeHeight <= maxStep;
@@ -91,7 +97,7 @@ export class UprightCapsuleCollider {
     const landedFromAbove = previousCapsuleMinY >= box.max.y - FACE_CONTACT_EPSILON
       && capsuleMinY <= box.max.y + FACE_CONTACT_EPSILON
       && velocity?.y <= 0;
-    if (landedFromAbove) {
+    if (allowVerticalSupport && landedFromAbove) {
       this.position.y = box.max.y;
       if (velocity) velocity.y = Math.max(velocity.y, 0);
       return true;
@@ -117,7 +123,7 @@ export class UprightCapsuleCollider {
 
     const minDist = Math.min(distLeft, distRight, distBack, distFront, distUp, distDown);
 
-    if (minDist === distUp && distUp >= 0) {
+    if (allowVerticalSupport && minDist === distUp && distUp >= 0) {
       // Player entered from above — push up to stand on top
       this.position.y = box.max.y;
       if (velocity) velocity.y = Math.max(velocity.y, 0);

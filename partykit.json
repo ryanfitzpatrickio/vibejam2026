@@ -1,5 +1,6 @@
 {
   "name": "mouse-trouble",
   "main": "party/server.js",
-  "compatibilityDate": "2024-12-01"
+  "compatibilityDate": "2024-12-01",
+  "domain": "party.ryanfitzpatrick.io"
 }

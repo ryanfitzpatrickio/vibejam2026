@@ -25,7 +25,8 @@ export function installTransformControls(editor) {
     const extractionPortalId = object?.userData?.extractionPortalId;
     const raidTaskId = object?.userData?.raidTaskId;
     const ropeId = object?.userData?.ropeId;
-    if (!primitiveId && !prefabInstanceId && !lightId && !portalId && !ropeId && !extractionPortalId && !raidTaskId) {
+    const vegetationId = object?.userData?.vegetationId;
+    if (!primitiveId && !prefabInstanceId && !lightId && !portalId && !ropeId && !extractionPortalId && !raidTaskId && !vegetationId) {
       return;
     }
 
@@ -46,6 +47,9 @@ export function installTransformControls(editor) {
       : null;
     const rope = ropeId
       ? (editor.layout.ropes ?? []).find((entry) => entry.id === ropeId)
+      : null;
+    const vegetation = vegetationId
+      ? (editor.layout.vegetation ?? []).find((entry) => entry.id === vegetationId)
       : null;
     const mode = editor.transformMode || editor.transformControls?.mode || 'translate';
     const isGlb = primitive?.type === 'glb';
@@ -158,6 +162,30 @@ export function installTransformControls(editor) {
                 snapPosition: true,
                 allowEdgeOverflow: true,
               })
+              : vegetation
+                ? editor.app.room.snapVegetationToGrid({
+                  ...deepClone(vegetation),
+                  position: {
+                    x: object.position.x,
+                    y: object.position.y,
+                    z: object.position.z,
+                  },
+                  rotation: {
+                    x: object.rotation.x,
+                    y: object.rotation.y,
+                    z: object.rotation.z,
+                  },
+                  scale: {
+                    x: object.scale.x,
+                    y: object.scale.y,
+                    z: object.scale.z,
+                  },
+                }, {
+                  snapY: true,
+                  snapPosition: mode !== 'scale',
+                  snapScale: mode === 'scale',
+                  allowEdgeOverflow: true,
+                })
               : {
         position: {
           x: Number(object.position.x.toFixed(4)),
@@ -211,6 +239,12 @@ export function installTransformControls(editor) {
     } else if (ropeId) {
       editor.app.room.updateEditableRopeTransform(ropeId, {
         anchor: next.anchor,
+      });
+    } else if (vegetationId) {
+      editor.app.room.updateEditableVegetationTransform(vegetationId, {
+        position: next.position,
+        rotation: next.rotation,
+        scale: next.scale,
       });
     } else {
       editor.app.room.updateEditablePrimitiveTransform(primitiveId || prefabInstanceId, {

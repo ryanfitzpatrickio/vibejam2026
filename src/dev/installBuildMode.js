@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PrefabEditorDialog } from './PrefabEditorDialog.js';
+import { VegetationEditorDialog } from './VegetationEditorDialog.js';
 import { DEFAULT_PREFAB_LIBRARY, normalizePrefabLibrary } from './prefabRegistry.js';
+import { DEFAULT_VEGETATION_LIBRARY, normalizeVegetationLibrary } from './vegetationRegistry.js';
 import { clamp, createAtlasButtonStyle, deepClone } from './editorShared.js';
 import {
   createDefaultPrimitive,
@@ -16,6 +18,8 @@ import {
   createRaidTaskId,
   createSpawnMarkerPrimitive,
   loadPrefabLibraryFromAsset,
+  createDefaultVegetation,
+  loadVegetationLibraryFromAsset,
 } from './buildModeSupport.js';
 import {
   styleField,
@@ -39,6 +43,7 @@ import { installGlbSection } from './sections/glb.js';
 import { installRopeSection } from './sections/rope.js';
 import { installExtractionSection } from './sections/extraction.js';
 import { installRaidTaskSection } from './sections/raidTask.js';
+import { installVegetationSection } from './sections/vegetation.js';
 import { installOrbitControls } from './subsystems/orbitControls.js';
 import {
   installProbeVisuals,
@@ -65,15 +70,18 @@ const DEG_TO_RAD = Math.PI / 180;
 const SNAP_SIZE_OPTIONS = Object.freeze([2, 1, 0.5, 0.25, 0.1]);
 
 class BuildModeEditor {
-  constructor(app, textureAtlases, prefabLibrary, OrbitControls, TransformControls) {
+  constructor(app, textureAtlases, prefabLibrary, vegetationLibrary, OrbitControls, TransformControls) {
     this.app = app;
     this.textureAtlases = textureAtlases;
     this.activeTextureAtlasId = textureAtlases[0]?.id ?? TEXTURE_ATLASES[0].id;
     this.OrbitControls = OrbitControls;
     this.TransformControls = TransformControls;
     this.prefabLibrary = normalizePrefabLibrary(prefabLibrary ?? DEFAULT_PREFAB_LIBRARY);
+    this.vegetationLibrary = normalizeVegetationLibrary(vegetationLibrary ?? DEFAULT_VEGETATION_LIBRARY);
     this.layout = app.room.getEditableLayout();
-    this.selectedId = this.layout.primitives[0]?.id ?? null;
+    this.selectedId = this.layout.primitives[0]?.id
+      ?? this.layout.vegetation?.[0]?.id
+      ?? null;
     this.visible = false;
     this.statusTimer = null;
     this.pointerNdc = new THREE.Vector2();
@@ -92,9 +100,11 @@ class BuildModeEditor {
     this._createTransformControls();
     this._bindCanvasEvents();
     this._createPrefabEditorDialog();
+    this._createVegetationEditorDialog();
     this._renderPalette();
     this._refreshList();
     this._syncForm();
+    void this._loadGlbRegistry();
   }
 
   isActive() {
@@ -261,6 +271,7 @@ class BuildModeEditor {
     this._createExtractionSection();
     this._createRaidTaskSection();
     this._createPrefabSection();
+    this._createVegetationSection();
     this._createGlbSection();
     this._createPaletteSection();
 
@@ -301,6 +312,40 @@ class BuildModeEditor {
         if (result?.ok) {
           this.prefabLibrary = normalizePrefabLibrary(library);
           this._syncPrefabSection();
+        }
+        return result;
+      },
+    });
+  }
+
+  _createVegetationEditorDialog() {
+    this.vegetationEditor = new VegetationEditorDialog({
+      room: this.app.room,
+      textureAtlases: this.textureAtlases,
+      OrbitControls: this.OrbitControls,
+      getGlbAssets: () => this.glbRegistry?.assets ?? [],
+      onUploadGlb: async ({ filename, buffer }) => {
+        const response = await fetch(`/__dev/upload-glb?name=${encodeURIComponent(filename)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: buffer,
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          return { ok: false, error: result.error || response.statusText };
+        }
+        this.app.room.glbRegistry = null;
+        this.app.room.glbModelCache.delete(result.entry.id);
+        await this.app.room.loadGlbModel(result.entry.id);
+        await this._loadGlbRegistry();
+        return result;
+      },
+      onSaveLibrary: async (library) => {
+        const result = await this._saveVegetationLibrary(library);
+        if (result?.ok) {
+          this.vegetationLibrary = normalizeVegetationLibrary(library);
+          await this.app.room.setVegetationLibrary(this.vegetationLibrary);
+          this._syncVegetationSection();
         }
         return result;
       },
@@ -389,6 +434,10 @@ class BuildModeEditor {
 
   _createPrefabSection() {
     installPrefabSection(this);
+  }
+
+  _createVegetationSection() {
+    installVegetationSection(this);
   }
 
   _createPaletteSection() {
@@ -694,12 +743,17 @@ class BuildModeEditor {
     return this._editorRaidTasks().find((entry) => entry.id === this.selectedId) ?? null;
   }
 
+  _selectedVegetation() {
+    return this._editorVegetation().find((entry) => entry.id === this.selectedId) ?? null;
+  }
+
   _selectedEntry() {
     return this._selectedPrimitive()
       ?? this._selectedLight()
       ?? this._selectedPortal()
       ?? this._selectedExtractionPortal()
       ?? this._selectedRaidTask()
+      ?? this._selectedVegetation()
       ?? this._selectedRope();
   }
 
@@ -735,6 +789,10 @@ class BuildModeEditor {
     return (this.layout.raidTasks ?? []).filter((entry) => entry.deleted !== true);
   }
 
+  _editorVegetation() {
+    return (this.layout.vegetation ?? []).filter((entry) => entry.deleted !== true);
+  }
+
   _editorEntries() {
     return [
       ...this._editorPrimitives(),
@@ -743,6 +801,7 @@ class BuildModeEditor {
       ...this._editorRopes(),
       ...this._editorExtractionPortals(),
       ...this._editorRaidTasks(),
+      ...this._editorVegetation(),
     ];
   }
 
@@ -774,6 +833,8 @@ class BuildModeEditor {
         option.textContent = `${entry.name} (rope)`;
       } else if (entry.taskType != null) {
         option.textContent = `${entry.name} (task · ${entry.taskType})`;
+      } else if (entry.speciesId) {
+        option.textContent = `${entry.name} (vegetation · ${entry.mode})`;
       } else if (entry.radius != null && entry.portalType == null) {
         option.textContent = `${entry.name} (extraction · r ${Number(entry.radius).toFixed(2)})`;
       } else {
@@ -791,13 +852,15 @@ class BuildModeEditor {
   _syncForm() {
     this._refreshList();
     this._syncPrefabSection();
+    this._syncVegetationSection();
     const primitive = this._selectedPrimitive();
     const light = this._selectedLight();
     const portal = this._selectedPortal();
     const rope = this._selectedRope();
     const extraction = this._selectedExtractionPortal();
     const raidTask = this._selectedRaidTask();
-    const entry = primitive ?? light ?? portal ?? rope ?? extraction ?? raidTask;
+    const vegetation = this._selectedVegetation();
+    const entry = primitive ?? light ?? portal ?? rope ?? extraction ?? raidTask ?? vegetation;
     const disabled = !entry;
     const primitiveDisabled = !primitive;
     const propSelected = primitive?.type === 'prop';
@@ -806,6 +869,7 @@ class BuildModeEditor {
     const ropeDisabled = !rope;
     const extractionDisabled = !extraction;
     const raidTaskDisabled = !raidTask;
+    const vegetationDisabled = !vegetation;
 
     [
       this.nameInput,
@@ -836,6 +900,11 @@ class BuildModeEditor {
     ].forEach((field) => {
       field.disabled = primitiveDisabled;
     });
+    if (vegetation) {
+      Object.values(this.scaleInputs).forEach((field) => {
+        field.disabled = false;
+      });
+    }
     this.colliderToggle.disabled = primitiveDisabled || propSelected;
     this.castShadowToggle.disabled = (!primitive && !light) || propSelected;
     this.receiveShadowToggle.disabled = primitiveDisabled || propSelected;
@@ -882,13 +951,27 @@ class BuildModeEditor {
       if (field) field.disabled = ropeDisabled;
     });
 
+    [
+      this.vegetationDensityInput,
+      this.vegetationSeedInput,
+      this.vegetationAreaShapeSelect,
+      this.vegetationAreaWidthInput,
+      this.vegetationAreaDepthInput,
+      this.vegetationAreaRadiusInput,
+      this.vegetationLineLengthInput,
+      this.vegetationLineWidthInput,
+      this.vegetationModeSelect,
+    ].forEach((field) => {
+      if (field) field.disabled = vegetationDisabled;
+    });
+
     this.surfaceSection.style.display = primitive ? 'block' : 'none';
     this.lightSection.style.display = light ? 'block' : 'none';
     this.portalSection.style.display = portal ? 'block' : 'none';
     if (this.ropeSection) this.ropeSection.style.display = rope ? 'block' : 'none';
     if (this.extractionSection) this.extractionSection.style.display = extraction ? 'block' : 'none';
     if (this.raidTaskSection) this.raidTaskSection.style.display = raidTask ? 'block' : 'none';
-    this.scaleInputs._wrap.style.display = primitive ? 'block' : 'none';
+    this.scaleInputs._wrap.style.display = primitive || vegetation ? 'block' : 'none';
     this.colliderToggle._wrap.style.display = primitive && !propSelected ? 'flex' : 'none';
     this.castShadowToggle._wrap.style.display = (primitive && !propSelected) || light ? 'flex' : 'none';
     this.receiveShadowToggle._wrap.style.display = primitive && !propSelected ? 'flex' : 'none';
@@ -1006,6 +1089,21 @@ class BuildModeEditor {
       }
     }
 
+    if (vegetation) {
+      this.scaleInputs.x.value = vegetation.scale.x;
+      this.scaleInputs.y.value = vegetation.scale.y;
+      this.scaleInputs.z.value = vegetation.scale.z;
+      if (this.vegetationModeSelect) this.vegetationModeSelect.value = vegetation.mode;
+      if (this.vegetationDensityInput) this.vegetationDensityInput.value = vegetation.density;
+      if (this.vegetationSeedInput) this.vegetationSeedInput.value = vegetation.seed;
+      if (this.vegetationAreaShapeSelect) this.vegetationAreaShapeSelect.value = vegetation.area?.shape ?? 'rect';
+      if (this.vegetationAreaWidthInput) this.vegetationAreaWidthInput.value = vegetation.area?.width ?? 3;
+      if (this.vegetationAreaDepthInput) this.vegetationAreaDepthInput.value = vegetation.area?.depth ?? 2;
+      if (this.vegetationAreaRadiusInput) this.vegetationAreaRadiusInput.value = vegetation.area?.radius ?? 1.5;
+      if (this.vegetationLineLengthInput) this.vegetationLineLengthInput.value = vegetation.line?.length ?? 4;
+      if (this.vegetationLineWidthInput) this.vegetationLineWidthInput.value = vegetation.line?.width ?? 0.8;
+    }
+
     this._highlightPalette();
   }
 
@@ -1021,6 +1119,10 @@ class BuildModeEditor {
 
   _selectedPrefab() {
     return this.prefabLibrary.prefabs.find((prefab) => prefab.id === this.prefabSelect.value) ?? null;
+  }
+
+  _selectedVegetationSpecies() {
+    return this.vegetationLibrary.species.find((species) => species.id === this.vegetationSpeciesSelect?.value) ?? null;
   }
 
   _syncPrefabSection() {
@@ -1053,8 +1155,66 @@ class BuildModeEditor {
     ].join('\n');
   }
 
+  _syncVegetationSection() {
+    const vegetation = this._selectedVegetation();
+    const currentValue = this.vegetationSpeciesSelect?.value;
+    if (this.vegetationSpeciesSelect) {
+      this.vegetationSpeciesSelect.innerHTML = '';
+      this.vegetationLibrary.species.forEach((species) => {
+        const option = document.createElement('option');
+        option.value = species.id;
+        option.textContent = species.name;
+        this.vegetationSpeciesSelect.appendChild(option);
+      });
+      if (currentValue && this.vegetationLibrary.species.some((species) => species.id === currentValue)) {
+        this.vegetationSpeciesSelect.value = currentValue;
+      } else if (this.vegetationLibrary.species[0]) {
+        this.vegetationSpeciesSelect.value = this.vegetationLibrary.species[0].id;
+      }
+      if (vegetation?.speciesId && this.vegetationLibrary.species.some((species) => species.id === vegetation.speciesId)) {
+        this.vegetationSpeciesSelect.value = vegetation.speciesId;
+      }
+    }
+
+    const species = this._selectedVegetationSpecies();
+    if (!this.vegetationMeta) return;
+    if (!species) {
+      this.vegetationMeta.textContent = 'No vegetation species in library.';
+      return;
+    }
+
+    this.vegetationMeta.textContent = [
+      `${species.kind} · ${species.renderMode}`,
+      species.renderMode === 'instancedCards'
+        ? `Atlas ${species.atlas} · cells ${species.cells.join(', ')}`
+        : `Asset ${species.assetId || 'unset'}`,
+      vegetation
+        ? `Selected ${vegetation.mode} · density ${vegetation.density}`
+        : 'Place mode uses current species + mode above.',
+    ].join('\n');
+
+    const mode = vegetation?.mode ?? (this.vegetationModeSelect?.value || 'single');
+    if (this.vegetationModeSelect) {
+      this.vegetationModeSelect.value = mode;
+    }
+    const showPatch = mode === 'patch';
+    const showLine = mode === 'line';
+    if (this.vegetationDensityInput?._wrap) this.vegetationDensityInput._wrap.style.display = showPatch ? 'grid' : 'none';
+    if (this.vegetationAreaShapeSelect?._wrap) this.vegetationAreaShapeSelect._wrap.style.display = showPatch ? 'grid' : 'none';
+    if (this.vegetationAreaWidthInput?._wrap) this.vegetationAreaWidthInput._wrap.style.display = showPatch && (vegetation?.area?.shape ?? 'rect') === 'rect' ? 'grid' : 'none';
+    if (this.vegetationAreaDepthInput?._wrap) this.vegetationAreaDepthInput._wrap.style.display = showPatch && (vegetation?.area?.shape ?? 'rect') === 'rect' ? 'grid' : 'none';
+    if (this.vegetationAreaRadiusInput?._wrap) this.vegetationAreaRadiusInput._wrap.style.display = showPatch && (vegetation?.area?.shape ?? 'rect') === 'circle' ? 'grid' : 'none';
+    if (this.vegetationLineLengthInput?._wrap) this.vegetationLineLengthInput._wrap.style.display = showLine ? 'grid' : 'none';
+    if (this.vegetationLineWidthInput?._wrap) this.vegetationLineWidthInput._wrap.style.display = showLine ? 'grid' : 'none';
+    if (this.vegetationSeedInput?._wrap) this.vegetationSeedInput._wrap.style.display = mode === 'single' ? 'none' : 'grid';
+  }
+
   _openPrefabEditor() {
     this.prefabEditor.open(this.prefabLibrary, this.prefabSelect.value || null);
+  }
+
+  _openVegetationEditor() {
+    this.vegetationEditor.open(this.vegetationLibrary, this.vegetationSpeciesSelect.value || null);
   }
 
   _getFallbackGridCell(spanX = 1, spanZ = 1) {
@@ -1094,6 +1254,22 @@ class BuildModeEditor {
     this._setStatus(`Placed ${prefab.name}.`);
   }
 
+  _placeSelectedVegetation() {
+    const species = this._selectedVegetationSpecies();
+    if (!species) return;
+    const mode = this.vegetationModeSelect?.value || 'single';
+    const vegetation = this.app.room.snapVegetationToGrid(
+      createDefaultVegetation(species, mode, this.app),
+      { snapY: true, snapPosition: true, snapScale: false, allowEdgeOverflow: true },
+    );
+    this.app.room.upsertEditableVegetation(vegetation);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = vegetation.id;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Placed ${species.name}.`);
+  }
+
   async _savePrefabLibrary(library = this.prefabLibrary) {
     const payload = normalizePrefabLibrary(library);
     const response = await fetch('/__dev/save-prefabs', {
@@ -1112,12 +1288,49 @@ class BuildModeEditor {
     return { ok: true };
   }
 
+  async _saveVegetationLibrary(library = this.vegetationLibrary) {
+    const payload = normalizeVegetationLibrary(library);
+    const response = await fetch('/__dev/save-vegetation-library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      this._setStatus(`Vegetation save failed: ${result.error || response.statusText}`, true);
+      return { ok: false, error: result.error || response.statusText };
+    }
+    this.vegetationLibrary = payload;
+    await this.app.room.setVegetationLibrary(payload);
+    this._syncVegetationSection();
+    this._setStatus('Saved /levels/vegetation-library.json');
+    return { ok: true };
+  }
+
   _deleteSelectedPrefab() {
     const prefab = this._selectedPrefab();
     if (!prefab) return;
     this.prefabLibrary.prefabs = this.prefabLibrary.prefabs.filter((entry) => entry.id !== prefab.id);
     this._syncPrefabSection();
     this._setStatus(`Deleted ${prefab.name}.`);
+  }
+
+  _deleteSelectedVegetation() {
+    const vegetation = this._selectedVegetation();
+    if (!vegetation) return;
+    this.app.room.purgeEditableVegetation(vegetation.id);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = this.layout.primitives[0]?.id
+      ?? this.layout.vegetation?.[0]?.id
+      ?? this.layout.lights?.[0]?.id
+      ?? this.layout.portals?.[0]?.id
+      ?? this.layout.ropes?.[0]?.id
+      ?? this.layout.extractionPortals?.[0]?.id
+      ?? this.layout.raidTasks?.[0]?.id
+      ?? null;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Deleted ${vegetation.name}.`);
   }
 
   _getGridCellFromPoint(point) {
@@ -1210,6 +1423,23 @@ class BuildModeEditor {
         allowEdgeOverflow: true,
       });
       this.app.room.upsertEditableRaidTask(snapped);
+      this.layout = this.app.room.getEditableLayout();
+      this._syncForm();
+      this._attachTransformControls();
+      return;
+    }
+
+    const vegetation = this._selectedVegetation();
+    if (vegetation) {
+      const next = deepClone(vegetation);
+      mutator(next);
+      const snapped = this.app.room.snapVegetationToGrid(next, {
+        snapY,
+        snapPosition,
+        snapScale,
+        allowEdgeOverflow: true,
+      });
+      this.app.room.upsertEditableVegetation(snapped);
       this.layout = this.app.room.getEditableLayout();
       this._syncForm();
       this._attachTransformControls();
@@ -1452,6 +1682,22 @@ class BuildModeEditor {
       this._setStatus(`Duplicated ${raidTask.name}.`);
       return;
     }
+    const vegetation = this._selectedVegetation();
+    if (vegetation) {
+      const copy = deepClone(vegetation);
+      copy.id = `veg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      copy.name = `${vegetation.name}-copy`;
+      copy.position.x += grid.cellWidth;
+      copy.position.z += grid.cellDepth;
+      const snapped = this.app.room.snapVegetationToGrid(copy, { snapY: true, allowEdgeOverflow: true });
+      this.app.room.upsertEditableVegetation(snapped);
+      this.layout = this.app.room.getEditableLayout();
+      this.selectedId = snapped.id;
+      this._syncForm();
+      this._attachTransformControls();
+      this._setStatus(`Duplicated ${vegetation.name}.`);
+      return;
+    }
     const rope = this._selectedRope();
     if (!rope) return;
     const ropeCopy = deepClone(rope);
@@ -1476,8 +1722,9 @@ class BuildModeEditor {
     const rope = this._selectedRope();
     const extraction = this._selectedExtractionPortal();
     const raidTask = this._selectedRaidTask();
+    const vegetation = this._selectedVegetation();
     const currentName = primitive?.name ?? light?.name ?? portal?.name ?? rope?.name
-      ?? extraction?.name ?? raidTask?.name ?? 'object';
+      ?? extraction?.name ?? raidTask?.name ?? vegetation?.name ?? 'object';
     if (light) {
       this.app.room.purgeEditableLight(this.selectedId);
     } else if (portal) {
@@ -1486,6 +1733,8 @@ class BuildModeEditor {
       this.app.room.purgeEditableExtractionPortal(this.selectedId);
     } else if (raidTask) {
       this.app.room.purgeEditableRaidTask(this.selectedId);
+    } else if (vegetation) {
+      this.app.room.purgeEditableVegetation(this.selectedId);
     } else if (rope) {
       this.app.room.purgeEditableRope(this.selectedId);
     } else {
@@ -1493,6 +1742,7 @@ class BuildModeEditor {
     }
     this.layout = this.app.room.getEditableLayout();
     this.selectedId = this.layout.primitives[0]?.id
+      ?? this.layout.vegetation?.[0]?.id
       ?? this.layout.lights?.[0]?.id
       ?? this.layout.portals?.[0]?.id
       ?? this.layout.ropes?.[0]?.id
@@ -1568,7 +1818,18 @@ export async function installBuildMode(app) {
   const prefabLibrary = normalizePrefabLibrary(
     await loadPrefabLibraryFromAsset(assetUrl('levels/prefabs.json')) ?? DEFAULT_PREFAB_LIBRARY,
   );
+  const vegetationLibrary = normalizeVegetationLibrary(
+    await loadVegetationLibraryFromAsset(assetUrl('levels/vegetation-library.json')) ?? DEFAULT_VEGETATION_LIBRARY,
+  );
+  await app.room.setVegetationLibrary(vegetationLibrary);
   const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
   const { TransformControls } = await import('three/addons/controls/TransformControls.js');
-  return new BuildModeEditor(app, textureAtlases, prefabLibrary, OrbitControls, TransformControls);
+  return new BuildModeEditor(
+    app,
+    textureAtlases,
+    prefabLibrary,
+    vegetationLibrary,
+    OrbitControls,
+    TransformControls,
+  );
 }

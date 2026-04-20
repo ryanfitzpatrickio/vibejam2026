@@ -9,6 +9,8 @@ const PATCH_KEYS = [
   'ping',
   'playerCount',
   'playerCountMax',
+  'connectedCount',
+  'botCount',
   'cheese',
   'cheeseMax',
   'lives',
@@ -35,6 +37,8 @@ export class HUD {
       ping: undefined,
       playerCount: 1,
       playerCountMax: 10,
+      connectedCount: 1,
+      botCount: 0,
       cheese: 0,
       cheeseMax: 50,
       lives: 2,
@@ -77,6 +81,10 @@ export class HUD {
       streakSeconds: patch.streakSeconds ?? 0,
       hiding: !!patch.hiding,
     });
+  }
+
+  setVisible(visible) {
+    this._mount.style.display = visible === false ? 'none' : '';
   }
 
   dispose() {

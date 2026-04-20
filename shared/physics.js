@@ -180,6 +180,10 @@ function getColliderBox(collider) {
   return collider?.aabb ?? collider?.box ?? null;
 }
 
+function isNonWalkableCollider(collider) {
+  return collider?.metadata?.nonWalkable === true;
+}
+
 /**
  * Skip axis-aligned box resolve for co-planar datum floors only.
  * (Previously used ±5 cm from groundY, which skipped low risers entirely—no step-up, no resolve.)
@@ -199,6 +203,7 @@ export function tryAutoStepUp(state, collider, { radius, height, grounded }) {
   if (!grounded) return false;
   const box = getColliderBox(collider);
   if (!box) return false;
+  if (isNonWalkableCollider(collider)) return false;
 
   const capsuleMinY = state.position.y;
   const capsuleMaxY = state.position.y + height;
@@ -274,17 +279,18 @@ function getSupportHeight(state, colliders, radius, groundSnapDistance, baseGrou
 
     const isSurface = collider.type === 'surface' || collider.metadata?.runnable;
     const surfaceY = box.max.y;
+    const canSupport = !isNonWalkableCollider(collider);
 
     if (isSurface) {
       // Explicit surfaces (planes, runnable floors) — snap when near
-      if (state.position.y >= surfaceY - groundSnapDistance) {
+      if (canSupport && state.position.y >= surfaceY - groundSnapDistance) {
         supportY = Math.max(supportY, surfaceY);
       }
     } else {
       // Furniture / solid boxes — land on top when player is at or above the top face
       // Use a slightly larger snap window so small gaps don't prevent landing
       const snapWindow = groundSnapDistance * 1.5;
-      if (state.position.y >= surfaceY - snapWindow && state.velocity.y <= 0.01) {
+      if (canSupport && state.position.y >= surfaceY - snapWindow && state.velocity.y <= 0.01) {
         supportY = Math.max(supportY, surfaceY);
       }
     }
@@ -293,8 +299,9 @@ function getSupportHeight(state, colliders, radius, groundSnapDistance, baseGrou
   return supportY;
 }
 
-function resolveAgainstBox(state, box, radius, height, previousPosition = null) {
+function resolveAgainstBox(state, box, radius, height, previousPosition = null, options = {}) {
   const { position: pos, velocity: vel } = state;
+  const allowVerticalSupport = options.allowVerticalSupport !== false;
   const capsuleMinY = pos.y;
   const capsuleMaxY = pos.y + height;
   const previousX = previousPosition?.x ?? pos.x;
@@ -315,7 +322,7 @@ function resolveAgainstBox(state, box, radius, height, previousPosition = null) 
   const insideXEarly = pos.x >= expandedMinX && pos.x <= expandedMaxX;
   const insideZEarly = pos.z >= expandedMinZ && pos.z <= expandedMaxZ;
   // Before swept AABB face clamps, prefer stepping onto a short lip (swept often wins with tiny distX).
-  if (insideXEarly && insideZEarly && state.grounded) {
+  if (allowVerticalSupport && insideXEarly && insideZEarly && state.grounded) {
     const ledgeUp = box.max.y - capsuleMinY;
     if (ledgeUp > 0.0001 && ledgeUp <= PHYSICS.maxStepHeight
       && capsuleMaxY >= box.min.y && capsuleMinY <= box.max.y) {
@@ -367,7 +374,7 @@ function resolveAgainstBox(state, box, radius, height, previousPosition = null) 
   const landedFromAbove = previousCapsuleMinY >= box.max.y - FACE_CONTACT_EPSILON
     && capsuleMinY <= box.max.y + FACE_CONTACT_EPSILON
     && vel.y <= 0;
-  if (landedFromAbove) {
+  if (allowVerticalSupport && landedFromAbove) {
     pos.y = box.max.y;
     if (vel) vel.y = Math.max(vel.y, 0);
     return true;
@@ -394,7 +401,7 @@ function resolveAgainstBox(state, box, radius, height, previousPosition = null) 
 
   const minDist = Math.min(distLeft, distRight, distBack, distFront, distUp, distDown);
 
-  if (minDist === distUp && distUp >= 0) {
+  if (allowVerticalSupport && minDist === distUp && distUp >= 0) {
     // Player entered from above — push up to stand on top of the box
     pos.y = box.max.y;
     if (vel) vel.y = Math.max(vel.y, 0);
@@ -532,7 +539,9 @@ function resolvePlayerCollisions(state, colliders, options) {
 
     if (shouldSkipSurfaceCollider(collider, baseGroundY)) continue;
 
-    resolveAgainstBox(state, box, radius, height, previousPosition);
+    resolveAgainstBox(state, box, radius, height, previousPosition, {
+      allowVerticalSupport: !isNonWalkableCollider(collider),
+    });
   }
 
   const supportY = getSupportHeight(state, colliders, radius, groundSnapDistance, baseGroundY);

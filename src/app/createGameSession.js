@@ -74,6 +74,10 @@ function dampValue(current, target, smoothing, dt) {
   return current + (target - current) * t;
 }
 
+function shortestAngleDelta(target, current) {
+  return THREE.MathUtils.euclideanModulo((target - current) + Math.PI, Math.PI * 2) - Math.PI;
+}
+
 function directionBucketFromLateral(current, lateral, enter = 0.34, exit = 0.16) {
   if (current === 'right') return lateral < exit ? 'straight' : 'right';
   if (current === 'left') return lateral > -exit ? 'straight' : 'left';
@@ -320,7 +324,20 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
   }
   const render = () => {
     outlinePipeline.render(scene, camera);
-    labelRenderer.render(scene, camera);
+    if (perfFlags.labels) {
+      labelRenderer.render(scene, camera);
+    }
+  };
+
+  const perfFlags = {
+    labels: true,
+    gameplayUi: true,
+    localPlayer: true,
+    remotePlayers: true,
+    predators: true,
+    wind: true,
+    ropes: true,
+    raidMarkers: true,
   };
 
   const thirdPersonCamera = new ThirdPersonCamera({
@@ -837,6 +854,66 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
   localNameplateAnchor.name = 'LocalNameplateAnchor';
   scene.add(localNameplateAnchor);
   const localNameplate = createPlayerNameplate(localNameplateAnchor, predictionState.displayName);
+  function setLabelsEnabled(enabled) {
+    perfFlags.labels = !!enabled;
+    labelRenderer.domElement.style.display = perfFlags.labels ? '' : 'none';
+    localNameplate.setVisible(perfFlags.labels);
+    remotePlayerManager.setNameplatesVisible(perfFlags.labels);
+  }
+
+  function setGameplayUiEnabled(enabled) {
+    perfFlags.gameplayUi = !!enabled;
+    hud.setVisible(perfFlags.gameplayUi);
+    roundRaid.setVisible(perfFlags.gameplayUi);
+    catLocator.setVisible(perfFlags.gameplayUi);
+    scoreboard.setVisible(perfFlags.gameplayUi);
+    toolbar.setVisible(perfFlags.gameplayUi);
+    chaseAlert.setVisible(perfFlags.gameplayUi);
+    adversaryStatus.setVisible(perfFlags.gameplayUi);
+    heroPrompt.setEnabled(perfFlags.gameplayUi);
+    taskPromptElement.style.display = 'none';
+  }
+
+  function setLocalPlayerVisible(enabled) {
+    perfFlags.localPlayer = !!enabled;
+    mouse.visible = perfFlags.localPlayer && !(predictionState.isAdversary && human?.playerControlled);
+  }
+
+  function setRemotePlayersVisible(enabled) {
+    perfFlags.remotePlayers = !!enabled;
+    remotePlayerManager.setPlayersVisible(perfFlags.remotePlayers);
+  }
+
+  function setPredatorsVisible(enabled) {
+    perfFlags.predators = !!enabled;
+    if (!perfFlags.predators) {
+      if (cat) cat.visible = false;
+      if (roomba) {
+        roomba.visible = false;
+        roomba.dockGroup.visible = false;
+      }
+      if (human) human.visible = false;
+    }
+  }
+
+  function setWindVisible(enabled) {
+    perfFlags.wind = !!enabled;
+    if (!perfFlags.wind) {
+      windStreaks.setIntensity(0);
+      windStreaks.update(0);
+    }
+  }
+
+  function setRopesVisible(enabled) {
+    perfFlags.ropes = !!enabled;
+    ropeSystem.visible = perfFlags.ropes;
+  }
+
+  function setRaidMarkersVisible(enabled) {
+    perfFlags.raidMarkers = !!enabled;
+    room.setRaidTaskHelpersVisible(perfFlags.raidMarkers);
+    extractionMarkerGroup.visible = perfFlags.raidMarkers && extractionMarkerGroup.children.length > 0;
+  }
   let lastReconciledSeq = -2;
   const vibePortalManager = new VibePortalManager({
     scene,
@@ -1032,7 +1109,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
 
   function snapLocalStateToServer(ss) {
     copyServerToPrediction(ss);
-    mouse.rotation.y = predictionState.rotation;
+    mouse.setYaw(predictionState.rotation);
     previousJumpHeld = false;
     physicsAccum = 0;
     net.pendingInputs.length = 0;
@@ -1139,6 +1216,18 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
 
   function syncPlayableHuman(deltaSeconds) {
     if (!human) return;
+    if (!perfFlags.predators) {
+      if (_humanWasPlayerControlled) {
+        human.setPlayerControlled(false);
+        _humanWasPlayerControlled = false;
+        _prevHumanControlRot = null;
+        _humanControlTurn = 0;
+        _humanControlMoveDirection = 'straight';
+      }
+      human.visible = false;
+      mouse.visible = perfFlags.localPlayer;
+      return;
+    }
     const adversary = findAdversaryPlayerState();
     if (!adversary?.state?.position) {
       if (_humanWasPlayerControlled) {
@@ -1148,7 +1237,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         _humanControlTurn = 0;
         _humanControlMoveDirection = 'straight';
       }
-      mouse.visible = true;
+      mouse.visible = perfFlags.localPlayer;
       return;
     }
 
@@ -1169,7 +1258,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
       human.playPlayableMemeEmote?.();
       _prevHumanControlRot = human.rotation.y;
       _humanControlTurn = 0;
-      mouse.visible = !adversary.local;
+      mouse.visible = perfFlags.localPlayer && !adversary.local;
       return;
     }
     human.cancelPlayableMemeEmote?.();
@@ -1199,7 +1288,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
       moveDirection: _humanControlMoveDirection,
     });
 
-    mouse.visible = !adversary.local;
+    mouse.visible = perfFlags.localPlayer && !adversary.local;
   }
 
   function update(timeMs = 0, deltaSeconds = 1 / 60) {
@@ -1211,7 +1300,10 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
     }
 
     if (roomba) {
-      if (net.connected) {
+      if (!perfFlags.predators) {
+        roomba.visible = false;
+        roomba.dockGroup.visible = false;
+      } else if (net.connected) {
         const serverRoomba = pickRemoteRoombaSnapshot(net.remotePredators);
         if (serverRoomba) {
           roomba.applyServerState(serverRoomba);
@@ -1225,7 +1317,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         roomba.visible = false;
         roomba.dockGroup.visible = false;
       }
-      roomba.update(deltaSeconds);
+      if (perfFlags.predators) roomba.update(deltaSeconds);
     }
 
     physicsAccum += deltaSeconds;
@@ -1272,10 +1364,8 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
 
       if (inputDir.lengthSq() > 0.01) {
         const targetAngle = Math.atan2(inputDir.x, inputDir.z);
-        let diff = targetAngle - mouse.rotation.y;
-        if (diff > Math.PI) diff -= Math.PI * 2;
-        if (diff < -Math.PI) diff += Math.PI * 2;
-        mouse.rotation.y += diff * Math.min(1, PHYSICS_STEP * 12);
+        const diff = shortestAngleDelta(targetAngle, mouse.getYaw());
+        mouse.rotateYaw(diff * Math.min(1, PHYSICS_STEP * 12));
       }
 
       const input = {
@@ -1286,7 +1376,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         jumpPressed,
         jumpHeld,
         crouch: !!keys[kb.crouch],
-        rotation: mouse.rotation.y,
+        rotation: mouse.getYaw(),
       };
 
       const gameplayInterruptsHumanMeme = predictionState.isAdversary
@@ -1429,9 +1519,9 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
       physicsAccum = 0;
     }
 
-    predatorManager?.update(deltaSeconds);
+    if (perfFlags.predators) predatorManager?.update(deltaSeconds);
 
-    if (cat && net.connected) {
+    if (cat && perfFlags.predators && net.connected) {
       const serverCat = net.remotePredators.get('cat-0');
       if (serverCat) {
         cat.applyServerState(serverCat);
@@ -1445,7 +1535,10 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         _prevCatAiState = catAi;
       }
     }
-    cat?.update(deltaSeconds);
+    if (cat) {
+      if (perfFlags.predators) cat.update(deltaSeconds);
+      else cat.visible = false;
+    }
 
     placementMode?.update(deltaSeconds);
     room.updateLoot(timeMs);
@@ -1453,7 +1546,9 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
 
     if (net.connected) {
       remotePlayerManager.sync(net.remotePlayers);
-      remotePlayerManager.update(deltaSeconds, camera, occlusionFrameIndex);
+      if (perfFlags.remotePlayers) {
+        remotePlayerManager.update(deltaSeconds, camera, occlusionFrameIndex);
+      }
 
       // Detect smack / grab transitions and play spatial audio
       const allPlayers = new Map(net.remotePlayers);
@@ -1498,12 +1593,17 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
       ? Math.max(0, 8 - (Date.now() / 1000 - deathTime))
       : 0;
 
-    const playerCount = net.connected ? 1 + net.remotePlayers.size : 1;
+    const remotePlayers = [...net.remotePlayers.keys()];
+    const botCount = remotePlayers.filter((id) => typeof id === 'string' && id.startsWith('bot-')).length;
+    const connectedCount = net.connected ? 1 + (remotePlayers.length - botCount) : 1;
+    const playerCount = connectedCount + botCount;
     hud.update({
       stamina: controller.staminaPercent,
       health: controller.healthPercent,
       ping: net.ping,
       playerCount,
+      connectedCount,
+      botCount,
       cheese: net.connected
         ? (net.serverState?.cheeseCarried ?? 0)
         : Math.max(0, Math.floor(predictionState.cheeseCarried ?? 0)),
@@ -1521,7 +1621,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
     });
 
     heroPrompt.setVisible(
-      !!(net.serverState?.heroAvailable && !net.serverState?.isHero && isAlive),
+      perfFlags.gameplayUi && !!(net.serverState?.heroAvailable && !net.serverState?.isHero && isAlive),
       net.serverState?.heroAvatarAvailable ?? null,
     );
     const isAdversaryNow = !!net.serverState?.isAdversary && isAlive;
@@ -1570,7 +1670,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         ring.renderOrder = 10;
         extractionMarkerGroup.add(ring);
       }
-      extractionMarkerGroup.visible = true;
+      extractionMarkerGroup.visible = perfFlags.raidMarkers;
       net.extractionPortals.forEach((p, i) => {
         const m = extractionMarkerGroup.children[i];
         if (!m) return;
@@ -1591,7 +1691,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
       streakSeconds: chaseStreak,
     });
 
-    if (cat && ENABLE_CAT_PREDATOR) {
+    if (perfFlags.gameplayUi && cat && ENABLE_CAT_PREDATOR) {
       catLocator.update({
         camera,
         canvasRect: canvas.getBoundingClientRect(),
@@ -1673,7 +1773,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
     const nextHintId = nextHint?.id ?? null;
     if (nextHintId !== activeHintId) {
       activeHintId = nextHintId;
-      hud.update({ hint: nextHint });
+      hud.update({ hint: perfFlags.gameplayUi ? nextHint : null });
     }
     _smackFiredThisFrame = false;
 
@@ -1684,7 +1784,11 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         return [n.id, { segmentRadius: n.segmentRadius, color: n.color, texture: n.texture }];
       }),
     );
-    ropeSystem.update(net.connected ? net.ropes : [], ropeStyleById);
+    if (perfFlags.ropes) {
+      ropeSystem.update(net.connected ? net.ropes : [], ropeStyleById);
+    } else {
+      ropeSystem.update([], ropeStyleById);
+    }
 
     const cheeseList = net.connected ? net.cheesePickups : [];
     if (net.connected && Array.isArray(cheeseList) && cheeseList.length > 0) {
@@ -1728,19 +1832,26 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
     occlusionFader.update(deltaSeconds);
     taskController.update(deltaSeconds);
     unlockCollectibles.update(deltaSeconds);
+    if (!perfFlags.gameplayUi) {
+      taskPromptElement.style.display = 'none';
+    }
 
-    localNameplate.setText(predictionState.displayName || getClientPreferredDisplayName());
-    localNameplate.setAlive(predictionState.alive !== false);
-    const localNameplateTarget = predictionState.isAdversary && human?.playerControlled ? human : mouse;
-    syncNameplateWorldPosition(
-      localNameplateAnchor,
-      localNameplateTarget,
-      predictionState.isAdversary ? HUMAN_NAMEPLATE_OFFSET_Y : undefined,
-    );
-    localNameplateAnchor.getWorldPosition(_localNameplateWorld);
-    localNameplate.setOccluded(
-      isNameplateOccluded(scene, camera, _localNameplateWorld, localNameplateTarget, occlusionFrameIndex),
-    );
+    if (perfFlags.labels) {
+      localNameplate.setText(predictionState.displayName || getClientPreferredDisplayName());
+      localNameplate.setAlive(predictionState.alive !== false);
+      const localNameplateTarget = predictionState.isAdversary && human?.playerControlled ? human : mouse;
+      syncNameplateWorldPosition(
+        localNameplateAnchor,
+        localNameplateTarget,
+        predictionState.isAdversary ? HUMAN_NAMEPLATE_OFFSET_Y : undefined,
+      );
+      localNameplateAnchor.getWorldPosition(_localNameplateWorld);
+      localNameplate.setOccluded(
+        isNameplateOccluded(scene, camera, _localNameplateWorld, localNameplateTarget, occlusionFrameIndex),
+      );
+    } else {
+      localNameplate.setOccluded(true);
+    }
 
     audioManager.setAmbientChaseTarget(isLocalPlayerCatHuntTarget());
     const keys = controller.keys;
@@ -1797,8 +1908,13 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
       const windT = predictionState.sprinting
         ? sprintT
         : (predictionState.wallHolding && horizSpeed > 3 ? 0.55 : 0);
-      windStreaks.setIntensity(windT);
-      windStreaks.update(deltaSeconds);
+      if (perfFlags.wind) {
+        windStreaks.setIntensity(windT);
+        windStreaks.update(deltaSeconds);
+      } else {
+        windStreaks.setIntensity(0);
+        windStreaks.update(deltaSeconds);
+      }
 
       // --- Wall-run / wall-climb body lean (visual only) ---
       // Applied to mouse.avatar (inner transform) so the outer Mouse group's
@@ -1819,7 +1935,7 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         } else if (predictionState.wallHolding) {
           const nx = predictionState.wallNormalX;
           const nz = predictionState.wallNormalZ;
-          const yaw = mouse.rotation.y;
+          const yaw = mouse.getYaw();
           // Player local right in world (when facing +Z locally at yaw=0, right is +X).
           const rx = Math.cos(yaw);
           const rz = -Math.sin(yaw);
@@ -1959,6 +2075,31 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
         get: () => remotePlayerManager.getEdgeOutlinesVisible(),
         set: (v) => remotePlayerManager.setEdgeOutlinesVisible(v),
       },
+      labels: {
+        label: 'CSS labels / nameplates',
+        get: () => perfFlags.labels,
+        set: (v) => setLabelsEnabled(v),
+      },
+      gameplayUi: {
+        label: 'HUD / overlays / toolbar',
+        get: () => perfFlags.gameplayUi,
+        set: (v) => setGameplayUiEnabled(v),
+      },
+      localPlayer: {
+        label: 'Local player model',
+        get: () => perfFlags.localPlayer,
+        set: (v) => setLocalPlayerVisible(v),
+      },
+      remotePlayers: {
+        label: 'Remote player models',
+        get: () => perfFlags.remotePlayers,
+        set: (v) => setRemotePlayersVisible(v),
+      },
+      predators: {
+        label: 'Predator models (cat / roomba / human)',
+        get: () => perfFlags.predators,
+        set: (v) => setPredatorsVisible(v),
+      },
       navOverlay: {
         label: 'Nav mesh overlay',
         get: () => navMeshOverlay.visible === true,
@@ -1989,12 +2130,20 @@ export async function createGameSession({ canvas, roomId = 'default' } = {}) {
           }
         },
       },
-      catPredator: {
-        label: 'Cat predator model',
-        get: () => (cat ? cat.visible !== false : false),
-        set: (v) => {
-          if (cat) cat.visible = !!v;
-        },
+      wind: {
+        label: 'Wind streaks',
+        get: () => perfFlags.wind,
+        set: (v) => setWindVisible(v),
+      },
+      ropes: {
+        label: 'Rope visuals',
+        get: () => perfFlags.ropes,
+        set: (v) => setRopesVisible(v),
+      },
+      raidMarkers: {
+        label: 'Raid / extraction markers',
+        get: () => perfFlags.raidMarkers,
+        set: (v) => setRaidMarkersVisible(v),
       },
       occlusionFader: {
         label: 'Occlusion x-ray fader (wall fade)',

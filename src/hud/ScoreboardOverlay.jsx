@@ -488,6 +488,10 @@ export class ScoreboardOverlay {
     batch(() => this._setState({ gamepadScoreboardHeld: !!held }));
   }
 
+  setVisible(visible) {
+    this._mount.style.display = visible === false ? 'none' : '';
+  }
+
   dispose() {
     document.removeEventListener('keydown', this._onKeyDown);
     document.removeEventListener('keyup', this._onKeyUp);

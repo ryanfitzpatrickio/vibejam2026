@@ -854,6 +854,10 @@ export class GameToolbar {
     });
   }
 
+  setVisible(visible) {
+    this._mount.style.display = visible === false ? 'none' : '';
+  }
+
   dispose() {
     this._dispose?.();
     this._mount.remove();

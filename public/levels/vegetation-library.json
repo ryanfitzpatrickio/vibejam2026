@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "species": [
+    {
+      "id": "grass-debug-a",
+      "name": "testgrass",
+      "kind": "grass",
+      "renderMode": "instancedCards",
+      "atlas": "props2",
+      "cells": [
+        3,
+        20
+      ],
+      "cardCount": 2,
+      "size": {
+        "widthMin": 0.14,
+        "widthMax": 0.24,
+        "heightMin": 0.35,
+        "heightMax": 0.6
+      },
+      "wind": {
+        "amp": 0.08,
+        "freq": 1.4,
+        "stiffness": 0.8
+      },
+      "lineSpacing": 0.32,
+      "shadow": "nearOnly",
+      "collision": "none",
+      "assetId": null
+    },
+    {
+      "id": "hedge-debug-a",
+      "name": "Debug Hedge",
+      "kind": "hedge",
+      "renderMode": "instancedCards",
+      "atlas": "props",
+      "cells": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "cardCount": 4,
+      "size": {
+        "widthMin": 0.4,
+        "widthMax": 0.6,
+        "heightMin": 0.8,
+        "heightMax": 1.25
+      },
+      "wind": {
+        "amp": 0.04,
+        "freq": 0.9,
+        "stiffness": 1.1
+      },
+      "lineSpacing": 0.45,
+      "shadow": "nearOnly",
+      "collision": "none",
+      "assetId": null
+    },
+    {
+      "id": "tree-glb-a",
+      "name": "firsttree",
+      "kind": "tree",
+      "renderMode": "glb",
+      "atlas": "props2",
+      "cells": [
+        37
+      ],
+      "cardCount": 2,
+      "size": {
+        "widthMin": 1.2,
+        "widthMax": 2.4,
+        "heightMin": 2.4,
+        "heightMax": 4.6
+      },
+      "wind": {
+        "amp": 0.12,
+        "freq": 0.5,
+        "stiffness": 1.4
+      },
+      "lineSpacing": 1.5,
+      "shadow": "none",
+      "collision": "box",
+      "assetId": null,
+      "treeBuilder": {
+        "trunkAssetName": "tree-trunk",
+        "trunk": {
+          "height": 2.55,
+          "radiusBase": 0.28,
+          "radiusTop": 0.16,
+          "radialSegments": 5,
+          "heightSegments": 8,
+          "leanX": -0.22,
+          "leanZ": 0,
+          "color": "#70523a",
+          "roughness": 0.94,
+          "metalness": 0.02
+        },
+        "branches": {
+          "startY": 1.8,
+          "zoneHeight": 0.5,
+          "count": 8,
+          "levels": 5,
+          "childrenMin": 1,
+          "childrenMax": 5,
+          "lengthMin": 0.5,
+          "lengthMax": 1.65,
+          "pitch": 0.54,
+          "droop": 0.6,
+          "radiusScale": 0.34,
+          "tipScale": 0.34,
+          "childLengthScale": 0.62,
+          "childRadiusScale": 0.72,
+          "forkStart": 0.7,
+          "spread": 0.65,
+          "twist": 0.38
+        },
+        "canopy": {
+          "radius": 8,
+          "height": 0.95,
+          "offsetY": 2.024
+        },
+        "leaves": {
+          "count": 128,
+          "widthMin": 0.35,
+          "widthMax": 0.68,
+          "heightMin": 0.02,
+          "heightMax": 0.85,
+          "pitchJitter": 0.35,
+          "tiltJitter": 0.18,
+          "brightnessMin": 0.88,
+          "brightnessMax": 1.08
+        }
+      }
+    }
+  ]
+}

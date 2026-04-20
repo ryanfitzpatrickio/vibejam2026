@@ -1,13 +1,22 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FACE_TEXTURE_SLOTS } from '../dev/prefabRegistry.js';
+import { normalizeVegetationPlacement } from '../dev/vegetationRegistry.js';
 import {
   DEFAULT_TEXTURE_ATLAS,
   PROP_TEXTURE_ATLAS,
   TEXTURE_ATLASES,
+  isPropTextureAtlas,
   normalizeTextureAtlasId,
 } from '../dev/textureAtlasRegistry.js';
 import { assetUrl } from '../utils/assetUrl.js';
+import { VegetationSystem } from './VegetationSystem.js';
+import {
+  collectBvhProxyBoxes,
+  ensureMeshGeometryBvh,
+  installMeshBvhSupport,
+  worldAabbFromLocalBox,
+} from '../physics/meshBvhSupport.js';
 import { normalizeSpawnType } from '../../shared/spawnPoints.js';
 import { normalizeNavArea } from '../../shared/navConfig.js';
 import { VIBE_PORTAL_TYPES, collectVibePortalPlacementsFromLayout, normalizeVibePortal } from '../../shared/vibePortal.js';
@@ -49,6 +58,7 @@ const DEFAULT_EDITABLE_LAYOUT = Object.freeze({
   ropes: [],
   extractionPortals: [],
   raidTasks: [],
+  vegetation: [],
 });
 
 const EDITABLE_TYPE_DEFAULTS = Object.freeze({
@@ -544,6 +554,7 @@ class AABB {
  */
 export class Room {
   constructor(options = {}) {
+    installMeshBvhSupport();
     this.group = new THREE.Group();
     this.group.name = 'Kitchen';
 
@@ -589,6 +600,8 @@ export class Room {
     this._staticMergedGroup = new THREE.Group();
     this._staticMergedGroup.name = 'StaticMerged';
     this.editableLayout = cloneLayout(DEFAULT_EDITABLE_LAYOUT);
+    this.vegetationSystem = new VegetationSystem({ room: this });
+    this.editableVegetationObjects = this.vegetationSystem.placementObjects;
     this.spawnMarkersVisible = false;
     this.lightHelpersVisible = false;
     this.portalHelpersVisible = false;
@@ -622,6 +635,7 @@ export class Room {
     this.buildRoom();
     this.group.add(this.editableGroup);
     this.group.add(this._staticMergedGroup);
+    this.group.add(this.vegetationSystem.group);
   }
 
   _createSurfaceMaterial(baseColor, {
@@ -691,7 +705,7 @@ export class Room {
     // so a single texture serves every variant.
     const similarity = THREE.MathUtils.clamp(Number(chroma?.similarity ?? 0.32), 0, 1);
     const feather = THREE.MathUtils.clamp(Number(chroma?.feather ?? 0.08), 0, 1);
-    const chromaKey = atlasId === PROP_TEXTURE_ATLAS
+    const chromaKey = isPropTextureAtlas(atlasId)
       ? `|ck=${similarity.toFixed(3)}:${feather.toFixed(3)}`
       : '';
     const cacheKey = `${atlasId}:${cellIndex}${chromaKey}`;
@@ -724,7 +738,7 @@ export class Room {
       yBounds.size,
     );
 
-    if (atlasId === PROP_TEXTURE_ATLAS) {
+    if (isPropTextureAtlas(atlasId)) {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const { data } = imageData;
       for (let i = 0; i < data.length; i += 4) {
@@ -852,6 +866,9 @@ export class Room {
         raidTasks: Array.isArray(layout?.raidTasks)
           ? layout.raidTasks.map((entry) => this._normalizeRaidTask(entry))
           : [],
+        vegetation: Array.isArray(layout?.vegetation)
+          ? layout.vegetation.map((entry) => this._normalizeVegetation(entry))
+          : [],
       };
     } catch {
       this.loadedEditableLayout = cloneLayout(DEFAULT_EDITABLE_LAYOUT);
@@ -938,6 +955,11 @@ export class Room {
       this._applyGlbChromaKey(scene);
       scene.updateMatrixWorld(true);
       this._flattenGlbScene(scene);
+      scene.traverse((child) => {
+        if (!child.isMesh || !child.geometry) return;
+        child.geometry.userData.isSharedGlbGeometry = true;
+        ensureMeshGeometryBvh(child.geometry);
+      });
       this.glbModelCache.set(assetId, scene);
       return scene;
     } catch (err) {
@@ -1179,6 +1201,10 @@ export class Room {
     return normalizeRope(entry);
   }
 
+  _normalizeVegetation(entry = {}) {
+    return normalizeVegetationPlacement(entry);
+  }
+
   _createEditableRopeObject(definition) {
     const rope = this._normalizeRope(definition);
     let textureMap = null;
@@ -1387,6 +1413,7 @@ export class Room {
     const customRopes = [];
     const customExtractionPortals = [];
     const customRaidTasks = [];
+    const customVegetation = [];
 
     this.deletedBuiltInPrimitives.clear();
 
@@ -1433,6 +1460,12 @@ export class Room {
       }
     }
 
+    for (const vegetation of this.loadedEditableLayout.vegetation ?? []) {
+      if (!vegetation?.deleted) {
+        customVegetation.push(vegetation);
+      }
+    }
+
     this.editableLayout = {
       version: this.loadedEditableLayout.version ?? 1,
       primitives: customPrimitives,
@@ -1441,6 +1474,7 @@ export class Room {
       ropes: customRopes,
       extractionPortals: customExtractionPortals,
       raidTasks: customRaidTasks,
+      vegetation: customVegetation,
     };
 
     this._normalizePrefabInstanceTransforms();
@@ -1801,16 +1835,15 @@ export class Room {
         this.editableMeshes.set(primitive.id, clone);
 
         if (primitive.collider) {
-          clone.updateMatrixWorld(true);
-          const aabb = AABB.fromMesh(clone);
-          if (primitive.colliderClearance > 0) {
-            aabb.min.y = Math.max(aabb.min.y, aabb.min.y + primitive.colliderClearance);
-          }
-          this.colliders.push({
-            mesh: clone,
-            aabb,
+          this._registerCollider(clone, {
             type: 'furniture',
             metadata: { source: 'editable', primitiveId: primitive.id, colliderClearance: primitive.colliderClearance },
+            useBvh: true,
+            bvhOptions: {
+              maxDepth: 3,
+              maxLeafTris: 18,
+              maxBoxes: 48,
+            },
           });
         }
         continue;
@@ -1861,9 +1894,7 @@ export class Room {
 
       if (primitive.collider) {
         const isPlane = primitive.type === 'plane';
-        this.colliders.push({
-          mesh,
-          aabb: AABB.fromMesh(mesh),
+        this._registerCollider(mesh, {
           type: isPlane ? 'surface' : 'furniture',
           metadata: {
             source: 'editable',
@@ -1954,9 +1985,7 @@ export class Room {
 
         if (primitive.collider) {
           const isPlane = primitive.type === 'plane';
-          this.colliders.push({
-            mesh,
-            aabb: AABB.fromMesh(mesh),
+          this._registerCollider(mesh, {
             type: isPlane ? 'surface' : 'furniture',
             metadata: {
               source: 'editable',
@@ -2001,6 +2030,7 @@ export class Room {
 
     this._applyTextureAtlas();
     this.refreshColliders();
+    void this.vegetationSystem.rebuild(this.editableLayout.vegetation ?? []);
 
     if (this._staticMergeEnabled) {
       this._buildStaticMergedMeshes();
@@ -2263,6 +2293,7 @@ export class Room {
     const ropes = (this.editableLayout.ropes ?? []).map((entry) => this._normalizeRope(entry));
     const extractionPortals = (this.editableLayout.extractionPortals ?? []).map((entry) => this._normalizeExtractionPortal(entry));
     const raidTasks = (this.editableLayout.raidTasks ?? []).map((entry) => this._normalizeRaidTask(entry));
+    const vegetation = (this.editableLayout.vegetation ?? []).map((entry) => this._normalizeVegetation(entry));
     return {
       version: Math.max(this.loadedEditableLayout.version ?? 1, this.editableLayout.version ?? 1, 1),
       primitives: [...builtIns, ...customs],
@@ -2271,6 +2302,7 @@ export class Room {
       ropes,
       extractionPortals,
       raidTasks,
+      vegetation,
     };
   }
 
@@ -2286,6 +2318,9 @@ export class Room {
         : [],
       raidTasks: Array.isArray(layout?.raidTasks)
         ? layout.raidTasks.map((entry) => this._normalizeRaidTask(entry))
+        : [],
+      vegetation: Array.isArray(layout?.vegetation)
+        ? layout.vegetation.map((entry) => this._normalizeVegetation(entry))
         : [],
     };
     this._applyLoadedEditableLayout();
@@ -2596,11 +2631,109 @@ export class Room {
     });
   }
 
+  setVegetationLibrary(library) {
+    return this.vegetationSystem.setLibrary(library);
+  }
+
+  upsertEditableVegetation(definition) {
+    const vegetation = this._normalizeVegetation(definition);
+    const list = this.editableLayout.vegetation ?? (this.editableLayout.vegetation = []);
+    const index = list.findIndex((entry) => entry.id === vegetation.id);
+    if (index >= 0) {
+      list[index] = vegetation;
+    } else {
+      list.push(vegetation);
+    }
+    void this.vegetationSystem.rebuild(list);
+    return vegetation;
+  }
+
+  purgeEditableVegetation(id) {
+    this.editableLayout.vegetation = (this.editableLayout.vegetation ?? []).filter((entry) => entry.id !== id);
+    this.loadedEditableLayout.vegetation = (this.loadedEditableLayout.vegetation ?? []).filter((entry) => entry.id !== id);
+    void this.vegetationSystem.rebuild(this.editableLayout.vegetation ?? []);
+  }
+
+  updateEditableVegetationTransform(id, transform = {}) {
+    const list = this.editableLayout.vegetation ?? [];
+    const index = list.findIndex((entry) => entry.id === id);
+    if (index < 0) return null;
+
+    const vegetation = this._normalizeVegetation(list[index]);
+    if (transform.position) {
+      vegetation.position = cloneVectorLike(transform.position, vegetation.position);
+    }
+    if (transform.rotation) {
+      vegetation.rotation = cloneVectorLike(transform.rotation, vegetation.rotation);
+    }
+    if (transform.scale) {
+      vegetation.scale = cloneVectorLike(transform.scale, vegetation.scale);
+    }
+
+    list[index] = vegetation;
+    const current = this.vegetationSystem.getEditableObject(id);
+    if (current) {
+      current.position.set(vegetation.position.x, vegetation.position.y, vegetation.position.z);
+      current.rotation.set(vegetation.rotation.x, vegetation.rotation.y, vegetation.rotation.z);
+      current.scale.set(vegetation.scale.x, vegetation.scale.y, vegetation.scale.z);
+      current.updateMatrixWorld(true);
+      this.refreshColliders();
+    }
+    return vegetation;
+  }
+
+  snapVegetationToGrid(definition, {
+    snapY = false,
+    snapPosition = true,
+    snapScale = false,
+    allowEdgeOverflow = false,
+  } = {}) {
+    const vegetation = this._normalizeVegetation(definition);
+    const grid = this.getBuildGridConfig();
+
+    if (snapPosition) {
+      vegetation.position.x = this._snapGridAxisPosition(
+        vegetation.position.x,
+        0.4,
+        grid.roomWidth,
+        grid.cellWidth,
+        allowEdgeOverflow,
+      );
+      vegetation.position.z = this._snapGridAxisPosition(
+        vegetation.position.z,
+        0.4,
+        grid.roomDepth,
+        grid.cellDepth,
+        allowEdgeOverflow,
+      );
+    }
+
+    if (snapY) {
+      vegetation.position.y = snapToStep(vegetation.position.y, grid.verticalStep);
+    }
+
+    if (snapScale) {
+      vegetation.scale.x = snapToStep(vegetation.scale.x, 0.1);
+      vegetation.scale.y = snapToStep(vegetation.scale.y, 0.1);
+      vegetation.scale.z = snapToStep(vegetation.scale.z, 0.1);
+    }
+
+    vegetation.position = roundVectorLike(vegetation.position, { x: 0, y: 0, z: 0 });
+    vegetation.scale = roundVectorLike(vegetation.scale, { x: 1, y: 1, z: 1 });
+    vegetation.area = normalizeVegetationPlacement(vegetation).area;
+    vegetation.line = normalizeVegetationPlacement(vegetation).line;
+    return vegetation;
+  }
+
   getEditableMesh(id) {
     return this.getEditableObject(id);
   }
 
   getEditableObject(id) {
+    const vegetationObject = this.vegetationSystem.getEditableObject(id);
+    if (vegetationObject) {
+      return vegetationObject;
+    }
     if (this.editableLightObjects.has(id)) {
       return this.editableLightObjects.get(id)?.group ?? null;
     }
@@ -2834,7 +2967,11 @@ export class Room {
       if ((!mesh?.visible && !mergedHidden) || mesh?.userData?.colliderEnabled === false) {
         return;
       }
-      collider.aabb = AABB.fromMesh(collider.mesh);
+      if (collider.metadata?.localBox) {
+        collider.aabb = worldAabbFromLocalBox(collider.metadata.localBox, collider.mesh.matrixWorld);
+      } else {
+        collider.aabb = AABB.fromMesh(collider.mesh);
+      }
       const clearance = collider.metadata?.colliderClearance ?? collider.mesh?.userData?.colliderClearance ?? 0;
       if (clearance > 0) {
         collider.aabb.min.y += clearance;
@@ -2842,6 +2979,47 @@ export class Room {
       active.push(collider);
     });
     return active;
+  }
+
+  _registerCollider(mesh, {
+    type = 'furniture',
+    metadata = {},
+    useBvh = false,
+    bvhOptions = null,
+  } = {}) {
+    if (!mesh) return;
+    if (useBvh) {
+      const localBoxes = collectBvhProxyBoxes(mesh, {
+        maxDepth: bvhOptions?.maxDepth ?? 3,
+        maxLeafTris: bvhOptions?.maxLeafTris ?? 16,
+        maxBoxes: bvhOptions?.maxBoxes ?? 48,
+        minSize: bvhOptions?.minSize ?? 0.04,
+        exclude: bvhOptions?.exclude ?? null,
+      });
+      if (localBoxes.length) {
+        localBoxes.forEach((localBox, index) => {
+          this.colliders.push({
+            mesh,
+            aabb: worldAabbFromLocalBox(localBox, mesh.matrixWorld),
+            type,
+            metadata: {
+              ...metadata,
+              localBox,
+              bvhProxy: true,
+              bvhProxyIndex: index,
+            },
+          });
+        });
+        return;
+      }
+    }
+
+    this.colliders.push({
+      mesh,
+      aabb: AABB.fromMesh(mesh),
+      type,
+      metadata,
+    });
   }
 
   getBuildGridConfig() {

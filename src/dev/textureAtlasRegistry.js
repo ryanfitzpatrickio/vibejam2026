@@ -4,6 +4,10 @@ import { GENERATED_TEXTURE_ATLASES } from './textureAtlasRegistry.generated.js';
 export const DEFAULT_TEXTURE_ATLAS = 'textures';
 export const PROP_TEXTURE_ATLAS = 'props';
 
+export function isPropTextureAtlas(id) {
+  return /^props\d*$/i.test(String(id ?? ''));
+}
+
 const PROP_SOURCE_URL = new URL('../../assets/source/props.jpg', import.meta.url).href;
 
 const PROP_ATLAS = Object.freeze({
@@ -16,14 +20,17 @@ const PROP_ATLAS = Object.freeze({
 
 export const TEXTURE_ATLASES = Object.freeze(
   [
-    ...(GENERATED_TEXTURE_ATLASES?.length ? GENERATED_TEXTURE_ATLASES : [
+    ...((GENERATED_TEXTURE_ATLASES?.length ? GENERATED_TEXTURE_ATLASES : [
       Object.freeze({
         id: 'textures',
         label: 'textures.webp',
         imageUrl: assetUrl('textures.optimized.webp'),
         manifestUrl: assetUrl('textures.manifest.json'),
       }),
-    ]),
+    ]).map((atlas) => Object.freeze({
+      ...atlas,
+      chromaKey: atlas.chromaKey ?? isPropTextureAtlas(atlas.id),
+    }))),
     ...(GENERATED_TEXTURE_ATLASES?.some((atlas) => atlas.id === PROP_TEXTURE_ATLAS) ? [] : [PROP_ATLAS]),
   ],
 );

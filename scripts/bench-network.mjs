@@ -13,6 +13,8 @@
  * Writes ./bench-results.json (gitignored) for `npm run bench:compare`.
  */
 
+const MAX_BENCH_CLIENTS = 8;
+
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -51,7 +53,7 @@ function parseArgs(argv) {
   for (const a of argv) {
     if (a.startsWith('--host=')) out.host = a.slice('--host='.length);
     else if (a.startsWith('--room=')) out.room = a.slice('--room='.length);
-    else if (a.startsWith('--clients=')) out.clients = Math.max(1, Math.min(8, Number(a.slice('--clients='.length)) || 1));
+    else if (a.startsWith('--clients=')) out.clients = Math.max(1, Math.min(MAX_BENCH_CLIENTS, Number(a.slice('--clients='.length)) || 1));
     else if (a.startsWith('--duration=')) out.durationSec = Math.max(1, Number(a.slice('--duration='.length)) || 12);
     else if (a.startsWith('--warmup=')) out.warmupSec = Math.max(0, Number(a.slice('--warmup='.length)) || 0);
     else if (a.startsWith('--input-hz=')) out.inputHz = Math.max(5, Math.min(60, Number(a.slice('--input-hz='.length)) || 30));

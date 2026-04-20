@@ -67,6 +67,7 @@ export class Mouse extends THREE.Group {
     this.carryingItem = null;
     this.targetPosition = new THREE.Vector3();
     this.targetRotation = new THREE.Euler();
+    this.yaw = 0;
 
     // Body parts (stored for animation access)
     this.parts = {};
@@ -732,8 +733,23 @@ export class Mouse extends THREE.Group {
     // Rotate to face direction
     if (direction.lengthSq() > 0.01) {
       const angle = Math.atan2(direction.x, direction.z);
-      this.rotation.y = angle;
+      this.setYaw(angle);
     }
+  }
+
+  getYaw() {
+    return Number.isFinite(this.yaw) ? this.yaw : this.rotation.y;
+  }
+
+  setYaw(yaw) {
+    const nextYaw = Number.isFinite(yaw) ? yaw : 0;
+    this.yaw = nextYaw;
+    this.rotation.y = THREE.MathUtils.euclideanModulo(nextYaw + Math.PI, Math.PI * 2) - Math.PI;
+    return this.yaw;
+  }
+
+  rotateYaw(delta) {
+    return this.setYaw(this.getYaw() + (Number.isFinite(delta) ? delta : 0));
   }
 
   dispose() {

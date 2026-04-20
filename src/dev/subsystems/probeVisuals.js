@@ -46,6 +46,7 @@ export function resolveEditableHitObject(object) {
     && !current.userData?.extractionPortalId
     && !current.userData?.raidTaskId
     && !current.userData?.ropeId
+    && !current.userData?.vegetationId
   ) {
     current = current.parent;
   }
@@ -60,6 +61,7 @@ export function editableIdFromObject(object) {
     ?? object?.userData?.extractionPortalId
     ?? object?.userData?.raidTaskId
     ?? object?.userData?.ropeId
+    ?? object?.userData?.vegetationId
     ?? null;
 }
 
@@ -186,6 +188,9 @@ export function updateProbe(editor) {
   const raidTask = editableId
     ? (editor.layout.raidTasks ?? []).find((entry) => entry.id === editableId)
     : null;
+  const vegetation = editableId
+    ? (editor.layout.vegetation ?? []).find((entry) => entry.id === editableId)
+    : null;
   const gridCell = editor._getGridCellFromPoint(hit.point);
   editor.hitTooltip.style.display = 'block';
   editor.hitTooltip.style.left = `${editor.pointerScreen.x + 14}px`;
@@ -199,6 +204,7 @@ export function updateProbe(editor) {
     extraction ? `extraction (r ${Number(extraction.radius).toFixed(2)})` : '',
     raidTask ? `raid task (${raidTask.taskType})` : '',
     rope ? `rope (${rope.segmentCount} seg · ${rope.length.toFixed(2)}m)` : '',
+    vegetation ? `vegetation (${vegetation.mode})` : '',
     `x ${hit.point.x.toFixed(2)} y ${hit.point.y.toFixed(2)} z ${hit.point.z.toFixed(2)}`,
   ].filter(Boolean).join('\n');
 }
