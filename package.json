@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:live-glb": "npm run bake:house-glb && vite --mode live-glb",
     "dev:party": "node --env-file=.env ./node_modules/partykit/dist/bin.mjs dev",
-    "prebuild": "node scripts/generate-kitchen-layout-module.mjs && node scripts/generate-kitchen-navmesh-module.mjs && node scripts/apply-mouse-skin.mjs && node scripts/generate-texture-atlas-registry.mjs && node scripts/analyze-texture-atlases.mjs && node scripts/optimize-runtime-images.mjs && node scripts/optimize-ambient-audio.mjs && node scripts/optimize-glb.mjs && node scripts/convert-cop-fbx.mjs && node scripts/convert-brain-fbx.mjs && node scripts/convert-jerry-fbx.mjs && node scripts/convert-gus-fbx.mjs && node scripts/convert-speedy-fbx.mjs && node scripts/optimize-custom-glbs.mjs",
+    "prebuild": "node scripts/generate-kitchen-layout-module.mjs && node scripts/generate-kitchen-navmesh-module.mjs && node scripts/apply-mouse-skin.mjs && node scripts/generate-texture-atlas-registry.mjs && node scripts/analyze-texture-atlases.mjs && node scripts/optimize-runtime-images.mjs && node scripts/optimize-ambient-audio.mjs && node scripts/optimize-glb.mjs && node scripts/convert-cop-fbx.mjs && node scripts/convert-brain-fbx.mjs && node scripts/convert-jerry-fbx.mjs && node scripts/convert-gus-fbx.mjs && node scripts/convert-speedy-fbx.mjs && node scripts/bake-vegetation-trees.mjs && node scripts/bake-house-glb.mjs && node scripts/optimize-custom-glbs.mjs",
     "build": "vite build",
     "deploy:cf": "npm run build && wrangler deploy",
     "deploy:party": "node --env-file=.env.production ./node_modules/partykit/dist/bin.mjs deploy",
@@ -17,7 +18,9 @@
     "dev:trim-audio": "node scripts/trim-audio-silence.mjs",
     "bench:net": "node scripts/bench-network.mjs",
     "bench:compare": "node scripts/bench-compare.mjs bench/baseline.json bench-results.json",
-    "bots:live": "node scripts/live-bots.mjs"
+    "bots:live": "node scripts/live-bots.mjs",
+    "bake:procedural-glbs": "node scripts/bake-vegetation-trees.mjs && node scripts/bake-house-glb.mjs",
+    "bake:house-glb": "node scripts/bake-house-glb.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",

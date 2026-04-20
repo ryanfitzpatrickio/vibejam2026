@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -133,10 +134,9 @@ export function buildTreeTrunkMesh(treeBuilder, { material = null } = {}) {
     roughness: trunk.roughness,
     metalness: trunk.metalness,
   });
-  const root = new THREE.Group();
-  root.name = 'ProceduralTreeTrunk';
+  const geometries = [];
 
-  const geometry = new THREE.CylinderGeometry(
+  const trunkGeometry = new THREE.CylinderGeometry(
     trunk.radiusTop,
     trunk.radiusBase,
     trunk.height,
@@ -144,9 +144,9 @@ export function buildTreeTrunkMesh(treeBuilder, { material = null } = {}) {
     trunk.heightSegments,
     false,
   );
-  geometry.translate(0, trunk.height * 0.5, 0);
+  trunkGeometry.translate(0, trunk.height * 0.5, 0);
 
-  const positions = geometry.getAttribute('position');
+  const positions = trunkGeometry.getAttribute('position');
   const temp = new THREE.Vector3();
   for (let index = 0; index < positions.count; index += 1) {
     temp.fromBufferAttribute(positions, index);
@@ -157,15 +157,10 @@ export function buildTreeTrunkMesh(treeBuilder, { material = null } = {}) {
     positions.setXYZ(index, temp.x, temp.y, temp.z);
   }
   positions.needsUpdate = true;
-  geometry.computeVertexNormals();
+  trunkGeometry.computeVertexNormals();
+  geometries.push(trunkGeometry);
 
-  const trunkMesh = new THREE.Mesh(geometry, sharedMaterial);
-  trunkMesh.name = 'ProceduralTreeTrunkStem';
-  trunkMesh.castShadow = true;
-  trunkMesh.receiveShadow = true;
-  root.add(trunkMesh);
-
-  createTreeBranchLayout({ treeBuilder: builder, seed: 1 }).forEach((branch, index) => {
+  createTreeBranchLayout({ treeBuilder: builder, seed: 1 }).forEach((branch) => {
     const branchGeometry = new THREE.CylinderGeometry(
       branch.radiusTip,
       branch.radiusBase,
@@ -175,19 +170,35 @@ export function buildTreeTrunkMesh(treeBuilder, { material = null } = {}) {
       false,
     );
     branchGeometry.translate(0, branch.length * 0.5, 0);
-    const branchMesh = new THREE.Mesh(branchGeometry, sharedMaterial);
-    branchMesh.name = `ProceduralTreeBranch${index + 1}`;
-    branchMesh.position.copy(branch.origin);
-    branchMesh.quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      branch.direction.clone().normalize(),
+    const branchTransform = new THREE.Matrix4().compose(
+      branch.origin.clone(),
+      new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        branch.direction.clone().normalize(),
+      ),
+      new THREE.Vector3(1, 1, 1),
     );
-    branchMesh.castShadow = true;
-    branchMesh.receiveShadow = true;
-    root.add(branchMesh);
+    branchGeometry.applyMatrix4(branchTransform);
+    geometries.push(branchGeometry);
   });
 
-  return root;
+  const mergedGeometry = mergeGeometries(geometries, false);
+  if (!mergedGeometry) {
+    throw new Error('failed to merge procedural tree geometries');
+  }
+  geometries.forEach((geometry) => {
+    if (geometry !== mergedGeometry) geometry.dispose();
+  });
+  mergedGeometry.computeVertexNormals();
+  mergedGeometry.computeBoundingBox();
+  mergedGeometry.computeBoundingSphere();
+
+  const trunkMesh = new THREE.Mesh(mergedGeometry, sharedMaterial);
+  trunkMesh.name = 'ProceduralTreeTrunk';
+  trunkMesh.castShadow = true;
+  trunkMesh.receiveShadow = true;
+  trunkMesh.userData.excludeBvhCollider = false;
+  return trunkMesh;
 }
 
 export function createTreeBranchLayout({

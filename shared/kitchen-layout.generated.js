@@ -957,7 +957,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnme4b2q-k7ts5-part-2",
@@ -1017,7 +1018,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnme4b2q-k7ts5-part-3",
@@ -1077,7 +1079,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": false,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnme4b2q-k7ts5-part-4",
@@ -1137,7 +1140,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": false,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnmexycj-6nvte",
@@ -1300,7 +1304,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnn842j8-vz10x-part-2",
@@ -1365,7 +1370,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnah6e0-nuyyj-part-1",
@@ -1545,7 +1551,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnah6e0-nuyyj-part-4",
@@ -1605,7 +1612,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnnc9987-zfbym",
@@ -1726,7 +1734,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnniuzxe-kymf6-part-2",
@@ -1851,7 +1860,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnniuzxe-kymf6-part-4",
@@ -1972,7 +1982,8 @@ export default {
       "castShadow": true,
       "receiveShadow": true,
       "deleted": false,
-      "zIndex": 0
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnniuzxe-kymf6-part-6",
@@ -2033,7 +2044,8 @@ export default {
       "castShadow": true,
       "receiveShadow": true,
       "deleted": false,
-      "zIndex": 0
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnnjlrpu-6ycu7",
@@ -2082,7 +2094,8 @@ export default {
       "castShadow": true,
       "receiveShadow": true,
       "deleted": false,
-      "zIndex": 0
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnnjsxyz-kdd7m",
@@ -2302,7 +2315,8 @@ export default {
       "castShadow": true,
       "receiveShadow": true,
       "deleted": false,
-      "cameraOccluder": false
+      "cameraOccluder": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnklpov-s1u74-part-1",
@@ -2422,7 +2436,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnklpov-s1u74-part-3",
@@ -2482,7 +2497,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnxdd5f-39zcn-part-1",
@@ -2542,7 +2558,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnxdd5f-39zcn-part-2",
@@ -2602,7 +2619,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnxdd5f-39zcn-part-3",
@@ -2662,7 +2680,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnxdd5f-39zcn-part-4",
@@ -2722,7 +2741,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnxdd5f-39zcn-part-5",
@@ -2782,7 +2802,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnxdd5f-39zcn-part-6",
@@ -2842,7 +2863,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnnxdd5f-39zcn-part-7",
@@ -3180,7 +3202,8 @@ export default {
       "colliderClearance": 1,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnszt1vz-ax5gq-part-2",
@@ -3240,7 +3263,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnszt1vz-ax5gq-part-3",
@@ -3300,7 +3324,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnszt1vz-ax5gq-part-4",
@@ -3360,7 +3385,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnt2nl6v-1ec6s",
@@ -3408,7 +3434,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnt2pzw6-93pqx",
@@ -3456,7 +3483,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnt2qo9x-mo5x1",
@@ -3504,7 +3532,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnt2rdcg-n9a52",
@@ -3552,7 +3581,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnuxyhg5-q8dne-part-1",
@@ -3625,7 +3655,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnuxyhg5-q8dne-part-2",
@@ -3698,7 +3729,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnuxyhg5-q8dne-part-3",
@@ -3758,7 +3790,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnuy1dn9-bs5br-part-1",
@@ -3831,7 +3864,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnuy1dn9-bs5br-part-2",
@@ -3904,7 +3938,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "prefab-instance-mnuy1dn9-bs5br-part-3",
@@ -3964,7 +3999,8 @@ export default {
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnw3vjz8-oy4k0",
@@ -4160,7 +4196,8 @@ export default {
       "castShadow": true,
       "receiveShadow": true,
       "deleted": false,
-      "zIndex": 0
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mnw45czh-gsqfx",
@@ -4509,7 +4546,8 @@ export default {
       "castShadow": true,
       "receiveShadow": true,
       "deleted": false,
-      "zIndex": 0
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-mo65kwuf-hccmc",
@@ -4753,6 +4791,57 @@ export default {
       "castShadow": false,
       "receiveShadow": false,
       "deleted": false
+    },
+    {
+      "id": "primitive-house-kitchen-layout-glb",
+      "name": "house-baked",
+      "type": "glb",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 45,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#c9b391",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": "asset-house-kitchen-layout",
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": null,
+      "generatedBakeKind": "house",
+      "hiddenByGeneratedBake": false
     }
   ],
   "lights": [
@@ -5096,24 +5185,24 @@ export default {
       "deleted": false
     },
     {
-      "id": "veg-mo6zswsk-sh85n",
-      "name": "firsttree-rwk",
+      "id": "veg-mo7g75gk-zny8s",
+      "name": "firsttree-kjb",
       "speciesId": "tree-glb-a",
       "mode": "single",
       "position": {
-        "x": -38,
+        "x": -36,
         "y": 0,
-        "z": 2
+        "z": 0
       },
       "rotation": {
         "x": 0,
-        "y": -0.10421628090759204,
+        "y": -0.635867899139236,
         "z": 0
       },
       "scale": {
-        "x": 5,
-        "y": 5,
-        "z": 5
+        "x": 4,
+        "y": 4,
+        "z": 4
       },
       "area": {
         "shape": "rect",
@@ -5122,7 +5211,7 @@ export default {
         "radius": 1.5
       },
       "density": 1,
-      "seed": 1606,
+      "seed": 1586,
       "line": {
         "length": 4,
         "width": 0.75

@@ -12,7 +12,7 @@ import {
 import { assetUrl } from '../utils/assetUrl.js';
 import { VegetationSystem } from './VegetationSystem.js';
 import {
-  collectBvhProxyBoxes,
+  collectBvhProxyColliderBoxes,
   ensureMeshGeometryBvh,
   installMeshBvhSupport,
   worldAabbFromLocalBox,
@@ -565,6 +565,7 @@ export class Room {
     this.glbLoader = null;
     this.glbModelCache = new Map();
     this.glbRegistry = null;
+    this.invalidGeneratedBakeAssetIds = new Set();
 
     // Room dimensions
     this.width = options.width ?? LEVEL_ROOM_WIDTH;
@@ -577,6 +578,10 @@ export class Room {
       atlas.imageUrl,
     ]));
     this.levelLayoutUrl = options.levelLayoutUrl ?? assetUrl('levels/kitchen-layout.json');
+    this.useGeneratedBakes = options.useGeneratedBakes
+      ?? (!import.meta.env.DEV || import.meta.env.VITE_DEV_USE_GENERATED_BAKES === '1');
+    this.useHouseGeneratedBake = options.useHouseGeneratedBake
+      ?? (import.meta.env.VITE_ENABLE_HOUSE_GENERATED_BAKE === '1');
     this.buildGrid = {
       columns: options.buildGridColumns ?? BUILD_GRID_COLUMNS,
       rows: options.buildGridRows ?? BUILD_GRID_ROWS,
@@ -897,7 +902,8 @@ export class Room {
     this.glbLoader.setMeshoptDecoder(MeshoptDecoder);
   }
 
-  _applyGlbChromaKey(scene) {
+  _applyGlbChromaKey(scene, assetEntry = null) {
+    if (assetEntry?.chromaKey !== true) return;
     const processed = new Set();
     scene.traverse((child) => {
       if (!child.isMesh) return;
@@ -952,12 +958,18 @@ export class Room {
     try {
       const gltf = await this.glbLoader.loadAsync(url);
       const scene = gltf.scene;
-      this._applyGlbChromaKey(scene);
+      this._applyGlbChromaKey(scene, entry);
       scene.updateMatrixWorld(true);
       this._flattenGlbScene(scene);
+      if (!this._validateGeneratedBakeScene(assetId, scene)) {
+        this.invalidGeneratedBakeAssetIds.add(assetId);
+        return null;
+      }
       scene.traverse((child) => {
         if (!child.isMesh || !child.geometry) return;
         child.geometry.userData.isSharedGlbGeometry = true;
+        // Precompute BVH for raycasts and optional proxy-collider extraction. Exact
+        // triangle gameplay collision is not used for editable GLB assets.
         ensureMeshGeometryBvh(child.geometry);
       });
       this.glbModelCache.set(assetId, scene);
@@ -966,6 +978,88 @@ export class Room {
       console.warn(`Failed to load GLB asset ${assetId}:`, err);
       return null;
     }
+  }
+
+  _getGeneratedBakeSourceBounds(assetId) {
+    const sourcePrimitives = (this.loadedEditableLayout?.primitives ?? []).filter((primitive) => (
+      primitive?.bakedAssetId === assetId
+      && !primitive?.deleted
+      && primitive?.type !== 'prop'
+      && primitive?.type !== 'glb'
+    ));
+    if (!sourcePrimitives.length) return null;
+
+    const combined = new THREE.Box3();
+    let hasAny = false;
+    const localPosition = new THREE.Vector3();
+    const localScale = new THREE.Vector3();
+    const prefabOrigin = new THREE.Vector3();
+    const prefabScale = new THREE.Vector3();
+    const localEuler = new THREE.Euler();
+    const prefabEuler = new THREE.Euler();
+    const localQuat = new THREE.Quaternion();
+    const prefabQuat = new THREE.Quaternion();
+    const localMatrix = new THREE.Matrix4();
+    const prefabMatrix = new THREE.Matrix4();
+    const worldMatrix = new THREE.Matrix4();
+
+    for (const primitive of sourcePrimitives) {
+      const geometry = createPrimitiveGeometry(primitive.type);
+      localPosition.set(primitive.position.x, primitive.position.y, primitive.position.z);
+      localEuler.set(primitive.rotation.x, primitive.rotation.y, primitive.rotation.z);
+      localQuat.setFromEuler(localEuler);
+      localScale.set(primitive.scale.x, primitive.scale.y, primitive.scale.z);
+      localMatrix.compose(localPosition, localQuat, localScale);
+      worldMatrix.copy(localMatrix);
+
+      if (primitive.prefabInstanceId) {
+        const origin = primitive.prefabInstanceOrigin ?? { x: 0, y: 0, z: 0 };
+        const rotation = primitive.prefabInstanceRotation ?? { x: 0, y: 0, z: 0 };
+        const scale = primitive.prefabInstanceScale ?? { x: 1, y: 1, z: 1 };
+        prefabOrigin.set(origin.x, origin.y, origin.z);
+        prefabEuler.set(rotation.x, rotation.y, rotation.z);
+        prefabQuat.setFromEuler(prefabEuler);
+        prefabScale.set(scale.x, scale.y, scale.z);
+        prefabMatrix.compose(prefabOrigin, prefabQuat, prefabScale);
+        worldMatrix.premultiply(prefabMatrix);
+      }
+
+      geometry.applyMatrix4(worldMatrix);
+      geometry.computeBoundingBox();
+      if (geometry.boundingBox) {
+        if (!hasAny) {
+          combined.copy(geometry.boundingBox);
+          hasAny = true;
+        } else {
+          combined.union(geometry.boundingBox);
+        }
+      }
+      geometry.dispose();
+    }
+
+    return hasAny ? combined : null;
+  }
+
+  _validateGeneratedBakeScene(assetId, scene) {
+    const expectedBounds = this._getGeneratedBakeSourceBounds(assetId);
+    if (!expectedBounds) return true;
+
+    scene.updateMatrixWorld(true);
+    const actualBounds = new THREE.Box3().setFromObject(scene);
+    const expectedSize = expectedBounds.getSize(new THREE.Vector3());
+    const actualSize = actualBounds.getSize(new THREE.Vector3());
+    const expectedMax = Math.max(expectedSize.x, expectedSize.y, expectedSize.z, 0.0001);
+    const actualMax = Math.max(actualSize.x, actualSize.y, actualSize.z, 0.0001);
+    const ratio = actualMax / expectedMax;
+
+    if (ratio < 0.6 || ratio > 1.67) {
+      console.warn(
+        `[generated-bake] rejecting ${assetId}: loaded size ratio ${ratio.toFixed(3)} expected=${expectedSize.toArray().map((n) => n.toFixed(3)).join(',')} actual=${actualSize.toArray().map((n) => n.toFixed(3)).join(',')}`,
+      );
+      return false;
+    }
+
+    return true;
   }
 
   _flattenGlbScene(scene) {
@@ -1080,19 +1174,36 @@ export class Room {
     return this._loadGlbModelByAssetId(assetId);
   }
 
+  _isGeneratedBakePrimitiveEnabled(primitive) {
+    if (!primitive?.generatedBakeKind || primitive?.deleted) return false;
+    if (!this.useGeneratedBakes) return false;
+    if (this.invalidGeneratedBakeAssetIds.has(primitive.glbAssetId)) return false;
+    if (primitive.generatedBakeKind === 'house') return this.useHouseGeneratedBake;
+    return true;
+  }
+
   async _loadGlbModels() {
-    const glbPrimitives = this.loadedEditableLayout.primitives.filter((p) => p.type === 'glb' && p.glbAssetId);
+    const glbPrimitives = this.loadedEditableLayout.primitives.filter((p) => (
+      p.type === 'glb'
+      && p.glbAssetId
+      && (!p.generatedBakeKind || this._isGeneratedBakePrimitiveEnabled(p))
+    ));
     if (!glbPrimitives.length) return;
     const assetIds = [...new Set(glbPrimitives.map((p) => p.glbAssetId))];
     await Promise.all(assetIds.map((id) => this._loadGlbModelByAssetId(id)));
   }
 
   streamGlbModels() {
-    const glbPrimitives = this.loadedEditableLayout.primitives.filter((p) => p.type === 'glb' && p.glbAssetId);
+    const glbPrimitives = this.loadedEditableLayout.primitives.filter((p) => (
+      p.type === 'glb'
+      && p.glbAssetId
+      && (!p.generatedBakeKind || this._isGeneratedBakePrimitiveEnabled(p))
+    ));
     if (!glbPrimitives.length) return;
     const assetIds = [...new Set(glbPrimitives.map((p) => p.glbAssetId))];
     Promise.all(assetIds.map(async (id) => {
       await this._loadGlbModelByAssetId(id);
+      this._applyLoadedEditableLayout();
       this._rebuildEditableLayout();
     }));
   }
@@ -1147,6 +1258,9 @@ export class Room {
       ...(type === 'plane' ? {
         zIndex: Number.isFinite(entry.zIndex) ? Math.trunc(entry.zIndex) : 0,
       } : {}),
+      bakedAssetId: entry.bakedAssetId ?? null,
+      generatedBakeKind: typeof entry.generatedBakeKind === 'string' ? entry.generatedBakeKind : null,
+      hiddenByGeneratedBake: entry.hiddenByGeneratedBake === true,
       ...(typeof entry.cameraOccluder === 'boolean' ? { cameraOccluder: entry.cameraOccluder } : {}),
     };
   }
@@ -1417,7 +1531,25 @@ export class Room {
 
     this.deletedBuiltInPrimitives.clear();
 
+    const activeGeneratedBakeAssetIds = this.useGeneratedBakes
+      ? new Set(
+        (this.loadedEditableLayout.primitives ?? [])
+          .filter((primitive) => this._isGeneratedBakePrimitiveEnabled(primitive))
+          .map((primitive) => primitive.glbAssetId),
+      )
+      : new Set();
+
     for (const primitive of this.loadedEditableLayout.primitives) {
+      if (primitive?.generatedBakeKind && !this._isGeneratedBakePrimitiveEnabled(primitive)) {
+        continue;
+      }
+      if (primitive?.bakedAssetId && activeGeneratedBakeAssetIds.has(primitive.bakedAssetId)) {
+        customPrimitives.push({
+          ...primitive,
+          hiddenByGeneratedBake: true,
+        });
+        continue;
+      }
       if (builtInIds.has(primitive.id)) {
         const entry = this.builtInEditableMeshes.get(primitive.id);
         if (!entry) continue;
@@ -1764,6 +1896,15 @@ export class Room {
     this.climbables = this.climbables.filter((mesh) => mesh.userData?.editablePrimitive !== true);
   }
 
+  _getEditableGlbCollisionMode(primitive) {
+    if (!primitive?.collider) return 'none';
+    // Generated house bakes are visual-only. Their source primitives remain
+    // authoritative for collision so traversal stays stable.
+    if (primitive.generatedBakeKind === 'house') return 'none';
+    if (primitive.generatedBakeKind) return 'none';
+    return 'bvh-proxy';
+  }
+
   _rebuildEditableLayout() {
     this._removeEditableColliders();
 
@@ -1834,14 +1975,20 @@ export class Room {
         this.editableGroup.add(clone);
         this.editableMeshes.set(primitive.id, clone);
 
-        if (primitive.collider) {
+        const collisionMode = this._getEditableGlbCollisionMode(primitive);
+        if (collisionMode === 'bvh-proxy') {
           this._registerCollider(clone, {
             type: 'furniture',
-            metadata: { source: 'editable', primitiveId: primitive.id, colliderClearance: primitive.colliderClearance },
+            metadata: {
+              source: 'editable',
+              primitiveId: primitive.id,
+              colliderClearance: primitive.colliderClearance,
+              collisionMode,
+            },
             useBvh: true,
             bvhOptions: {
               maxDepth: 3,
-              maxLeafTris: 18,
+              maxLeafSize: 18,
               maxBoxes: 48,
             },
           });
@@ -1899,6 +2046,7 @@ export class Room {
           metadata: {
             source: 'editable',
             primitiveId: primitive.id,
+            collisionMode: 'primitive',
             ...(isPlane ? { plane: true, zIndex: primitive.zIndex ?? 0 } : {}),
           },
         });
@@ -2244,6 +2392,7 @@ export class Room {
 
   _isPrimitiveVisible(primitive) {
     if (primitive?.deleted) return false;
+    if (primitive?.hiddenByGeneratedBake) return false;
     if (primitive?.spawnType) return this.spawnMarkersVisible;
     return true;
   }
@@ -2964,7 +3113,8 @@ export class Room {
     this.colliders.forEach((collider) => {
       const mesh = collider.mesh;
       const mergedHidden = mesh?.userData?.mergedIntoStatic === true;
-      if ((!mesh?.visible && !mergedHidden) || mesh?.userData?.colliderEnabled === false) {
+      const alwaysActive = mesh?.userData?.colliderAlwaysActive === true;
+      if ((!mesh?.visible && !mergedHidden && !alwaysActive) || mesh?.userData?.colliderEnabled === false) {
         return;
       }
       if (collider.metadata?.localBox) {
@@ -2989,9 +3139,9 @@ export class Room {
   } = {}) {
     if (!mesh) return;
     if (useBvh) {
-      const localBoxes = collectBvhProxyBoxes(mesh, {
+      const localBoxes = collectBvhProxyColliderBoxes(mesh, {
         maxDepth: bvhOptions?.maxDepth ?? 3,
-        maxLeafTris: bvhOptions?.maxLeafTris ?? 16,
+        maxLeafSize: bvhOptions?.maxLeafSize ?? 16,
         maxBoxes: bvhOptions?.maxBoxes ?? 48,
         minSize: bvhOptions?.minSize ?? 0.04,
         exclude: bvhOptions?.exclude ?? null,

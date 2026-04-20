@@ -82,6 +82,7 @@ async function main() {
 
     try {
       const document = await io.read(inputPath);
+      const useSafeLayoutProfile = Boolean(asset.generatedFromLayoutId);
 
       await document.transform(
         textureCompress({
@@ -97,19 +98,23 @@ async function main() {
       await document.transform(dedup());
       await document.transform(prune());
       await document.transform(resample());
-      await document.transform(
-        quantize({
-          quantizePosition: 14,
-          quantizeNormal: 10,
-          quantizeTexcoord: 12,
-        }),
-      );
-      await document.transform(
-        meshopt({
-          encoder: MeshoptEncoder,
-          level: 'high',
-        }),
-      );
+      if (useSafeLayoutProfile) {
+        console.log('  Using safe layout-bake optimization profile (skipping quantize/meshopt).');
+      } else {
+        await document.transform(
+          quantize({
+            quantizePosition: 14,
+            quantizeNormal: 10,
+            quantizeTexcoord: 12,
+          }),
+        );
+        await document.transform(
+          meshopt({
+            encoder: MeshoptEncoder,
+            level: 'high',
+          }),
+        );
+      }
 
       await fs.mkdir(PUBLIC_DIR, { recursive: true });
       await io.write(outputPath, document);

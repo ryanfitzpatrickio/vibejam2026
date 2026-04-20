@@ -344,8 +344,18 @@ export default class GameServer {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(this._getRoomStatePayload()),
+    }).then(async (response) => {
+      if (!response.ok) {
+        const bodyText = await response.text().catch(() => '');
+        this._reportUnhandledError('roomRegistryPublish', new Error(`room registry returned ${response.status}`), {
+          status: response.status,
+          body: bodyText.slice(0, 240),
+        });
+      }
     }).catch((error) => {
-      console.warn('[rooms] failed to publish room state:', error);
+      this._reportUnhandledError('roomRegistryPublish', error, {
+        url: this._roomRegistryUrl,
+      });
     }).finally(() => {
       this._roomRegistryInFlight = null;
       if (this._roomRegistryFlushPending) {
@@ -375,10 +385,22 @@ export default class GameServer {
     } catch (error) {
       const messageText = error instanceof Error ? error.message : String(error);
       if (!/after close/i.test(messageText)) {
-        console.warn('[net] failed to send websocket message:', messageText);
+        this._reportUnhandledError('wsSend', new Error(messageText), {
+          connectionId: conn?.id ?? null,
+        });
       }
       return false;
     }
+  }
+
+  _reportUnhandledError(path, error, extra = null) {
+    const roomId = getCurrentRoomId(this.room);
+    const label = `[room-error] room=${roomId} path=${path}`;
+    if (extra && typeof extra === 'object') {
+      console.error(label, extra, error);
+      return;
+    }
+    console.error(label, error);
   }
 
   _scatterUnlockItems() {
@@ -620,61 +642,84 @@ export default class GameServer {
   }
 
   async onStart() {
-    await this.stats?.ready;
-    this.tickInterval = setInterval(() => this.tick(), TICK_MS);
-    this._scheduleRoomRegistryUpdate();
+    try {
+      await this.stats?.ready;
+    } catch (error) {
+      this._reportUnhandledError('onStart:statsReady', error);
+    }
+    this.tickInterval = setInterval(() => {
+      try {
+        this.tick();
+      } catch (error) {
+        this._reportUnhandledError('tickInterval', error);
+      }
+    }, TICK_MS);
+    try {
+      this._scheduleRoomRegistryUpdate();
+    } catch (error) {
+      this._reportUnhandledError('onStart:roomRegistrySchedule', error);
+    }
   }
 
   onConnect(conn) {
-    if (this.inputQueues.size >= ROOM_HARD_CAP) {
-      const errPayload = JSON.stringify({ type: 'error', message: 'Room full' });
-      this._sendToConnection(conn, errPayload);
-      conn.close();
-      return;
+    try {
+      if (this.inputQueues.size >= ROOM_HARD_CAP) {
+        const errPayload = JSON.stringify({ type: 'error', message: 'Room full' });
+        this._sendToConnection(conn, errPayload);
+        conn.close();
+        return;
+      }
+
+      const state = createPlayerState(conn.id);
+      const spawn = this._pickPlayerSpawn(this.inputQueues.size);
+      state.position.x = spawn.x;
+      state.position.y = spawn.y;
+      state.position.z = spawn.z;
+      state.grounded = spawn.y <= 0.001;
+
+      this.players.set(conn.id, state);
+      this.inputQueues.set(conn.id, []);
+      this._messageBuckets.set(conn.id, {
+        tokens: WS_MESSAGE_BURST,
+        lastRefill: Date.now(),
+        dropped: 0,
+      });
+      this._syncBots();
+      this.stats?.recordConnect(conn.id, this.inputQueues.size);
+
+      const initPayload = JSON.stringify({
+        type: 'init',
+        id: conn.id,
+        players: Object.fromEntries(this.players),
+        predators: this.predators.map((p) => (p.type === 'roomba' ? serializeRoombaState(p) : serializePredatorState(p))),
+        pushBalls: this.pushBallWorld.getBallsState(),
+        cheesePickups: this.cheeseWorld.serializePickups(),
+        ropes: this.ropeWorld.getRopesSnapshot(),
+        round: this.round,
+        adversary: {
+          playerId: this._currentAdversaryId(),
+          available: !this._currentAdversaryId() && this.round.phase !== 'intermission',
+          safeRadius: ADVERSARY_SAFE_RADIUS,
+        },
+        extractionPortals: this.round.phase === 'extract' ? this.extractionPortalDefs : [],
+        heroClaims: { ...this.heroClaims },
+        unlockItems: this.unlockItems.filter((it) => !it.consumed),
+      });
+      this._sendToConnection(conn, initPayload);
+
+      this.broadcast(JSON.stringify({
+        type: 'player-joined',
+        player: state,
+      }), [conn.id]);
+      this._scheduleRoomRegistryUpdate();
+    } catch (error) {
+      this._reportUnhandledError('onConnect', error, {
+        connectionId: conn?.id ?? null,
+      });
+      try {
+        conn?.close?.();
+      } catch {}
     }
-
-    const state = createPlayerState(conn.id);
-    const spawn = this._pickPlayerSpawn(this.inputQueues.size);
-    state.position.x = spawn.x;
-    state.position.y = spawn.y;
-    state.position.z = spawn.z;
-    state.grounded = spawn.y <= 0.001;
-
-    this.players.set(conn.id, state);
-    this.inputQueues.set(conn.id, []);
-    this._messageBuckets.set(conn.id, {
-      tokens: WS_MESSAGE_BURST,
-      lastRefill: Date.now(),
-      dropped: 0,
-    });
-    this._syncBots();
-    this.stats?.recordConnect(conn.id, this.inputQueues.size);
-
-    const initPayload = JSON.stringify({
-      type: 'init',
-      id: conn.id,
-      players: Object.fromEntries(this.players),
-      predators: this.predators.map((p) => (p.type === 'roomba' ? serializeRoombaState(p) : serializePredatorState(p))),
-      pushBalls: this.pushBallWorld.getBallsState(),
-      cheesePickups: this.cheeseWorld.serializePickups(),
-      ropes: this.ropeWorld.getRopesSnapshot(),
-      round: this.round,
-      adversary: {
-        playerId: this._currentAdversaryId(),
-        available: !this._currentAdversaryId() && this.round.phase !== 'intermission',
-        safeRadius: ADVERSARY_SAFE_RADIUS,
-      },
-      extractionPortals: this.round.phase === 'extract' ? this.extractionPortalDefs : [],
-      heroClaims: { ...this.heroClaims },
-      unlockItems: this.unlockItems.filter((it) => !it.consumed),
-    });
-    this._sendToConnection(conn, initPayload);
-
-    this.broadcast(JSON.stringify({
-      type: 'player-joined',
-      player: state,
-    }), [conn.id]);
-    this._scheduleRoomRegistryUpdate();
   }
 
   _consumeMessageToken(connectionId, now = Date.now()) {
@@ -706,176 +751,190 @@ export default class GameServer {
   }
 
   async onMessage(message, sender) {
-    if (typeof message === 'string') {
-      this._benchBytesIn += utf8ByteLength(message);
-      this._benchMsgsIn += 1;
-    } else if (message instanceof ArrayBuffer) {
-      this._benchBytesIn += message.byteLength;
-      this._benchMsgsIn += 1;
-    } else if (ArrayBuffer.isView(message)) {
-      this._benchBytesIn += message.byteLength;
-      this._benchMsgsIn += 1;
-    }
-
-    if (!this._consumeMessageToken(sender.id)) {
-      const bucket = this._messageBuckets.get(sender.id);
-      if (bucket?.dropped >= MAX_DROPPED_MESSAGES_BEFORE_CLOSE) {
-        sender.close();
-      }
-      return;
-    }
-
-    if (typeof message === 'string' && message.length > MAX_WS_MESSAGE_CHARS) {
-      return;
-    }
-
-    let data;
+    let messagePath = 'unknown';
     try {
-      data = JSON.parse(/** @type {string} */ (message));
-    } catch {
-      return;
-    }
-
-    if (data.type === 'hello') {
-      const playerHello = this.players.get(sender.id);
-      if (playerHello && typeof data.displayName === 'string') {
-        playerHello.displayName = sanitizeDisplayName(data.displayName);
-        this.stats?.recordDisplayName(sender.id, playerHello.displayName);
+      if (typeof message === 'string') {
+        this._benchBytesIn += utf8ByteLength(message);
+        this._benchMsgsIn += 1;
+      } else if (message instanceof ArrayBuffer) {
+        this._benchBytesIn += message.byteLength;
+        this._benchMsgsIn += 1;
+      } else if (ArrayBuffer.isView(message)) {
+        this._benchBytesIn += message.byteLength;
+        this._benchMsgsIn += 1;
       }
 
-      const portalArrival = sanitizePortalArrivalPayload(data.portal);
-      if (portalArrival.active && !this.portalArrivals.has(sender.id)) {
-        const player = this.players.get(sender.id);
-        if (applyPortalArrivalToPlayerState(player, portalArrival, this.portalPlacements)) {
-          this.portalArrivals.add(sender.id);
-          const portalPayload = JSON.stringify({
-            type: 'portal-spawn',
-            player,
-          });
-          this._sendToConnection(sender, portalPayload);
-          this.broadcast(JSON.stringify({
-            type: 'player-joined',
-            player,
-          }), [sender.id]);
+      if (!this._consumeMessageToken(sender.id)) {
+        const bucket = this._messageBuckets.get(sender.id);
+        if (bucket?.dropped >= MAX_DROPPED_MESSAGES_BEFORE_CLOSE) {
+          sender.close();
         }
+        return;
       }
 
+      if (typeof message === 'string' && message.length > MAX_WS_MESSAGE_CHARS) {
+        return;
+      }
+
+      let data;
       try {
-        await this.stats?.identifyConnection(sender.id, data.playerKey, playerHello?.displayName);
-      } catch (error) {
-        console.warn('[stats] failed to identify player:', error);
+        data = JSON.parse(/** @type {string} */ (message));
+      } catch {
+        return;
       }
-      return;
-    }
+      messagePath = typeof data?.type === 'string' ? data.type : 'unknown';
 
-    if (data.type === 'input') {
-      const queue = this.inputQueues.get(sender.id);
-      if (queue) {
-        if (queue.length < 8) {
-          queue.push(sanitizePlayerInputMessage(data));
+      if (data.type === 'hello') {
+        const playerHello = this.players.get(sender.id);
+        if (playerHello && typeof data.displayName === 'string') {
+          playerHello.displayName = sanitizeDisplayName(data.displayName);
+          this.stats?.recordDisplayName(sender.id, playerHello.displayName);
         }
-      }
-      return;
-    }
 
-    if (data.type === 'task-complete') {
-      const player = this.players.get(sender.id);
-      if (!player?.alive) return;
-      const now = Date.now();
-      const last = this._taskCompleteCooldown.get(sender.id) ?? 0;
-      if (now - last < 600) return;
-      const px = Number(data.position?.x);
-      const py = Number(data.position?.y);
-      const pz = Number(data.position?.z);
-      if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) return;
-      const dx = px - player.position.x;
-      const dz = pz - player.position.z;
-      if (dx * dx + dz * dz > 25) return; // must be within ~5m of the player
-      const amount = Math.max(1, Math.min(24, Math.floor(Number(data.amount) || 6)));
-      this._taskCompleteCooldown.set(sender.id, now);
-      // Scatter a few merged piles around the player so they feel like a reward.
-      const pieces = Math.min(amount, 6);
-      const per = Math.max(1, Math.floor(amount / pieces));
-      let remaining = amount;
-      for (let i = 0; i < pieces && remaining > 0; i += 1) {
-        const theta = (i / pieces) * Math.PI * 2 + Math.random() * 0.4;
-        const radius = 0.45 + Math.random() * 0.6;
-        const give = i === pieces - 1 ? remaining : per;
-        remaining -= give;
-        this.cheeseWorld.mergeOrAddDrop({
-          x: player.position.x + Math.cos(theta) * radius,
-          y: player.position.y,
-          z: player.position.z + Math.sin(theta) * radius,
-        }, give);
-      }
-      return;
-    }
+        const portalArrival = sanitizePortalArrivalPayload(data.portal);
+        if (portalArrival.active && !this.portalArrivals.has(sender.id)) {
+          const player = this.players.get(sender.id);
+          if (applyPortalArrivalToPlayerState(player, portalArrival, this.portalPlacements)) {
+            this.portalArrivals.add(sender.id);
+            const portalPayload = JSON.stringify({
+              type: 'portal-spawn',
+              player,
+            });
+            this._sendToConnection(sender, portalPayload);
+            this.broadcast(JSON.stringify({
+              type: 'player-joined',
+              player,
+            }), [sender.id]);
+          }
+        }
 
-    if (data.type === 'spawn-extra-ball') {
-      const player = this.players.get(sender.id);
-      if (!player?.alive) return;
-      const used = this._playerExtraBallSpawnCount.get(sender.id) ?? 0;
-      if (used >= MAX_EXTRA_BALL_SPAWNS_PER_PLAYER) return;
-      const now = Date.now();
-      const last = this._spawnBallCooldown.get(sender.id) ?? 0;
-      if (now - last < 240) return;
-      this._spawnBallCooldown.set(sender.id, now);
-      const ok = this.pushBallWorld.spawnExtraBallNear(player.position, player.rotation);
-      if (ok) {
-        this._playerExtraBallSpawnCount.set(sender.id, used + 1);
-      }
-      return;
-    }
-
-    if (data.type === 'unlock-pickup') {
-      this._handleUnlockPickup(sender.id, data);
-      return;
-    }
-
-    if (data.type === 'claim-hero') {
-      this._handleClaimHero(sender.id, data);
-      return;
-    }
-
-    if (data.type === 'dev-sync-layout') {
-      if (!isDevLayoutSyncEnabled(this.room)) {
+        try {
+          await this.stats?.identifyConnection(sender.id, data.playerKey, playerHello?.displayName);
+        } catch (error) {
+          console.warn('[stats] failed to identify player:', error);
+        }
         return;
       }
-      const expected = getDevLayoutSyncToken(this.room);
-      if (!expected || typeof data.syncToken !== 'string' || data.syncToken !== expected) {
+
+      if (data.type === 'input') {
+        const queue = this.inputQueues.get(sender.id);
+        if (queue) {
+          if (queue.length < 8) {
+            queue.push(sanitizePlayerInputMessage(data));
+          }
+        }
         return;
       }
-      if (!isValidDevSyncLayout(data.layout)) {
+
+      if (data.type === 'task-complete') {
+        const player = this.players.get(sender.id);
+        if (!player?.alive) return;
+        const now = Date.now();
+        const last = this._taskCompleteCooldown.get(sender.id) ?? 0;
+        if (now - last < 600) return;
+        const px = Number(data.position?.x);
+        const py = Number(data.position?.y);
+        const pz = Number(data.position?.z);
+        if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) return;
+        const dx = px - player.position.x;
+        const dz = pz - player.position.z;
+        if (dx * dx + dz * dz > 25) return; // must be within ~5m of the player
+        const amount = Math.max(1, Math.min(24, Math.floor(Number(data.amount) || 6)));
+        this._taskCompleteCooldown.set(sender.id, now);
+        // Scatter a few merged piles around the player so they feel like a reward.
+        const pieces = Math.min(amount, 6);
+        const per = Math.max(1, Math.floor(amount / pieces));
+        let remaining = amount;
+        for (let i = 0; i < pieces && remaining > 0; i += 1) {
+          const theta = (i / pieces) * Math.PI * 2 + Math.random() * 0.4;
+          const radius = 0.45 + Math.random() * 0.6;
+          const give = i === pieces - 1 ? remaining : per;
+          remaining -= give;
+          this.cheeseWorld.mergeOrAddDrop({
+            x: player.position.x + Math.cos(theta) * radius,
+            y: player.position.y,
+            z: player.position.z + Math.sin(theta) * radius,
+          }, give);
+        }
         return;
       }
-      this._applyLayout(data.layout, { resetPredators: true });
+
+      if (data.type === 'spawn-extra-ball') {
+        const player = this.players.get(sender.id);
+        if (!player?.alive) return;
+        const used = this._playerExtraBallSpawnCount.get(sender.id) ?? 0;
+        if (used >= MAX_EXTRA_BALL_SPAWNS_PER_PLAYER) return;
+        const now = Date.now();
+        const last = this._spawnBallCooldown.get(sender.id) ?? 0;
+        if (now - last < 240) return;
+        this._spawnBallCooldown.set(sender.id, now);
+        const ok = this.pushBallWorld.spawnExtraBallNear(player.position, player.rotation);
+        if (ok) {
+          this._playerExtraBallSpawnCount.set(sender.id, used + 1);
+        }
+        return;
+      }
+
+      if (data.type === 'unlock-pickup') {
+        this._handleUnlockPickup(sender.id, data);
+        return;
+      }
+
+      if (data.type === 'claim-hero') {
+        this._handleClaimHero(sender.id, data);
+        return;
+      }
+
+      if (data.type === 'dev-sync-layout') {
+        if (!isDevLayoutSyncEnabled(this.room)) {
+          return;
+        }
+        const expected = getDevLayoutSyncToken(this.room);
+        if (!expected || typeof data.syncToken !== 'string' || data.syncToken !== expected) {
+          return;
+        }
+        if (!isValidDevSyncLayout(data.layout)) {
+          return;
+        }
+        this._applyLayout(data.layout, { resetPredators: true });
+      }
+    } catch (error) {
+      this._reportUnhandledError(`onMessage:${messagePath}`, error, {
+        connectionId: sender?.id ?? null,
+      });
     }
   }
 
   onClose(conn) {
-    this.stats?.recordDisconnect(conn.id);
-    this._spawnBallCooldown.delete(conn.id);
-    this._playerExtraBallSpawnCount.delete(conn.id);
-    this._messageBuckets.delete(conn.id);
-    this._taskCompleteCooldown.delete(conn.id);
-    this._claimHeroCooldown.delete(conn.id);
-    this._unlockPickupCooldown.delete(conn.id);
-    this.portalArrivals.delete(conn.id);
-    const leaving = this.players.get(conn.id);
-    if (leaving?.isAdversary) this._recordAdversaryScore(conn.id, leaving);
-    if (leaving) this.cheeseWorld.onDeathDropCarried(leaving);
-    this.mouseLaunchWorld?.removePlayer?.(conn.id);
-    this.ropeWorld?.removePlayer?.(conn.id);
-    this._lastRopeGrab?.delete(conn.id);
-    this._lastRopeJump?.delete(conn.id);
-    this.players.delete(conn.id);
-    this.inputQueues.delete(conn.id);
-    this.broadcast(JSON.stringify({
-      type: 'player-left',
-      id: conn.id,
-    }));
-    this._syncBots();
-    this._scheduleRoomRegistryUpdate();
+    try {
+      this.stats?.recordDisconnect(conn.id);
+      this._spawnBallCooldown.delete(conn.id);
+      this._playerExtraBallSpawnCount.delete(conn.id);
+      this._messageBuckets.delete(conn.id);
+      this._taskCompleteCooldown.delete(conn.id);
+      this._claimHeroCooldown.delete(conn.id);
+      this._unlockPickupCooldown.delete(conn.id);
+      this.portalArrivals.delete(conn.id);
+      const leaving = this.players.get(conn.id);
+      if (leaving?.isAdversary) this._recordAdversaryScore(conn.id, leaving);
+      if (leaving) this.cheeseWorld.onDeathDropCarried(leaving);
+      this.mouseLaunchWorld?.removePlayer?.(conn.id);
+      this.ropeWorld?.removePlayer?.(conn.id);
+      this._lastRopeGrab?.delete(conn.id);
+      this._lastRopeJump?.delete(conn.id);
+      this.players.delete(conn.id);
+      this.inputQueues.delete(conn.id);
+      this.broadcast(JSON.stringify({
+        type: 'player-left',
+        id: conn.id,
+      }));
+      this._syncBots();
+      this._scheduleRoomRegistryUpdate();
+    } catch (error) {
+      this._reportUnhandledError('onClose', error, {
+        connectionId: conn?.id ?? null,
+      });
+    }
   }
 
   _advanceRoundPhase(wallNow) {
@@ -1970,9 +2029,9 @@ export default class GameServer {
       });
     }
 
-    const snapshot = {
-      type: 'snapshot',
-      tick: Date.now(),
+      const snapshot = {
+        type: 'snapshot',
+        tick: Date.now(),
       seqs,
       players: playersObj,
       predators: this.predators.map((p) => (p.type === 'roomba' ? serializeRoombaState(p) : serializePredatorState(p))),
@@ -1985,9 +2044,15 @@ export default class GameServer {
         available: !this._currentAdversaryId() && this.round.phase !== 'intermission',
         safeRadius: ADVERSARY_SAFE_RADIUS,
       },
-      extractionPortals: this.round.phase === 'extract' ? this.extractionPortalDefs : [],
-    };
-    this.broadcast(JSON.stringify(snapshot));
+        extractionPortals: this.round.phase === 'extract' ? this.extractionPortalDefs : [],
+      };
+      this.broadcast(JSON.stringify(snapshot));
+    } catch (error) {
+      this._reportUnhandledError('tick', error, {
+        players: this.players.size,
+        humans: this.inputQueues.size,
+        predators: this.predators.length,
+      });
     } finally {
       const t1 = (typeof performance !== 'undefined' && performance.now)
         ? performance.now()
@@ -2008,68 +2073,73 @@ export default class GameServer {
   async onRequest(request) {
     const url = new URL(request.url);
     const env = this.room.env ?? this.room.context?.env ?? {};
-    const isLeaderboardRequest = url.pathname.endsWith('/leaderboard');
-    const isStatsRequest = url.pathname.endsWith('/stats');
-    const isBenchReset = url.pathname.endsWith('/bench-metrics/reset');
-    const isBenchMetrics = url.pathname.endsWith('/bench-metrics') && !isBenchReset;
+    try {
+      const isLeaderboardRequest = url.pathname.endsWith('/leaderboard');
+      const isStatsRequest = url.pathname.endsWith('/stats');
+      const isBenchReset = url.pathname.endsWith('/bench-metrics/reset');
+      const isBenchMetrics = url.pathname.endsWith('/bench-metrics') && !isBenchReset;
 
-    if (request.method === 'OPTIONS' && (isLeaderboardRequest || isStatsRequest || isBenchMetrics || isBenchReset)) {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeadersForRequest(request, env),
-      });
-    }
+      if (request.method === 'OPTIONS' && (isLeaderboardRequest || isStatsRequest || isBenchMetrics || isBenchReset)) {
+        return new Response(null, {
+          status: 204,
+          headers: corsHeadersForRequest(request, env),
+        });
+      }
 
-    if (isLeaderboardRequest) {
-      return jsonResponse(request, env, await this.stats.getLeaderboards());
-    }
+      if (isLeaderboardRequest) {
+        return jsonResponse(request, env, await this.stats.getLeaderboards());
+      }
 
-    if (isBenchMetrics || isBenchReset) {
-      const benchTok = getPartyEnv(this.room, 'BENCH_METRICS_TOKEN');
-      const expected = typeof benchTok === 'string' ? benchTok.trim() : '';
-      if (!expected) {
+      if (isBenchMetrics || isBenchReset) {
+        const benchTok = getPartyEnv(this.room, 'BENCH_METRICS_TOKEN');
+        const expected = typeof benchTok === 'string' ? benchTok.trim() : '';
+        if (!expected) {
+          return jsonResponse(request, env, {
+            error: 'Set BENCH_METRICS_TOKEN in PartyKit env to enable bench-metrics',
+          }, 503);
+        }
+        const authHeader = request.headers.get('Authorization') ?? '';
+        const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+        if (bearerToken !== expected) {
+          return new Response('Unauthorized', { status: 401 });
+        }
+        if (request.method === 'POST' && isBenchReset) {
+          this._resetBenchMetrics();
+          return jsonResponse(request, env, { ok: true, reset: true });
+        }
+        if (request.method === 'GET' && isBenchMetrics) {
+          return jsonResponse(request, env, this.getBenchMetricsPayload());
+        }
+        return new Response('Method not allowed', { status: 405 });
+      }
+
+      if (!isStatsRequest) {
+        return new Response('Not found', { status: 404 });
+      }
+
+      const adminTok = getPartyEnv(this.room, 'STATS_ADMIN_TOKEN');
+      const collectorTok = getPartyEnv(this.room, 'STATS_COLLECTOR_TOKEN');
+      const expectedToken = (typeof adminTok === 'string' && adminTok.trim() !== '')
+        ? adminTok
+        : (typeof collectorTok === 'string' && collectorTok.trim() !== '' ? collectorTok : '');
+
+      if (!expectedToken) {
         return jsonResponse(request, env, {
-          error: 'Set BENCH_METRICS_TOKEN in PartyKit env to enable bench-metrics',
+          error: 'Set STATS_ADMIN_TOKEN or STATS_COLLECTOR_TOKEN for /stats',
         }, 503);
       }
+
       const authHeader = request.headers.get('Authorization') ?? '';
       const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-      if (bearerToken !== expected) {
+      if (bearerToken !== expectedToken) {
         return new Response('Unauthorized', { status: 401 });
       }
-      if (request.method === 'POST' && isBenchReset) {
-        this._resetBenchMetrics();
-        return jsonResponse(request, env, { ok: true, reset: true });
-      }
-      if (request.method === 'GET' && isBenchMetrics) {
-        return jsonResponse(request, env, this.getBenchMetricsPayload());
-      }
-      return new Response('Method not allowed', { status: 405 });
+
+      const summary = await this.stats.getSummary();
+      return jsonResponse(request, env, summary);
+    } catch (error) {
+      this._reportUnhandledError(`onRequest:${request.method} ${url.pathname}`, error);
+      return jsonResponse(request, env, { error: 'Internal error' }, 500);
     }
-
-    if (!isStatsRequest) {
-      return new Response('Not found', { status: 404 });
-    }
-
-    const adminTok = getPartyEnv(this.room, 'STATS_ADMIN_TOKEN');
-    const collectorTok = getPartyEnv(this.room, 'STATS_COLLECTOR_TOKEN');
-    const expectedToken = (typeof adminTok === 'string' && adminTok.trim() !== '')
-      ? adminTok
-      : (typeof collectorTok === 'string' && collectorTok.trim() !== '' ? collectorTok : '');
-
-    if (!expectedToken) {
-      return jsonResponse(request, env, {
-        error: 'Set STATS_ADMIN_TOKEN or STATS_COLLECTOR_TOKEN for /stats',
-      }, 503);
-    }
-
-    const authHeader = request.headers.get('Authorization') ?? '';
-    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    if (bearerToken !== expectedToken) {
-      return new Response('Unauthorized', { status: 401 });
-    }
-
-    const summary = await this.stats.getSummary();
-    return jsonResponse(request, env, summary);
   }
 }

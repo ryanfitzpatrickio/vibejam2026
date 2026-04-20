@@ -6,6 +6,7 @@
       "filename": "car-template.glb",
       "sourcePath": "assets/source/custom/car-template.glb",
       "publicPath": "models/car-template.glb",
+      "chromaKey": true,
       "size": 7039892,
       "uploadedAt": "2026-04-06T15:21:50.331Z"
     },
@@ -62,6 +63,26 @@
       "publicPath": "models/speedy.glb",
       "size": 0,
       "uploadedAt": "2026-04-19T00:00:00.000Z"
+    },
+    {
+      "id": "asset-veg-tree-tree-glb-a",
+      "name": "veg-tree-firsttree",
+      "filename": "veg-tree-firsttree-tree-glb-a.glb",
+      "sourcePath": "assets/source/custom/veg-tree-firsttree-tree-glb-a.glb",
+      "publicPath": "models/veg-tree-firsttree-tree-glb-a.glb",
+      "generatedFromVegetationSpeciesId": "tree-glb-a",
+      "size": 163172,
+      "uploadedAt": "2026-04-20T15:55:06.308Z"
+    },
+    {
+      "id": "asset-house-kitchen-layout",
+      "name": "house-kitchen-layout",
+      "filename": "house-kitchen-layout.glb",
+      "sourcePath": "assets/source/custom/house-kitchen-layout.glb",
+      "publicPath": "models/house-kitchen-layout.glb",
+      "generatedFromLayoutId": "kitchen-layout",
+      "size": 14944504,
+      "uploadedAt": "2026-04-20T16:05:22.266Z"
     }
   ]
 }

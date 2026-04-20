@@ -23,11 +23,16 @@ export function ensureMeshGeometryBvh(geometry, options = {}) {
   if (!geometry?.attributes?.position) return false;
   installMeshBvhSupport();
   if (!geometry.boundsTree) {
-    geometry.computeBoundsTree?.({
-      strategy: options.strategy,
+    // This BVH is used as an acceleration structure for queries and proxy-collider
+    // extraction. Gameplay collision does not use triangle-perfect mesh tests.
+    const buildOptions = {
       maxDepth: options.maxDepth ?? 24,
-      maxLeafTris: options.maxLeafTris ?? 16,
-    });
+      maxLeafSize: options.maxLeafSize ?? 16,
+    };
+    if (Number.isFinite(options.strategy)) {
+      buildOptions.strategy = options.strategy;
+    }
+    geometry.computeBoundsTree?.(buildOptions);
   }
   return !!geometry.boundsTree;
 }
@@ -39,9 +44,11 @@ function toBox3(boundingData) {
   );
 }
 
-export function collectBvhProxyBoxes(root, {
+// Convert a mesh BVH into a small set of local AABB proxies for gameplay collision.
+// This is intentionally approximate and should not be treated as exact mesh collision.
+export function collectBvhProxyColliderBoxes(root, {
   maxDepth = 3,
-  maxLeafTris = 16,
+  maxLeafSize = 16,
   maxBoxes = 48,
   minSize = 0.04,
   exclude = null,
@@ -57,12 +64,12 @@ export function collectBvhProxyBoxes(root, {
     if (!child?.isMesh) return;
     if (exclude?.(child)) return;
     const geometry = child.geometry;
-    if (!ensureMeshGeometryBvh(geometry, { maxLeafTris })) return;
+    if (!ensureMeshGeometryBvh(geometry, { maxLeafSize })) return;
 
     _relativeMatrix.multiplyMatrices(_rootInverse, child.matrixWorld);
     geometry.boundsTree.traverse((depth, isLeaf, boundingData, _offsetOrSplit, triCount = 0) => {
       if (boxes.length >= maxBoxes) return true;
-      const shouldCollect = isLeaf || depth >= maxDepth || triCount <= maxLeafTris;
+      const shouldCollect = isLeaf || depth >= maxDepth || triCount <= maxLeafSize;
       if (!shouldCollect) return false;
       const localBox = toBox3(boundingData).applyMatrix4(_relativeMatrix);
       localBox.getSize(_size);
@@ -76,6 +83,8 @@ export function collectBvhProxyBoxes(root, {
 
   return boxes;
 }
+
+export const collectBvhProxyBoxes = collectBvhProxyColliderBoxes;
 
 export function worldAabbFromLocalBox(localBox, matrixWorld) {
   const worldBox = localBox.clone().applyMatrix4(matrixWorld);

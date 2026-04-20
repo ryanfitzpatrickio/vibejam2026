@@ -117,6 +117,13 @@ function setCameraOccluderEnabled(root, enabled) {
   });
 }
 
+function getVegetationCollisionMode(species) {
+  if (!species || species.collision === 'none') return 'none';
+  if (species.kind === 'tree') return 'trunk-proxy';
+  if (species.renderMode === 'instancedCards') return 'none';
+  return 'bvh-proxy';
+}
+
 function buildClumpGeometry(cardCount = 3) {
   const cards = [];
   for (let index = 0; index < cardCount; index += 1) {
@@ -417,10 +424,11 @@ export class VegetationSystem {
     return mesh;
   }
 
-  _createProceduralTreeTrunk(species) {
+  _createProceduralTreeTrunk(species, { excludeBvhCollider = false } = {}) {
     const trunk = buildTreeTrunkMesh(species.treeBuilder);
     trunk.castShadow = species.shadow !== 'none';
     trunk.receiveShadow = true;
+    trunk.userData.excludeBvhCollider = excludeBvhCollider === true;
     return trunk;
   }
 
@@ -469,6 +477,9 @@ export class VegetationSystem {
     if (!source && !treeBuilder) return null;
 
     const group = new THREE.Group();
+    // Trees render from the baked/source visual asset, but collision should stay on a
+    // simple authored trunk proxy instead of the decorative canopy silhouette.
+    const colliderProxyGroup = treeBuilder ? new THREE.Group() : null;
     const box = new THREE.Box3();
     const size = new THREE.Vector3();
     if (source) {
@@ -507,7 +518,7 @@ export class VegetationSystem {
           child.receiveShadow = true;
         });
       } else if (treeBuilder) {
-        clone.add(this._createProceduralTreeTrunk(species));
+        clone.add(this._createProceduralTreeTrunk(species, { excludeBvhCollider: true }));
       }
 
       if (treeBuilder) {
@@ -518,7 +529,28 @@ export class VegetationSystem {
       const scalar = desiredHeight / baseHeight;
       clone.scale.setScalar(scalar);
       group.add(clone);
+
+      if (colliderProxyGroup) {
+        const colliderMesh = this._createProceduralTreeTrunk(species, { excludeBvhCollider: false });
+        colliderMesh.position.copy(position);
+        colliderMesh.quaternion.copy(quaternion);
+        colliderMesh.scale.setScalar(scalar);
+        colliderMesh.visible = false;
+        colliderMesh.castShadow = false;
+        colliderMesh.receiveShadow = false;
+        colliderMesh.userData.colliderAlwaysActive = true;
+        colliderProxyGroup.add(colliderMesh);
+      }
     });
+
+    if (colliderProxyGroup && colliderProxyGroup.children.length) {
+      colliderProxyGroup.name = `${entry.name}-collider`;
+      colliderProxyGroup.visible = false;
+      colliderProxyGroup.userData.colliderAlwaysActive = true;
+      setVegetationUserData(colliderProxyGroup, entry.id);
+      group.add(colliderProxyGroup);
+      group.userData.colliderProxyRoot = colliderProxyGroup;
+    }
 
     setVegetationUserData(group, entry.id);
     setSkipFullscreenOutline(group, species.kind === 'grass');
@@ -547,6 +579,9 @@ export class VegetationSystem {
     }
 
     group.add(content);
+    if (content.userData?.colliderProxyRoot) {
+      group.userData.colliderProxyRoot = content.userData.colliderProxyRoot;
+    }
     group.updateMatrixWorld(true);
     return group;
   }
@@ -573,18 +608,20 @@ export class VegetationSystem {
       this.placementObjects.set(entry.id, { entry, species, group });
 
       if (species.collision !== 'none') {
-        const useBvh = species.renderMode !== 'instancedCards';
-        this.room._registerCollider(group, {
+        const collisionMode = getVegetationCollisionMode(species);
+        const colliderRoot = group.userData.colliderProxyRoot ?? group;
+        this.room._registerCollider(colliderRoot, {
           type: 'furniture',
           metadata: {
             source: 'vegetation',
             vegetationId: entry.id,
             nonWalkable: species.kind === 'tree',
+            collisionMode,
           },
-          useBvh,
-          bvhOptions: useBvh ? {
+          useBvh: collisionMode !== 'none',
+          bvhOptions: collisionMode !== 'none' ? {
             maxDepth: species.kind === 'tree' ? 3 : 2,
-            maxLeafTris: species.kind === 'tree' ? 12 : 18,
+            maxLeafSize: species.kind === 'tree' ? 12 : 18,
             maxBoxes: species.kind === 'tree' ? 32 : 24,
             exclude: (child) => child.userData?.excludeBvhCollider === true,
           } : null,

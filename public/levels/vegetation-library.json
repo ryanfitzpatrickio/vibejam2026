@@ -81,7 +81,7 @@
       "lineSpacing": 1.5,
       "shadow": "none",
       "collision": "box",
-      "assetId": null,
+      "assetId": "asset-veg-tree-tree-glb-a",
       "treeBuilder": {
         "trunkAssetName": "tree-trunk",
         "trunk": {

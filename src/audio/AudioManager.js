@@ -1576,7 +1576,7 @@ export class AudioManager {
     try { await this.audioContext.resume(); } catch {}
     const src = this.audioContext.createBufferSource();
     src.buffer = buffer;
-    src.connect(this.sfxContext);
+    src.connect(this.musicContext);
     this._extractCountdownPlaying = true;
     this._musicOverrideExtract = true;
     this._applyMusicOverrideDucking?.();
