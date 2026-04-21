@@ -7,8 +7,15 @@
  *   2. In `.env` (loaded via npm script): `BENCH_METRICS_TOKEN=<secret>`
  *
  * Usage:
- *   npm run bench:net
- *   node scripts/bench-network.mjs --clients=4 --duration=12 --warmup=2 --room=bench-net
+ *   npm run bench:net                                                    # local dev (127.0.0.1:1999)
+ *   node scripts/bench-network.mjs --host=party.example.com --clients=4  # remote (auto TLS/wss)
+ *   node scripts/bench-network.mjs --host=http://10.0.0.5:1999           # explicit plaintext
+ *
+ * NOTE: Benching prod is disabled by default. The prod party rejects WS upgrades
+ * with empty Origin headers (scripts don't send one) and requires a Turnstile
+ * token that node can't generate. To bench prod you must temporarily set
+ * ALLOW_EMPTY_ORIGIN=true AND leave TURNSTILE_SECRET unset in the deployed
+ * PartyKit env — do this in a separate staging party, not your live one.
  *
  * Writes ./bench-results.json (gitignored) for `npm run bench:compare`.
  */
@@ -65,9 +72,33 @@ function utf8Len(str) {
   return Buffer.byteLength(str, 'utf8');
 }
 
+/**
+ * Decide http(s)/ws(s) based on host. Pass `http://…` / `ws://…` explicitly to
+ * force plaintext. Anything non-local defaults to TLS so `--host=party.example.com`
+ * Just Works against a deployed PartyKit party.
+ */
+function resolveSchemes(host) {
+  const trimmed = String(host).trim();
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('ws://')) {
+    return { http: 'http', ws: 'ws', host: trimmed.replace(/^(https?|wss?):\/\//i, '') };
+  }
+  if (lower.startsWith('https://') || lower.startsWith('wss://')) {
+    return { http: 'https', ws: 'wss', host: trimmed.replace(/^(https?|wss?):\/\//i, '') };
+  }
+  const hostname = trimmed.split(':')[0] ?? '';
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  return { http: isLocal ? 'http' : 'https', ws: isLocal ? 'ws' : 'wss', host: trimmed };
+}
+
 function benchHttpBase(host, room) {
-  const h = host.includes('://') ? host.replace(/^https?:\/\//, '') : host;
-  return `http://${h}/parties/main/${encodeURIComponent(room)}`;
+  const { http, host: h } = resolveSchemes(host);
+  return `${http}://${h}/parties/main/${encodeURIComponent(room)}`;
+}
+
+function benchWsUrl(host, room) {
+  const { ws, host: h } = resolveSchemes(host);
+  return `${ws}://${h}/parties/main/${encodeURIComponent(room)}`;
 }
 
 async function httpJson(url, opts = {}) {
@@ -157,7 +188,8 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const token = process.env.BENCH_METRICS_TOKEN?.trim() ?? '';
   const base = benchHttpBase(args.host, args.room);
-  const wsUrl = `ws://${args.host.replace(/^https?:\/\//, '')}/parties/main/${encodeURIComponent(args.room)}`;
+  const wsUrl = benchWsUrl(args.host, args.room);
+  console.log(`[bench] host=${args.host} ws=${wsUrl}`);
 
   const stats = {
     clientBytesIn: 0,

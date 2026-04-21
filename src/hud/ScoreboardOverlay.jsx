@@ -121,7 +121,7 @@ function KeyboardControlsImage() {
       <Callout fromX="328" fromY="110" toX="216" toY="262" labelX="38" labelY="266" label="Tab players" color="#d9f99d" />
 
       <Callout fromX="387" fromY="110" toX="686" toY="86" labelX="704" labelY="90" label="Q grab" color="#c4b5fd" />
-      <Callout fromX="471" fromY="110" toX="686" toY="122" labelX="704" labelY="126" label="E smack" color="#fda4af" />
+      <Callout fromX="471" fromY="110" toX="686" toY="122" labelX="704" labelY="126" label="E smack / throw held" color="#fda4af" />
       <Callout fromX="513" fromY="110" toX="686" toY="158" labelX="704" labelY="162" label="R spawn ball" color="#fde68a" />
       <Callout fromX="555" fromY="110" toX="686" toY="194" labelX="704" labelY="198" label="F emote" color="#99f6e4" />
       <Callout fromX="531" fromY="154" toX="686" toY="230" labelX="704" labelY="234" label="H hero" color="#fdba74" />
@@ -208,9 +208,9 @@ function ControllerControlsImage() {
       <Callout fromX="288" fromY="84" toX="126" toY="112" labelX="38" labelY="116" label="LT crouch" color="#93c5fd" />
       <Callout fromX="472" fromY="84" toX="634" toY="78" labelX="648" labelY="82" label="RT sprint" color="#fbbf24" />
       <Callout fromX="288" fromY="112" toX="126" toY="146" labelX="38" labelY="150" label="LB hero" color="#fdba74" />
-      <Callout fromX="472" fromY="112" toX="634" toY="112" labelX="648" labelY="116" label="RB throw / squeak" color="#fde68a" />
+      <Callout fromX="472" fromY="112" toX="634" toY="112" labelX="648" labelY="116" label="B hold + X throw" color="#fde68a" />
       <Callout fromX="544" fromY="196" toX="634" toY="146" labelX="648" labelY="150" label="A jump" color="#fca5a5" />
-      <Callout fromX="514" fromY="166" toX="634" toY="180" labelX="648" labelY="184" label="X smack" color="#fda4af" />
+      <Callout fromX="514" fromY="166" toX="634" toY="180" labelX="648" labelY="184" label="X smack / throw held" color="#fda4af" />
       <Callout fromX="574" fromY="166" toX="634" toY="214" labelX="648" labelY="218" label="B grab" color="#c4b5fd" />
       <Callout fromX="544" fromY="136" toX="634" toY="248" labelX="648" labelY="252" label="Y emote" color="#99f6e4" />
       <Callout fromX="380" fromY="137" toX="126" toY="180" labelX="38" labelY="184" label="View players" color="#d9f99d" />

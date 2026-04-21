@@ -11,14 +11,14 @@ const ROOM_STATE_TTL_SECONDS = 60 * 60 * 24 * 7;
 const ROOM_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval' https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com",
+  "script-src 'self' 'wasm-unsafe-eval' https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com",
   "media-src 'self' blob:",
   "connect-src 'self' blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com https://*.partykit.dev https://*.partykit.io https://party.ryanfitzpatrick.io wss://*.partykit.dev wss://*.partykit.io wss://party.ryanfitzpatrick.io wss://localhost:* ws://localhost:* http://localhost:*",
   "worker-src 'self' blob:",
   "font-src 'self' data:",
-  "frame-src https://vibejam.cc https://vibej.am",
+  "frame-src https://vibejam.cc https://vibej.am https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",

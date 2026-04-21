@@ -586,6 +586,62 @@ export class VegetationEditorDialog {
       });
     });
 
+    this.collisionShapeSection = createSection(this.panel, 'Collision Shape');
+    this.collisionShapeHint = document.createElement('div');
+    Object.assign(this.collisionShapeHint.style, {
+      color: '#d8c3a8',
+      fontSize: '11px',
+      lineHeight: '1.35',
+      whiteSpace: 'pre-wrap',
+      marginBottom: '8px',
+    });
+    this.collisionShapeSection.appendChild(this.collisionShapeHint);
+
+    this.collisionShapeActions = document.createElement('div');
+    Object.assign(this.collisionShapeActions.style, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '8px',
+      marginBottom: '8px',
+    });
+    this.collisionShapeSection.appendChild(this.collisionShapeActions);
+    addInlineButton(this.collisionShapeActions, 'Reset Shape', () => {
+      this._updateSpecies((species) => {
+        delete species.collisionShape;
+      });
+    }, '#3b4826');
+
+    this.collisionRadiusInput = createNumberField(this.collisionShapeSection, 'Radius', { step: 0.01, min: 0.02, value: '0.24' }, (value) => {
+      this._updateSpecies((species) => {
+        species.collisionShape ||= {};
+        species.collisionShape.radius = value ?? 0.24;
+      });
+    }, { topLevel: true });
+    this.collisionWidthInput = createNumberField(this.collisionShapeSection, 'Width', { step: 0.01, min: 0.02, value: '0.48' }, (value) => {
+      this._updateSpecies((species) => {
+        species.collisionShape ||= {};
+        species.collisionShape.width = value ?? 0.48;
+      });
+    }, { topLevel: true });
+    this.collisionDepthInput = createNumberField(this.collisionShapeSection, 'Depth', { step: 0.01, min: 0.02, value: '0.48' }, (value) => {
+      this._updateSpecies((species) => {
+        species.collisionShape ||= {};
+        species.collisionShape.depth = value ?? 0.48;
+      });
+    }, { topLevel: true });
+    this.collisionHeightInput = createNumberField(this.collisionShapeSection, 'Height', { step: 0.01, min: 0.05, value: '2.2' }, (value) => {
+      this._updateSpecies((species) => {
+        species.collisionShape ||= {};
+        species.collisionShape.height = value ?? 2.2;
+      });
+    }, { topLevel: true });
+    this.collisionOffsetYInput = createNumberField(this.collisionShapeSection, 'Lift', { step: 0.01, value: '1.1' }, (value) => {
+      this._updateSpecies((species) => {
+        species.collisionShape ||= {};
+        species.collisionShape.offsetY = value ?? 1.1;
+      });
+    }, { topLevel: true });
+
     this.status = document.createElement('div');
     Object.assign(this.status.style, {
       marginTop: '12px',
@@ -948,6 +1004,7 @@ export class VegetationEditorDialog {
     this.treeLeafWidthMaxInput.value = String(treeBuilder.leaves.widthMax);
     this.treeLeafHeightMinInput.value = String(treeBuilder.leaves.heightMin);
     this.treeLeafHeightMaxInput.value = String(treeBuilder.leaves.heightMax);
+    this._syncCollisionShapeSection(species);
     this._renderTextureAtlasTabs();
     this._renderPalette();
 
@@ -1228,6 +1285,45 @@ export class VegetationEditorDialog {
     return root;
   }
 
+  _buildCollisionPreview(species) {
+    if (!species || species.kind !== 'tree' || species.collision === 'none') return null;
+    const shape = species.collisionShape ?? {};
+    const height = Math.max(0.05, Number(shape.height ?? 1));
+    const radius = Math.max(0.025, Number(shape.radius ?? 0.15));
+    const width = Math.max(0.05, Number(shape.width ?? (radius * 2)));
+    const depth = Math.max(0.05, Number(shape.depth ?? (radius * 2)));
+    const offsetY = Number.isFinite(shape.offsetY) ? shape.offsetY : (height * 0.5);
+    const geometry = species.collision === 'box'
+      ? new THREE.BoxGeometry(width, height, depth)
+      : new THREE.CylinderGeometry(radius, radius, height, 14, 1, false);
+    const material = new THREE.MeshBasicMaterial({
+      color: '#ff8a1f',
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = offsetY;
+    mesh.renderOrder = 20;
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry),
+      new THREE.LineBasicMaterial({
+        color: '#ffb25e',
+        transparent: true,
+        opacity: 0.95,
+        toneMapped: false,
+      }),
+    );
+    edges.position.copy(mesh.position);
+
+    const root = new THREE.Group();
+    root.add(mesh);
+    root.add(edges);
+    return root;
+  }
+
   async _buildGlbPreview(species) {
     if (!species.assetId) {
       this._setStatus('Previewing placeholder tree until a GLB asset is assigned.');
@@ -1297,9 +1393,36 @@ export class VegetationEditorDialog {
       return;
     }
 
+    const collisionPreview = this._buildCollisionPreview(species);
+    if (collisionPreview) {
+      preview.add(collisionPreview);
+    }
+
     this.previewRoot.add(preview);
     this._framePreview(preview);
     this._setStatus(`Previewing ${species.name}.`);
+  }
+
+  _syncCollisionShapeSection(species) {
+    if (!this.collisionShapeSection) return;
+    const visible = species.kind === 'tree' && species.collision !== 'none';
+    this.collisionShapeSection.style.display = visible ? 'block' : 'none';
+    if (!visible) return;
+
+    const shape = species.collisionShape ?? {};
+    this.collisionShapeHint.textContent = species.collision === 'box'
+      ? 'Tree collision uses a simple trunk box. Tune this instead of colliding with the canopy.'
+      : 'Tree collision uses a simple trunk cylinder. Tune this instead of colliding with the canopy.';
+    this.collisionRadiusInput.value = String(shape.radius ?? 0.24);
+    this.collisionWidthInput.value = String(shape.width ?? 0.48);
+    this.collisionDepthInput.value = String(shape.depth ?? 0.48);
+    this.collisionHeightInput.value = String(shape.height ?? 1);
+    this.collisionOffsetYInput.value = String(shape.offsetY ?? ((shape.height ?? 1) * 0.5));
+    this.collisionRadiusInput._wrap.style.display = species.collision === 'cylinder' ? 'grid' : 'none';
+    this.collisionWidthInput._wrap.style.display = species.collision === 'box' ? 'grid' : 'none';
+    this.collisionDepthInput._wrap.style.display = species.collision === 'box' ? 'grid' : 'none';
+    this.collisionHeightInput._wrap.style.display = 'grid';
+    this.collisionOffsetYInput._wrap.style.display = 'grid';
   }
 
   _resizeRenderer() {

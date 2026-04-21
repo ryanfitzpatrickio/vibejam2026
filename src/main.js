@@ -1,3 +1,16 @@
+// Silence all console output in production. Runs before any module-level log
+// fires. Gated by Vite's `import.meta.env.PROD`, so dev + `vite preview` when
+// NODE_ENV=development still log normally. Complements the build-time drop in
+// vite.config.js (`esbuild.drop`), which strips the calls outright — this
+// runtime shim is the belt that catches anything the suspenders miss
+// (dynamic imports, vendor code that checks `typeof console.log`, etc.).
+if (import.meta.env.PROD) {
+  const noop = () => {};
+  for (const key of ['log', 'info', 'warn', 'error', 'debug', 'trace', 'table', 'dir', 'group', 'groupCollapsed', 'groupEnd', 'time', 'timeEnd', 'timeLog', 'count', 'countReset', 'assert']) {
+    if (typeof console[key] === 'function') console[key] = noop;
+  }
+}
+
 import { createGameSession } from './app/createGameSession.js';
 import { RendererModePanel, readRendererMode } from './hud/RendererModePanel.js';
 
@@ -5,6 +18,7 @@ readRendererMode(); // migrate legacy localStorage `webgpu` → `webgl`
 
 const canvas = document.getElementById('canvas');
 const ROOM_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const BUILD_MODE_PROFILE = import.meta.env.MODE === 'buildmode';
 
 const modePanel = new RendererModePanel({
   visible: false,
@@ -244,15 +258,16 @@ function showFatalBootError(error) {
 }
 
 try {
-  const roomId = await resolveBootRoomId();
+  const roomId = BUILD_MODE_PROFILE ? 'buildmode-local' : await resolveBootRoomId();
   app = await createGameSession({
     canvas,
     roomId,
-    roomVisibility: bootRoomVisibility,
-    onCopyInvite: bootRoomVisibility === 'private' ? copyCurrentInviteLink : null,
-    onCreatePrivateRoom: createAndJoinPrivateRoom,
+    roomVisibility: BUILD_MODE_PROFILE ? 'local' : bootRoomVisibility,
+    onCopyInvite: BUILD_MODE_PROFILE ? null : (bootRoomVisibility === 'private' ? copyCurrentInviteLink : null),
+    onCreatePrivateRoom: BUILD_MODE_PROFILE ? null : createAndJoinPrivateRoom,
+    offlineMode: BUILD_MODE_PROFILE,
   });
-  installRoomRecovery(roomId, bootRoomVisibility);
+  if (!BUILD_MODE_PROFILE) installRoomRecovery(roomId, bootRoomVisibility);
 } catch (error) {
   showFatalBootError(error);
   throw error;
@@ -264,6 +279,9 @@ let dressingRoom = null;
 if (import.meta.env.DEV) {
   const { installBuildMode } = await import('./dev/installBuildMode.js');
   buildMode = await installBuildMode(app);
+  if (BUILD_MODE_PROFILE && !buildMode.isActive?.()) {
+    buildMode.toggle();
+  }
 
   const [{ DressingRoomDialog }, { OrbitControls }, { TransformControls }] = await Promise.all([
     import('./dev/DressingRoomDialog.js'),

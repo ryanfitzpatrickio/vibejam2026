@@ -11,6 +11,7 @@ import { createPlayerNameplate, syncNameplateWorldPosition } from '../world/Play
 import { isNameplateOccluded } from '../utils/nameplateOcclusion.js';
 
 const LERP_SPEED = 12;
+const GRAB_ONE_SHOT_ANIM_SECONDS = 0.6;
 const _nameplateWorldPos = new THREE.Vector3();
 
 function shortestAngleDelta(target, current) {
@@ -59,11 +60,24 @@ export class RemotePlayerManager {
         entry.targetRot = data.rotation ?? 0;
         entry.serverAlive = data.alive !== false;
         entry.serverAnimState = data.animState ?? 'idle';
+        const nextGrabbedTarget = data.grabbedTarget ?? null;
         entry.serverGrabbedBy = data.grabbedBy ?? null;
+        entry.serverGrabbedTarget = nextGrabbedTarget;
+        entry.serverGrabbedBallId = data.grabbedBallId ?? null;
         entry.serverIsHero = !!data.isHero;
         entry.serverHeroAvatar = data.heroAvatar ?? null;
         entry.serverIsAdversary = !!data.isAdversary;
         entry.serverAdversaryRole = data.adversaryRole ?? null;
+        if (
+          (!!nextGrabbedTarget && !entry.prevGrabbedTarget)
+          || (!!entry.serverGrabbedBy && !entry.prevGrabbedBy)
+          || (!!entry.serverGrabbedBallId && !entry.prevGrabbedBallId)
+        ) {
+          entry.grabAnimTimer = GRAB_ONE_SHOT_ANIM_SECONDS;
+        }
+        entry.prevGrabbedTarget = nextGrabbedTarget;
+        entry.prevGrabbedBy = entry.serverGrabbedBy;
+        entry.prevGrabbedBallId = entry.serverGrabbedBallId;
         entry.mouse.visible = this.playersVisible && !entry.serverIsAdversary;
         entry.nameplate.setAlive(entry.serverAlive);
         if (typeof data.displayName === 'string' && data.displayName.trim()) {
@@ -122,17 +136,18 @@ export class RemotePlayerManager {
       const dx = entry.mouse.position.x - entry.prevPos.x;
       const dz = entry.mouse.position.z - entry.prevPos.z;
       const speed = dt > 0 ? Math.sqrt(dx * dx + dz * dz) / dt : 0;
+      entry.grabAnimTimer = Math.max(0, (entry.grabAnimTimer ?? 0) - dt);
 
       let animState;
       if (!entry.serverAlive || entry.serverAnimState === 'death') {
         animState = 'death';
+      } else if ((entry.grabAnimTimer ?? 0) > 0) {
+        animState = 'grab';
       } else if (entry.serverAnimState === 'win') {
         entry.emoteManager.cancel();
         animState = 'win';
       } else if (entry.emoteManager.isPlaying) {
         animState = entry.animState;
-      } else if (entry.serverAnimState === 'grab') {
-        animState = 'grab';
       } else if (speed > 5) {
         animState = 'run';
       } else if (speed > 0.5) {
@@ -269,6 +284,12 @@ export class RemotePlayerManager {
       serverAlive: data.alive !== false,
       serverAnimState: data.animState ?? 'idle',
       serverGrabbedBy: data.grabbedBy ?? null,
+      serverGrabbedTarget: data.grabbedTarget ?? null,
+      serverGrabbedBallId: data.grabbedBallId ?? null,
+      prevGrabbedBy: data.grabbedBy ?? null,
+      prevGrabbedTarget: data.grabbedTarget ?? null,
+      prevGrabbedBallId: data.grabbedBallId ?? null,
+      grabAnimTimer: 0,
       serverIsHero: !!data.isHero,
       serverHeroAvatar: data.heroAvatar ?? null,
       serverIsAdversary: !!data.isAdversary,

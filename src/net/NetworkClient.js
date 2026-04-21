@@ -5,9 +5,11 @@
  */
 import PartySocket from 'partysocket';
 import { getClientPreferredDisplayName } from '../utils/playerDisplayName.js';
+import { getTurnstileToken } from './turnstile.js';
 
 const PARTYKIT_HOST =
   import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999';
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 /** Max pending inputs to keep for reconciliation */
 const MAX_PENDING = 120;
@@ -106,6 +108,18 @@ export class NetworkClient {
       host: PARTYKIT_HOST,
       room: this.roomId,
       party: 'main',
+      // Fetched per (re)connect. Turnstile tokens are single-use and ~300s TTL,
+      // so reconnects always fetch a fresh one. No-op when site key is unset.
+      query: async () => {
+        if (!TURNSTILE_SITE_KEY) return {};
+        try {
+          const token = await getTurnstileToken(TURNSTILE_SITE_KEY);
+          return token ? { cfToken: token } : {};
+        } catch (err) {
+          console.warn('[net] turnstile token unavailable:', err);
+          return {};
+        }
+      },
     });
 
     this.ws.addEventListener('message', (e) => {
@@ -121,6 +135,7 @@ export class NetworkClient {
         portal: this.portalArrival ?? undefined,
       }));
       console.log('[net] connected to room:', this.roomId);
+      for (const fn of this.listeners) fn({ type: 'open' });
     });
 
     this.ws.addEventListener('close', () => {
@@ -133,6 +148,7 @@ export class NetworkClient {
       this.extractionPortals = [];
       this.adversary = { playerId: null, available: false, safeRadius: 0 };
       console.log('[net] disconnected');
+      for (const fn of this.listeners) fn({ type: 'close' });
     });
   }
 
@@ -212,6 +228,16 @@ export class NetworkClient {
         displayName,
       }));
     }
+  }
+
+  sendDevSyncLayout(layout, syncToken) {
+    if (!syncToken || this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify({
+      type: 'dev-sync-layout',
+      syncToken,
+      layout,
+    }));
+    return true;
   }
 
   async fetchLeaderboard() {

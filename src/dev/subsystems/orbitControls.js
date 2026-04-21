@@ -3,7 +3,8 @@ export function installOrbitControls(editor) {
   editor.controls.enabled = false;
   editor.controls.enableDamping = true;
   editor.controls.dampingFactor = 0.08;
+  editor.controls.enablePan = true;
   editor.controls.screenSpacePanning = true;
   editor.controls.minDistance = 1.5;
-  editor.controls.maxDistance = 28;
+  editor.controls.maxDistance = 120;
 }

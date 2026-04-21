@@ -29,7 +29,11 @@ export default {
           "x": 12,
           "y": 12
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "material": {
         "color": "#d4a574",
@@ -55,7 +59,7 @@ export default {
       "type": "plane",
       "spawnType": null,
       "position": {
-        "x": -1,
+        "x": -2,
         "y": 6,
         "z": -24
       },
@@ -76,7 +80,11 @@ export default {
           "x": 6,
           "y": 0.5
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -125,7 +133,11 @@ export default {
           "x": 6,
           "y": 0.5
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -174,7 +186,11 @@ export default {
           "x": 1,
           "y": 2
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -223,7 +239,11 @@ export default {
           "x": 6,
           "y": 0.5
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -272,7 +292,11 @@ export default {
           "x": 6,
           "y": 5
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -321,7 +345,11 @@ export default {
           "x": 8,
           "y": 8
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -370,7 +398,11 @@ export default {
           "x": 4,
           "y": 2
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -419,7 +451,11 @@ export default {
           "x": 4,
           "y": 8
         },
-        "rotation": 1.5707963267948966
+        "rotation": 1.5707963267948966,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -468,7 +504,11 @@ export default {
           "x": 4,
           "y": 0.7
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -517,7 +557,11 @@ export default {
           "x": 6,
           "y": 5
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -566,7 +610,11 @@ export default {
           "x": 6,
           "y": 5
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -615,7 +663,11 @@ export default {
           "x": 4,
           "y": 0.7
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -664,7 +716,11 @@ export default {
           "x": 4,
           "y": 0.7
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -713,7 +769,11 @@ export default {
           "x": 1.7,
           "y": 1.2
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -762,7 +822,11 @@ export default {
           "x": 0.3,
           "y": 1
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -811,7 +875,11 @@ export default {
           "x": 1.7,
           "y": 1.2
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -860,7 +928,11 @@ export default {
           "x": 3,
           "y": 1
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -909,7 +981,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "right": {
@@ -987,7 +1063,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1048,7 +1128,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1109,7 +1193,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1144,22 +1232,22 @@ export default {
       "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
-      "id": "primitive-mnmexycj-6nvte",
-      "name": "plane-5qx",
+      "id": "primitive-mo7rpucz-rp0k3",
+      "name": "plane-5qx-a",
       "type": "plane",
       "spawnType": null,
       "position": {
         "x": 12,
-        "y": 0,
+        "y": 5.9648,
         "z": -6
       },
       "rotation": {
-        "x": -1.5707963267948966,
-        "y": 1.5707963267948966,
+        "x": -1.570796,
+        "y": 1.570796,
         "z": 0
       },
       "scale": {
-        "x": 24,
+        "x": 12.0704,
         "y": 4,
         "z": 4
       },
@@ -1167,10 +1255,14 @@ export default {
         "atlas": "textures2",
         "cell": 16,
         "repeat": {
-          "x": 1,
+          "x": 0.5029,
           "y": 0.5
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": -0.2485,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1219,7 +1311,11 @@ export default {
           "x": 0.5,
           "y": 0.7
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1268,7 +1364,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "front": {
@@ -1334,7 +1434,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "front": {
@@ -1400,7 +1504,11 @@ export default {
           "x": 3,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1460,7 +1568,11 @@ export default {
           "x": 3,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1520,7 +1632,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1581,7 +1697,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1642,7 +1762,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1690,7 +1814,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "right": {
@@ -1764,7 +1892,11 @@ export default {
           "x": 0.8,
           "y": 0.4
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1824,7 +1956,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "top": {
@@ -1890,7 +2026,11 @@ export default {
           "x": 0.8,
           "y": 0.4
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -1950,7 +2090,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2012,7 +2156,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2074,7 +2222,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2113,8 +2265,8 @@ export default {
         "z": 0
       },
       "scale": {
-        "x": 48,
-        "y": 48,
+        "x": 52,
+        "y": 52,
         "z": 0.1
       },
       "texture": {
@@ -2124,7 +2276,11 @@ export default {
           "x": 12,
           "y": 12
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2144,25 +2300,25 @@ export default {
       "castShadow": false,
       "receiveShadow": true,
       "deleted": false,
-      "zIndex": 0
+      "zIndex": 1000
     },
     {
-      "id": "primitive-mnnk4jh8-u6fpp",
-      "name": "plane-5qx-copy",
+      "id": "primitive-mo7rqaxv-i4yjp",
+      "name": "plane-5qx-copy-a",
       "type": "plane",
       "spawnType": null,
       "position": {
         "x": 12,
-        "y": 0,
+        "y": 5.9528,
         "z": -18
       },
       "rotation": {
-        "x": -1.5707963267948966,
-        "y": 1.5707963267948966,
+        "x": -1.570796,
+        "y": 1.570796,
         "z": 0
       },
       "scale": {
-        "x": 24,
+        "x": 12.0944,
         "y": 12,
         "z": 4
       },
@@ -2170,10 +2326,14 @@ export default {
         "atlas": "textures2",
         "cell": 16,
         "repeat": {
-          "x": 1,
+          "x": 0.5039,
           "y": 1.5
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": -0.248,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2222,7 +2382,11 @@ export default {
           "x": 0.5,
           "y": 0.5
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2283,7 +2447,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2345,7 +2513,11 @@ export default {
           "x": 1,
           "y": 0.6
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2405,7 +2577,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2466,7 +2642,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2527,7 +2707,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2588,7 +2772,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2649,7 +2837,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2710,7 +2902,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2771,7 +2967,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2832,7 +3032,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -2893,7 +3097,11 @@ export default {
           "x": 0.5,
           "y": 0.5
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "side": {
@@ -2962,7 +3170,11 @@ export default {
           "x": 0.8,
           "y": 0.4
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "top": {
@@ -3027,7 +3239,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3075,7 +3291,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3123,7 +3343,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3171,7 +3395,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3232,7 +3460,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3293,7 +3525,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3354,7 +3590,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3415,7 +3655,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3464,7 +3708,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3513,7 +3761,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3562,7 +3814,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3611,7 +3867,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "right": {
@@ -3685,7 +3945,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "right": {
@@ -3759,7 +4023,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -3820,7 +4088,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "right": {
@@ -3894,7 +4166,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {
         "right": {
@@ -3968,7 +4244,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4029,7 +4309,11 @@ export default {
           "x": 2,
           "y": 3
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4078,7 +4362,11 @@ export default {
           "x": 2,
           "y": 3
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4127,7 +4415,11 @@ export default {
           "x": 2,
           "y": 0.8
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4176,7 +4468,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4226,7 +4522,11 @@ export default {
           "x": 1,
           "y": 1.6
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4275,7 +4575,11 @@ export default {
           "x": 4,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4324,7 +4628,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4376,7 +4684,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4428,7 +4740,11 @@ export default {
           "x": 8,
           "y": 2
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4477,7 +4793,11 @@ export default {
           "x": 4,
           "y": 12
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4526,7 +4846,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4576,7 +4900,11 @@ export default {
           "x": 1,
           "y": 0.5
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4604,7 +4932,7 @@ export default {
       "type": "plane",
       "spawnType": null,
       "position": {
-        "x": 23,
+        "x": 22,
         "y": 6,
         "z": -24
       },
@@ -4615,7 +4943,7 @@ export default {
       },
       "scale": {
         "x": 10,
-        "y": 2,
+        "y": 4,
         "z": 24
       },
       "texture": {
@@ -4625,7 +4953,11 @@ export default {
           "x": 0.5,
           "y": 0.5
         },
-        "rotation": 4.71238898038469
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4674,7 +5006,11 @@ export default {
           "x": 4,
           "y": 12
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4723,7 +5059,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4771,7 +5111,11 @@ export default {
           "x": 1,
           "y": 1
         },
-        "rotation": 0
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
       },
       "faceTextures": {},
       "material": {
@@ -4793,10 +5137,1012 @@ export default {
       "deleted": false
     },
     {
+      "id": "primitive-mo7qw8in-zrsng",
+      "name": "plane-eeq-a-a-a-a-a",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -26,
+        "y": 6,
+        "z": 9
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": -1.570796,
+        "z": 0
+      },
+      "scale": {
+        "x": 12,
+        "y": 30,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 4,
+          "y": 2
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": -0.3636,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
+      "id": "primitive-mo7qw8in-6kb68",
+      "name": "plane-eeq-a-a-a-a-b",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -26,
+        "y": 10,
+        "z": -14
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": -1.570796,
+        "z": 0
+      },
+      "scale": {
+        "x": 4,
+        "y": 20,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 4,
+          "y": 0.6
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0.5608,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": -100
+    },
+    {
+      "id": "primitive-mo7qvuha-jmmoi",
+      "name": "plane-eeq-a-a-a-b",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -26,
+        "y": 6,
+        "z": -23
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": -1.570796,
+        "z": 0
+      },
+      "scale": {
+        "x": 12,
+        "y": 2,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 0.1,
+          "y": 2
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0.9243,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
+      "id": "primitive-mo7p7pfl-ngk72",
+      "name": "plane-eeq-a-a-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 6,
+        "z": -26
+      },
+      "rotation": {
+        "x": -3.1415923265200276,
+        "y": 0,
+        "z": -1.5707966669960267
+      },
+      "scale": {
+        "x": 12,
+        "y": 48,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 4,
+          "y": 2
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1112
+    },
+    {
+      "id": "primitive-mo7p7wlx-gyvg7",
+      "name": "plane-eeq-a-a-copy-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 26,
+        "y": 6,
+        "z": 0
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": -1.570796,
+        "z": 0
+      },
+      "scale": {
+        "x": 12,
+        "y": 48,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 4,
+          "y": 2
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1113
+    },
+    {
+      "id": "primitive-mo7p81uf-r3wod",
+      "name": "plane-eeq-a-a-copy-copy-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 6,
+        "z": 26
+      },
+      "rotation": {
+        "x": -3.2990556666419075e-7,
+        "y": 0,
+        "z": 1.5707960451971055
+      },
+      "scale": {
+        "x": 12,
+        "y": 48,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 4,
+          "y": 2
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1114
+    },
+    {
+      "id": "primitive-mo7r2er9-na0dn",
+      "name": "box-wh2",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": -25,
+        "y": 6,
+        "z": -25
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 12,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures5",
+        "cell": 0,
+        "repeat": {
+          "x": 1.5,
+          "y": 4
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mo7rizse-29f5c",
+      "name": "box-wh2-copy",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 25,
+        "y": 6,
+        "z": 25
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 12,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures5",
+        "cell": 0,
+        "repeat": {
+          "x": 1.5,
+          "y": 4
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mo7rj2ze-ur4du",
+      "name": "box-wh2-copy-copy",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": -25,
+        "y": 6,
+        "z": 25
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 12,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures5",
+        "cell": 0,
+        "repeat": {
+          "x": 1.5,
+          "y": 4
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mo7rj5wp-0o48g",
+      "name": "box-wh2-copy-copy-copy",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 25,
+        "y": 6,
+        "z": -25
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 12,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures5",
+        "cell": 0,
+        "repeat": {
+          "x": 1.5,
+          "y": 4
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mo7sau0k-kmin9",
+      "name": "plane-5qx-a-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 12,
+        "y": 10,
+        "z": -10
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": 1.570796,
+        "z": 0
+      },
+      "scale": {
+        "x": 4,
+        "y": 4,
+        "z": 4
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 16,
+        "repeat": {
+          "x": 0.1,
+          "y": 0.5
+        },
+        "rotation": 0,
+        "offset": {
+          "x": -0.2485,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1001
+    },
+    {
+      "id": "primitive-mo7sfc93-tvhwz",
+      "name": "plane-y7x",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -25,
+        "y": 8,
+        "z": -14
+      },
+      "rotation": {
+        "x": -1.5707963267948966,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 16,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 0,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "primitive-mo7sgiil-hk9op",
+      "name": "plane-eeq-a-a-a-b-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -25,
+        "y": 6,
+        "z": -22
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 1.5707959693591609
+      },
+      "scale": {
+        "x": 12,
+        "y": 2,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 0.1,
+          "y": 2
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0.9243,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1112
+    },
+    {
+      "id": "primitive-mo7sk9pk-l0agn",
+      "name": "plane-eeq-a-a-a-b-copy-copy-a-a",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -25,
+        "y": 7,
+        "z": -6
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 1.570796
+      },
+      "scale": {
+        "x": 10,
+        "y": 2,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 13,
+        "repeat": {
+          "x": 0.0883,
+          "y": 2
+        },
+        "rotation": 4.71238898038469,
+        "offset": {
+          "x": 0.9243,
+          "y": 0.0058
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1113
+    },
+    {
+      "id": "primitive-mo7t0mdb-1ixjp",
+      "name": "wedge-nbz",
+      "type": "wedge",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 12,
+        "z": 0
+      },
+      "rotation": {
+        "x": 2.3649211364523164,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 52,
+        "y": 41.9478,
+        "z": 42
+      },
+      "texture": {
+        "atlas": "textures5",
+        "cell": 55,
+        "repeat": {
+          "x": 4,
+          "y": 4
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mo7tb8ql-brd9s",
+      "name": "wedge-yjv",
+      "type": "wedge",
+      "spawnType": null,
+      "position": {
+        "x": -26,
+        "y": 25.5,
+        "z": 15
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 27.2481,
+        "z": 27
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 9,
+        "repeat": {
+          "x": 2,
+          "y": 4
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mo7themm-dliny",
+      "name": "wedge-yjv-copy",
+      "type": "wedge",
+      "spawnType": null,
+      "position": {
+        "x": -26,
+        "y": 25.5,
+        "z": -15
+      },
+      "rotation": {
+        "x": -3.141592653589793,
+        "y": 0,
+        "z": -3.141592653589793
+      },
+      "scale": {
+        "x": 2,
+        "y": 27.2481,
+        "z": 27
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 9,
+        "repeat": {
+          "x": 2,
+          "y": 4
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mo7timnv-noznb",
+      "name": "plane-8pg",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -27,
+        "y": 25,
+        "z": 0
+      },
+      "rotation": {
+        "x": -1.570796326794896,
+        "y": -1.5707963267948966,
+        "z": 7.822447126554904e-16
+      },
+      "scale": {
+        "x": 12,
+        "y": 6,
+        "z": 2.1028
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 49,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 1.5707963267948966,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1000
+    },
+    {
+      "id": "primitive-mo7to4kj-jf9u9",
+      "name": "plane-8pg-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -27,
+        "y": 25.4,
+        "z": 0
+      },
+      "rotation": {
+        "x": -1.570796326794896,
+        "y": -1.5707963267948966,
+        "z": 7.822447126554904e-16
+      },
+      "scale": {
+        "x": 27,
+        "y": 3,
+        "z": 2.1028
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 9,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 1.5707963267948966,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": -10
+    },
+    {
       "id": "primitive-house-kitchen-layout-glb",
       "name": "house-baked",
       "type": "glb",
-      "spawnType": null,
+      "glbAssetId": "asset-house-kitchen-layout",
+      "generatedBakeKind": "house",
       "position": {
         "x": 0,
         "y": 0,
@@ -4812,85 +6158,14 @@ export default {
         "y": 1,
         "z": 1
       },
-      "texture": {
-        "atlas": "textures",
-        "cell": 45,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0
-      },
-      "faceTextures": {},
-      "material": {
-        "color": "#c9b391",
-        "roughness": 0.88,
-        "metalness": 0.04
-      },
-      "glbAssetId": "asset-house-kitchen-layout",
-      "prefabId": null,
-      "navArea": "default",
-      "prefabInstanceId": null,
-      "prefabInstanceOrigin": null,
-      "prefabInstanceRotation": null,
-      "prefabInstanceScale": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
-      "deleted": false,
-      "bakedAssetId": null,
-      "generatedBakeKind": "house",
-      "hiddenByGeneratedBake": false
+      "deleted": false
     }
   ],
   "lights": [
-    {
-      "id": "light-mnt2elmu-ji6g1",
-      "name": "point-light-mtt",
-      "lightType": "directional",
-      "position": {
-        "x": 16,
-        "y": 10,
-        "z": 0
-      },
-      "rotation": {
-        "x": 0,
-        "y": -1.5624,
-        "z": 0
-      },
-      "color": "#ffc47a",
-      "intensity": 3.5,
-      "distance": 14,
-      "decay": 2,
-      "angle": 0.7853981633974483,
-      "penumbra": 0,
-      "castShadow": false,
-      "deleted": false
-    },
-    {
-      "id": "light-mnt2y0l8-ky0mm",
-      "name": "spot-light-0l2",
-      "lightType": "directional",
-      "position": {
-        "x": -12,
-        "y": 8.75,
-        "z": 10
-      },
-      "rotation": {
-        "x": 0.9222,
-        "y": 0.179,
-        "z": -0.7359
-      },
-      "color": "#ffd89f",
-      "intensity": 1.4,
-      "distance": 180,
-      "decay": 0.5,
-      "angle": 0.17453292519943295,
-      "penumbra": 0.08,
-      "castShadow": true,
-      "deleted": false
-    },
     {
       "id": "light-mnt30v6i-dbhbq",
       "name": "point-light-l4k",
@@ -4919,9 +6194,9 @@ export default {
       "name": "spot-light-xe3",
       "lightType": "spot",
       "position": {
-        "x": 14,
-        "y": 18,
-        "z": 14
+        "x": 12,
+        "y": 11,
+        "z": 6
       },
       "rotation": {
         "x": 1.7881,
@@ -4929,30 +6204,53 @@ export default {
         "z": -1.8287
       },
       "color": "#ffd89f",
-      "intensity": 7.3,
-      "distance": 100,
-      "decay": 0.55,
+      "intensity": 13.7,
+      "distance": 200,
+      "decay": 0.6,
       "angle": 0.9599310885968813,
       "penumbra": 0.28,
       "castShadow": true,
       "deleted": false
     },
     {
-      "id": "light-mnuxhsqg-k2j9t",
-      "name": "point-light-syl",
+      "id": "light-mo7r5mqh-zds9y",
+      "name": "directional-light-d54",
       "lightType": "directional",
       "position": {
-        "x": -18,
-        "y": 6,
-        "z": 10
+        "x": -8,
+        "y": 20.25,
+        "z": -2
+      },
+      "rotation": {
+        "x": 0.4284,
+        "y": 0.6252,
+        "z": 0.6897
+      },
+      "color": "#ffc675",
+      "intensity": 5.4,
+      "distance": 100000,
+      "decay": 0.05,
+      "angle": 1.4835298641951802,
+      "penumbra": 1,
+      "castShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "light-mo7rg08t-2qjgr",
+      "name": "point-light-27z",
+      "lightType": "directional",
+      "position": {
+        "x": -12,
+        "y": 7.25,
+        "z": 8
       },
       "rotation": {
         "x": 0,
-        "y": 1.5581,
+        "y": -0.1467,
         "z": 0
       },
       "color": "#ffc47a",
-      "intensity": 3.7,
+      "intensity": 2.9,
       "distance": 14,
       "decay": 2,
       "angle": 0.7853981633974483,
@@ -5038,7 +6336,7 @@ export default {
       "id": "extract-mo3b66lu-a60b9",
       "name": "extraction-w6w",
       "position": {
-        "x": -26,
+        "x": -25,
         "y": 0,
         "z": -4
       },
@@ -5156,9 +6454,9 @@ export default {
       "speciesId": "grass-debug-a",
       "mode": "patch",
       "position": {
-        "x": -40,
+        "x": -42,
         "y": 0,
-        "z": 11
+        "z": 10
       },
       "rotation": {
         "x": 0,
@@ -5176,8 +6474,8 @@ export default {
         "depth": 32,
         "radius": 1.5
       },
-      "density": 1000,
-      "seed": 1647,
+      "density": 6000,
+      "seed": 1650,
       "line": {
         "length": 4,
         "width": 0.75
@@ -5190,9 +6488,9 @@ export default {
       "speciesId": "tree-glb-a",
       "mode": "single",
       "position": {
-        "x": -36,
-        "y": 0,
-        "z": 0
+        "x": -42,
+        "y": -0.5,
+        "z": 14
       },
       "rotation": {
         "x": 0,
@@ -5200,9 +6498,9 @@ export default {
         "z": 0
       },
       "scale": {
-        "x": 4,
-        "y": 4,
-        "z": 4
+        "x": 8,
+        "y": 8,
+        "z": 8
       },
       "area": {
         "shape": "rect",
@@ -5212,6 +6510,74 @@ export default {
       },
       "density": 1,
       "seed": 1586,
+      "line": {
+        "length": 4,
+        "width": 0.75
+      },
+      "deleted": false
+    },
+    {
+      "id": "veg-mo7rsibb-3wu1m",
+      "name": "testgrass-er1-copy",
+      "speciesId": "grass-debug-a",
+      "mode": "patch",
+      "position": {
+        "x": -42,
+        "y": 0,
+        "z": -35
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "area": {
+        "shape": "rect",
+        "width": 32,
+        "depth": 26,
+        "radius": 1.5
+      },
+      "density": 10000,
+      "seed": 1650,
+      "line": {
+        "length": 4,
+        "width": 0.75
+      },
+      "deleted": false
+    },
+    {
+      "id": "veg-mo7rviuv-tbepq",
+      "name": "testgrass-er1-copy-copy",
+      "speciesId": "grass-debug-a",
+      "mode": "patch",
+      "position": {
+        "x": -40,
+        "y": 0,
+        "z": 36
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "area": {
+        "shape": "rect",
+        "width": 32,
+        "depth": 18,
+        "radius": 1.5
+      },
+      "density": 3000,
+      "seed": 1650,
       "line": {
         "length": 4,
         "width": 0.75

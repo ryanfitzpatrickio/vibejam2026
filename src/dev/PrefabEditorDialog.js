@@ -188,6 +188,7 @@ export class PrefabEditorDialog {
     this._addActionButton('Add Box', () => this._addPart('box'));
     this._addActionButton('Add Plane', () => this._addPart('plane'));
     this._addActionButton('Add Cyl', () => this._addPart('cylinder'));
+    this._addActionButton('Add Wedge', () => this._addPart('wedge'));
     this._addActionButton('Move', () => this._setTransformMode('translate'));
     this._addActionButton('Rotate', () => this._setTransformMode('rotate'));
     this._addActionButton('Scale', () => this._setTransformMode('scale'));

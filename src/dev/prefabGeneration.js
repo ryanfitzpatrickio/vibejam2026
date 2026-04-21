@@ -32,12 +32,65 @@ export function createLocalPrimitive(type, grid) {
   } else if (type === 'cylinder') {
     primitive.scale = { x: 1, y: grid.verticalStep * 2, z: 1 };
     primitive.position.y = primitive.scale.y * 0.5;
+  } else if (type === 'wedge') {
+    primitive.scale = { x: 1, y: 1, z: 1 };
   }
 
   return primitive;
 }
 
 export function createPrimitiveGeometry(type) {
+  if (type === 'wedge') {
+    const positions = new Float32Array([
+      -0.5, -0.5, -0.5,
+      -0.5, 0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,
+      -0.5, -0.5, -0.5,
+      0.5, -0.5, -0.5,
+      0.5, -0.5, 0.5,
+      -0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      0.5, -0.5, 0.5,
+      0.5, 0.5, -0.5,
+    ]);
+    const uvs = new Float32Array([
+      0, 0, 0, 1, 1, 1, 1, 0,
+      0, 1, 1, 1, 1, 0, 0, 0,
+      0, 0, 1, 0, 0, 1,
+      0, 0, 0, 1, 1, 0,
+      0, 1, 0, 0, 1, 0, 1, 1,
+    ]);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geometry.setIndex([
+      0, 1, 2,
+      0, 2, 3,
+      4, 5, 6,
+      4, 6, 7,
+      8, 9, 10,
+      11, 12, 13,
+      14, 15, 16,
+      14, 16, 17,
+    ]);
+    geometry.clearGroups();
+    geometry.addGroup(0, 6, 0);
+    geometry.addGroup(6, 6, 1);
+    geometry.addGroup(12, 3, 2);
+    geometry.addGroup(15, 3, 3);
+    geometry.addGroup(18, 6, 4);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   switch (type) {
     case 'plane':
       return new THREE.PlaneGeometry(1, 1);
@@ -138,6 +191,7 @@ export function makeGeneratedPart({
       cell: Number.isFinite(texture.cell) ? texture.cell : 0,
       repeat: texture.repeat ?? { x: 1, y: 1 },
       rotation: texture.rotation ?? 0,
+      offset: texture.offset ?? { x: 0, y: 0 },
     },
     material: {
       color: material.color ?? '#ffffff',

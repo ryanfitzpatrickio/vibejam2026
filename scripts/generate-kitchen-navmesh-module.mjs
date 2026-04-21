@@ -25,6 +25,54 @@ const DETAIL_SAMPLE_DISTANCE_VOXELS = 6;
 const DETAIL_SAMPLE_MAX_ERROR_VOXELS = 1;
 const sharedMaterial = new THREE.MeshBasicMaterial();
 
+function createPrimitiveGeometry(type) {
+  if (type === 'wedge') {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      -0.5, -0.5, -0.5,
+      -0.5, 0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,
+      -0.5, -0.5, -0.5,
+      0.5, -0.5, -0.5,
+      0.5, -0.5, 0.5,
+      -0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      0.5, -0.5, 0.5,
+      0.5, 0.5, -0.5,
+    ]), 3));
+    geometry.setIndex([
+      0, 1, 2,
+      0, 2, 3,
+      4, 5, 6,
+      4, 6, 7,
+      8, 9, 10,
+      11, 12, 13,
+      14, 15, 16,
+      14, 16, 17,
+    ]);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  switch (type) {
+    case 'plane':
+      return new THREE.PlaneGeometry(1, 1);
+    case 'cylinder':
+      return new THREE.CylinderGeometry(0.5, 0.5, 1, 24, 1);
+    case 'box':
+    default:
+      return new THREE.BoxGeometry(1, 1, 1);
+  }
+}
+
 function composeMatrix(position = {}, rotation = {}, scale = {}) {
   const matrix = new THREE.Matrix4();
   const quat = new THREE.Quaternion().setFromEuler(
@@ -148,7 +196,7 @@ function createMeshForPrimitive(primitive, collider) {
 
   if (primitive.type === 'cylinder') {
     return createWorldMesh(
-      new THREE.CylinderGeometry(0.5, 0.5, 1, 24, 1),
+      createPrimitiveGeometry('cylinder'),
       createPrimitiveWorldMatrix(primitive),
     );
   }
@@ -160,8 +208,15 @@ function createMeshForPrimitive(primitive, collider) {
     );
   }
 
+  if (primitive.type === 'wedge') {
+    return createWorldMesh(
+      createPrimitiveGeometry('wedge'),
+      createPrimitiveWorldMatrix(primitive),
+    );
+  }
+
   return createWorldMesh(
-    new THREE.BoxGeometry(1, 1, 1),
+    createPrimitiveGeometry('box'),
     createPrimitiveWorldMatrix(primitive),
   );
 }

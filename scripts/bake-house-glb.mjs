@@ -108,6 +108,7 @@ const DEFAULT_TEXTURE_ATLAS = 'textures';
 const FACE_TEXTURE_SLOTS = Object.freeze({
   box: Object.freeze(['right', 'left', 'top', 'bottom', 'front', 'back']),
   cylinder: Object.freeze(['side', 'top', 'bottom']),
+  wedge: Object.freeze(['back', 'bottom', 'left', 'right', 'slope']),
   plane: Object.freeze([]),
   prop: Object.freeze([]),
 });
@@ -131,6 +132,55 @@ const HOUSE_BAKE_KIND = 'house';
 const HOUSE_BAKE_REPEAT_EPSILON = 1e-6;
 
 function createPrimitiveGeometry(type) {
+  if (type === 'wedge') {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      -0.5, -0.5, -0.5,
+      -0.5, 0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,
+      -0.5, -0.5, -0.5,
+      0.5, -0.5, -0.5,
+      0.5, -0.5, 0.5,
+      -0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      0.5, -0.5, 0.5,
+      0.5, 0.5, -0.5,
+    ]), 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([
+      0, 0, 0, 1, 1, 1, 1, 0,
+      0, 1, 1, 1, 1, 0, 0, 0,
+      0, 0, 1, 0, 0, 1,
+      0, 0, 0, 1, 1, 0,
+      0, 1, 0, 0, 1, 0, 1, 1,
+    ]), 2));
+    geometry.setIndex([
+      0, 1, 2,
+      0, 2, 3,
+      4, 5, 6,
+      4, 6, 7,
+      8, 9, 10,
+      11, 12, 13,
+      14, 15, 16,
+      14, 16, 17,
+    ]);
+    geometry.clearGroups();
+    geometry.addGroup(0, 6, 0);
+    geometry.addGroup(6, 6, 1);
+    geometry.addGroup(12, 3, 2);
+    geometry.addGroup(15, 3, 3);
+    geometry.addGroup(18, 6, 4);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   switch (type) {
     case 'plane':
       return new THREE.PlaneGeometry(1, 1);
@@ -152,12 +202,16 @@ function cloneVectorLike(source, fallback) {
 
 function normalizeTextureSettings(texture = {}) {
   if (typeof texture === 'number') {
-    return { x: texture, y: texture, rotation: 0 };
+    return { x: texture, y: texture, rotation: 0, offset: { x: 0, y: 0 } };
   }
   return {
     x: texture?.x ?? 1,
     y: texture?.y ?? texture?.x ?? 1,
     rotation: texture?.rotation ?? 0,
+    offset: {
+      x: texture?.offset?.x ?? 0,
+      y: texture?.offset?.y ?? 0,
+    },
   };
 }
 
@@ -201,7 +255,7 @@ function normalizeFaceTextures(type, value = {}) {
 }
 
 function normalizePrimitive(entry = {}) {
-  const type = entry.type === 'plane' || entry.type === 'cylinder' || entry.type === 'glb' || entry.type === 'prop'
+  const type = entry.type === 'plane' || entry.type === 'cylinder' || entry.type === 'wedge' || entry.type === 'glb' || entry.type === 'prop'
     ? entry.type
     : 'box';
   const texture = typeof entry.texture === 'number' ? { cell: entry.texture } : (entry.texture ?? {});
@@ -222,6 +276,10 @@ function normalizePrimitive(entry = {}) {
         y: texture.repeat?.y ?? 1,
       },
       rotation: texture.rotation ?? 0,
+      offset: {
+        x: texture.offset?.x ?? 0,
+        y: texture.offset?.y ?? 0,
+      },
     },
     faceTextures: normalizeFaceTextures(type, entry.faceTextures),
     material: {
@@ -301,14 +359,16 @@ function bakeUvRepeatRotation(geometry, settings) {
   const rx = settings?.x ?? 1;
   const ry = settings?.y ?? rx;
   const rot = settings?.rotation ?? 0;
+  const offsetX = settings?.offset?.x ?? 0;
+  const offsetY = settings?.offset?.y ?? 0;
   const cos = Math.cos(rot);
   const sin = Math.sin(rot);
   const array = uv.array;
   for (let i = 0; i < array.length; i += 2) {
     const u = array[i] - 0.5;
     const v = array[i + 1] - 0.5;
-    array[i] = (cos * u - sin * v) * rx + 0.5;
-    array[i + 1] = (sin * u + cos * v) * ry + 0.5;
+    array[i] = (cos * u - sin * v) * rx + 0.5 + offsetX;
+    array[i + 1] = (sin * u + cos * v) * ry + 0.5 + offsetY;
   }
   uv.needsUpdate = true;
 }

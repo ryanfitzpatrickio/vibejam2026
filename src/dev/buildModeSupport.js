@@ -112,6 +112,10 @@ export function createDefaultPrimitive(type, app) {
     primitive.scale = { x: 1, y: 1.5, z: 1 };
   }
 
+  if (type === 'wedge') {
+    primitive.scale = { x: 1, y: 1, z: 1 };
+  }
+
   if (type === 'box') {
     primitive.scale = { x: 1, y: 1, z: 1 };
   }

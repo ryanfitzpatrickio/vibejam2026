@@ -17,6 +17,24 @@ export function installProbeVisuals(editor) {
   editor.pointerLine.userData.editorHelper = true;
   editor.app.scene.add(editor.pointerLine);
 
+  const bisectGeometry = new THREE.BufferGeometry();
+  bisectGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  editor.bisectLine = new THREE.Line(
+    bisectGeometry,
+    new THREE.LineBasicMaterial({
+      color: '#ff8a1f',
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  editor.bisectLine.visible = false;
+  editor.bisectLine.renderOrder = 1000;
+  editor.bisectLine.userData.editorHelper = true;
+  editor.app.scene.add(editor.bisectLine);
+
   editor.hitTooltip = document.createElement('div');
   Object.assign(editor.hitTooltip.style, {
     position: 'fixed',
@@ -118,8 +136,22 @@ export function pickEditableHit(editor) {
       return true;
     });
 
+  const editableRoots = (editor._editorEntries?.() ?? [])
+    .map((entry) => editor.app.room.getEditableObject?.(entry.id))
+    .filter((object, index, list) => object && list.indexOf(object) === index);
+  const editableHits = editableRoots.length
+    ? editor.raycaster.intersectObjects(editableRoots, true).filter((hit) => {
+      const obj = hit.object;
+      if (!obj || obj.visible === false) return false;
+      if (obj.userData?.editorHelper === true) return false;
+      if (obj.isLine || obj.isLineSegments || obj.isLine2 || obj.isSprite) return false;
+      const editableObject = resolveEditableHitObject(obj);
+      return !!editableIdFromObject(editableObject);
+    })
+    : [];
+
   const editableCandidates = [];
-  for (const hit of hits) {
+  for (const hit of editableHits) {
     const editableObject = resolveEditableHitObject(hit.object);
     const editableId = editableIdFromObject(editableObject);
     if (!editableObject || !editableId) continue;
@@ -211,6 +243,7 @@ export function updateProbe(editor) {
 
 export function hideProbe(editor) {
   editor.currentHit = null;
+  editor.currentEditableHit = null;
   if (editor.pointerLine) {
     editor.pointerLine.visible = false;
   }

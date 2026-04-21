@@ -29,6 +29,7 @@ import {
 } from '../../shared/levelWorldBounds.js';
 import { normalizeExtractionPortalEntry, normalizeRaidTaskEntry } from '../../shared/raidLayout.js';
 import { sortCollidersForPlaneZIndex } from '../../shared/physics.js';
+import { createWedgeLocalColliderBoxes } from '../../shared/wedgeCollision.js';
 
 const ATLAS_GRID = 10;
 const ATLAS_CELL_MARGIN_PX = 3;
@@ -69,6 +70,9 @@ const EDITABLE_TYPE_DEFAULTS = Object.freeze({
     scale: { x: 1, y: 1, z: 1 },
   }),
   cylinder: Object.freeze({
+    scale: { x: 1, y: 1, z: 1 },
+  }),
+  wedge: Object.freeze({
     scale: { x: 1, y: 1, z: 1 },
   }),
   prop: Object.freeze({
@@ -126,6 +130,81 @@ function getCellBounds(index, size) {
 }
 
 function createPrimitiveGeometry(type) {
+  if (type === 'wedge') {
+    const positions = new Float32Array([
+      // back
+      -0.5, -0.5, -0.5,
+      -0.5, 0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,
+      // bottom
+      -0.5, -0.5, -0.5,
+      0.5, -0.5, -0.5,
+      0.5, -0.5, 0.5,
+      -0.5, -0.5, 0.5,
+      // left
+      -0.5, -0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,
+      // right
+      0.5, -0.5, -0.5,
+      0.5, 0.5, -0.5,
+      0.5, -0.5, 0.5,
+      // slope
+      -0.5, 0.5, -0.5,
+      -0.5, -0.5, 0.5,
+      0.5, -0.5, 0.5,
+      0.5, 0.5, -0.5,
+    ]);
+    const uvs = new Float32Array([
+      // back
+      0, 0,
+      0, 1,
+      1, 1,
+      1, 0,
+      // bottom
+      0, 1,
+      1, 1,
+      1, 0,
+      0, 0,
+      // left
+      0, 0,
+      1, 0,
+      0, 1,
+      // right
+      0, 0,
+      0, 1,
+      1, 0,
+      // slope
+      0, 1,
+      0, 0,
+      1, 0,
+      1, 1,
+    ]);
+    const indices = [
+      0, 1, 2,
+      0, 2, 3,
+      4, 5, 6,
+      4, 6, 7,
+      8, 9, 10,
+      11, 12, 13,
+      14, 15, 16,
+      14, 16, 17,
+    ];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geometry.setIndex(indices);
+    geometry.clearGroups();
+    geometry.addGroup(0, 6, 0);
+    geometry.addGroup(6, 6, 1);
+    geometry.addGroup(12, 3, 2);
+    geometry.addGroup(15, 3, 3);
+    geometry.addGroup(18, 6, 4);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   switch (type) {
     case 'prop':
     case 'plane':
@@ -399,13 +478,22 @@ function createRopeHelperObject(definition, textureMap = null) {
 
 function normalizeTextureSettings(texture = {}) {
   if (typeof texture === 'number') {
-    return { x: texture, y: texture, rotation: 0 };
+    return {
+      x: texture,
+      y: texture,
+      rotation: 0,
+      offset: { x: 0, y: 0 },
+    };
   }
 
   return {
     x: texture?.x ?? 1,
     y: texture?.y ?? texture?.x ?? 1,
     rotation: texture?.rotation ?? 0,
+    offset: {
+      x: texture?.offset?.x ?? 0,
+      y: texture?.offset?.y ?? 0,
+    },
   };
 }
 
@@ -593,7 +681,7 @@ export class Room {
     // rather than cloned onto the texture, so every primitive sharing this cell also
     // shares one GPU texture + one material instance.
     this.textureCache = new Map();
-    // BufferGeometry shared per (type, repeat.x, repeat.y, rotation) — UV-transform is baked in.
+    // BufferGeometry shared per (type, repeat.x, repeat.y, rotation, offset) — UV-transform is baked in.
     this._editableGeometryCache = new Map();
     this.surfaceMaterials = new Set();
     this.builtInEditableMeshes = new Map();
@@ -653,13 +741,16 @@ export class Room {
     roughness = 0.92,
     metalness = 0.04,
     side = THREE.FrontSide,
+    alphaTest = 0,
+    transparent = false,
+    depthWrite = true,
     /** When set (plane primitives only), breaks GPU z-fighting vs other coplanar planes. */
     planeZIndex = null,
     } = {}) {
     const zKey = planeZIndex != null && Number.isFinite(planeZIndex)
       ? `|pz=${Math.trunc(planeZIndex)}`
       : '';
-    const cacheKey = `${baseColor}|${textureCell}|${textureAtlas}|${roughness}|${metalness}|${side}${zKey}`;
+    const cacheKey = `${baseColor}|${textureCell}|${textureAtlas}|${roughness}|${metalness}|${side}|${alphaTest}|${transparent ? 1 : 0}|${depthWrite ? 1 : 0}${zKey}`;
 
     if (!this._materialCache) this._materialCache = new Map();
     const cached = this._materialCache.get(cacheKey);
@@ -670,6 +761,9 @@ export class Room {
       roughness,
       metalness,
       side,
+      alphaTest,
+      transparent,
+      depthWrite,
     });
 
     material.dithering = true;
@@ -685,6 +779,21 @@ export class Room {
     this.surfaceMaterials.add(material);
     this._materialCache.set(cacheKey, material);
     return material;
+  }
+
+  _disposeEditableMaterial(material) {
+    if (!material || this.surfaceMaterials.has(material)) return;
+    material.customDepthMaterial?.dispose?.();
+    material.customDistanceMaterial?.dispose?.();
+    material.dispose?.();
+  }
+
+  _disposeEditableMaterialSet(material) {
+    if (Array.isArray(material)) {
+      material.forEach((entry) => this._disposeEditableMaterial(entry));
+      return;
+    }
+    this._disposeEditableMaterial(material);
   }
 
   async _loadTextureAtlas() {
@@ -778,7 +887,9 @@ export class Room {
     const rx = settings?.x ?? 1;
     const ry = settings?.y ?? rx;
     const rot = settings?.rotation ?? 0;
-    if (rx === 1 && ry === 1 && rot === 0) return geometry;
+    const offsetX = settings?.offset?.x ?? 0;
+    const offsetY = settings?.offset?.y ?? 0;
+    if (rx === 1 && ry === 1 && rot === 0 && offsetX === 0 && offsetY === 0) return geometry;
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
     const array = uv.array;
@@ -786,8 +897,8 @@ export class Room {
       // Rotate around (0.5, 0.5), then scale by repeat from the same pivot.
       const u = array[i] - 0.5;
       const v = array[i + 1] - 0.5;
-      const ru = (cos * u - sin * v) * rx + 0.5;
-      const rv = (sin * u + cos * v) * ry + 0.5;
+      const ru = (cos * u - sin * v) * rx + 0.5 + offsetX;
+      const rv = (sin * u + cos * v) * ry + 0.5 + offsetY;
       array[i] = ru;
       array[i + 1] = rv;
     }
@@ -816,11 +927,14 @@ export class Room {
       x: primitive.texture?.repeat?.x ?? 1,
       y: primitive.texture?.repeat?.y ?? 1,
       rotation: primitive.texture?.rotation ?? 0,
+      offset: primitive.texture?.offset,
     });
     const rxKey = Number(settings.x.toFixed(4));
     const ryKey = Number(settings.y.toFixed(4));
     const rotKey = Number(settings.rotation.toFixed(4));
-    const key = `${primitive.type}|${rxKey}|${ryKey}|${rotKey}`;
+    const offsetXKey = Number((settings.offset?.x ?? 0).toFixed(4));
+    const offsetYKey = Number((settings.offset?.y ?? 0).toFixed(4));
+    const key = `${primitive.type}|${rxKey}|${ryKey}|${rotKey}|${offsetXKey}|${offsetYKey}`;
     const cached = this._editableGeometryCache.get(key);
     if (cached) return cached;
     const geometry = createPrimitiveGeometry(primitive.type);
@@ -852,6 +966,43 @@ export class Room {
       material.map = texture;
       material.needsUpdate = true;
     });
+  }
+
+  _shouldUseSharedGlbSurfaceMaterial(primitive) {
+    return Number.isFinite(primitive?.texture?.cell);
+  }
+
+  _applySharedGlbSurfaceMaterial(scene, primitive) {
+    if (!scene || !this._shouldUseSharedGlbSurfaceMaterial(primitive)) return false;
+
+    const material = this._createSurfaceMaterial(primitive.material.color, {
+      textureCell: primitive.texture.cell,
+      textureAtlas: primitive.texture.atlas ?? DEFAULT_TEXTURE_ATLAS,
+      roughness: primitive.material.roughness,
+      metalness: primitive.material.metalness,
+      // Generated house bakes and editor-authored GLBs may contain plane-derived
+      // surfaces; keep the override double-sided so we don't cull interior faces.
+      side: THREE.DoubleSide,
+      alphaTest: isPropTextureAtlas(primitive.texture.atlas) ? 0.45 : 0,
+    });
+
+    let hasMesh = false;
+    scene.traverse((child) => {
+      if (!child.isMesh) return;
+      child.material = material;
+      child.userData.usesSharedSurfaceMaterial = true;
+      hasMesh = true;
+    });
+
+    if (!hasMesh) return false;
+
+    // After every submesh shares one cached material, flatten again so a baked
+    // house GLB collapses from "one draw per imported material" to one/few draws.
+    this._flattenGlbScene(scene);
+    scene.traverse((child) => {
+      if (child.isMesh) child.userData.usesSharedSurfaceMaterial = true;
+    });
+    return true;
   }
 
   async _loadEditableLayout() {
@@ -1209,7 +1360,13 @@ export class Room {
   }
 
   _normalizePrimitive(entry = {}) {
-    const type = entry.type === 'plane' || entry.type === 'cylinder' || entry.type === 'glb' || entry.type === 'prop' ? entry.type : 'box';
+    const type = entry.type === 'plane'
+      || entry.type === 'cylinder'
+      || entry.type === 'wedge'
+      || entry.type === 'glb'
+      || entry.type === 'prop'
+      ? entry.type
+      : 'box';
     const defaults = EDITABLE_TYPE_DEFAULTS[type] ?? EDITABLE_TYPE_DEFAULTS.box;
     const texture = typeof entry.texture === 'number' ? { cell: entry.texture } : (entry.texture ?? {});
     const atlas = normalizeTextureAtlasId(texture.atlas);
@@ -1230,6 +1387,10 @@ export class Room {
           y: texture.repeat?.y ?? 1,
         },
         rotation: texture.rotation ?? 0,
+        offset: {
+          x: texture.offset?.x ?? 0,
+          y: texture.offset?.y ?? 0,
+        },
       },
       faceTextures: normalizeFaceTextures(type, entry.faceTextures),
       material: {
@@ -1446,6 +1607,10 @@ export class Room {
           y: Number(textureRepeat.y.toFixed(4)),
         },
         rotation: Number(textureRepeat.rotation.toFixed(4)),
+        offset: {
+          x: Number((textureRepeat.offset?.x ?? 0).toFixed(4)),
+          y: Number((textureRepeat.offset?.y ?? 0).toFixed(4)),
+        },
       },
       material: materialToEditableSurface(material, entry.primitive.material.color),
       faceTextures,
@@ -1479,13 +1644,17 @@ export class Room {
     mesh.userData.skipOutline = primitive.spawnType != null;
     this._syncCameraOccluderUserData(mesh, primitive);
 
-    // Built-in meshes own their geometry. Rebake UVs when repeat/rotation changes
+    // Built-in meshes own their geometry. Rebake UVs when repeat/rotation/offset changes
     // so the (shared) material stays stable. mesh.userData.textureRepeat is the
     // source of truth for serialization on built-ins.
     const nextRepeat = {
       x: primitive.texture.repeat.x,
       y: primitive.texture.repeat.y,
       rotation: primitive.texture.rotation,
+      offset: {
+        x: primitive.texture.offset?.x ?? 0,
+        y: primitive.texture.offset?.y ?? 0,
+      },
     };
     this._rebakeMeshUvs(mesh, nextRepeat);
     mesh.userData.textureRepeat = nextRepeat;
@@ -1645,6 +1814,7 @@ export class Room {
         ...materialOptions,
         textureCell: getFaceTextureCell(definition, slot),
         textureAtlas: getFaceTextureAtlas(definition, slot),
+        alphaTest: isPropTextureAtlas(getFaceTextureAtlas(definition, slot)) ? 0.45 : 0,
         ...(planeZ != null ? { planeZIndex: planeZ } : {}),
       }));
       // _createSurfaceMaterial dedupes by cache key, so identical face refs share one instance.
@@ -1663,6 +1833,7 @@ export class Room {
       textureCell: definition.texture.cell,
       textureAtlas: definition.texture.atlas ?? DEFAULT_TEXTURE_ATLAS,
       side: definition.type === 'plane' ? THREE.DoubleSide : THREE.FrontSide,
+      alphaTest: isPropTextureAtlas(definition.texture.atlas) ? 0.45 : 0,
       ...(planeZ != null ? { planeZIndex: planeZ } : {}),
     });
 
@@ -1910,19 +2081,11 @@ export class Room {
 
     this.editableGroup.traverse((child) => {
       if (child.userData?.isGlbClone) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach((material) => material?.dispose?.());
-        } else if (child.material) {
-          child.material.dispose?.();
-        }
+        this._disposeEditableMaterialSet(child.material);
         return;
       }
       if (child.geometry && !child.geometry.userData?.isCachedEditableGeometry) child.geometry.dispose();
-      if (Array.isArray(child.material)) {
-        child.material.forEach((material) => material?.dispose?.());
-      } else if (child.material) {
-        child.material.dispose?.();
-      }
+      this._disposeEditableMaterialSet(child.material);
     });
     this.editableGroup.clear();
     this.editableMeshes.clear();
@@ -1949,13 +2112,16 @@ export class Room {
         const cachedModel = this.glbModelCache.get(primitive.glbAssetId);
         if (!cachedModel) continue;
         const clone = cachedModel.clone(true);
-        clone.traverse((child) => {
-          if (child.isMesh && child.material) {
-            child.material = Array.isArray(child.material)
-              ? child.material.map((m) => m.clone())
-              : child.material.clone();
-          }
-        });
+        const rematerialized = this._applySharedGlbSurfaceMaterial(clone, primitive);
+        if (!rematerialized) {
+          clone.traverse((child) => {
+            if (child.isMesh && child.material) {
+              child.material = Array.isArray(child.material)
+                ? child.material.map((m) => m.clone())
+                : child.material.clone();
+            }
+          });
+        }
         clone.name = primitive.name;
         clone.position.set(primitive.position.x, primitive.position.y, primitive.position.z);
         clone.rotation.set(primitive.rotation.x, primitive.rotation.y, primitive.rotation.z);
@@ -2041,7 +2207,7 @@ export class Room {
 
       if (primitive.collider) {
         const isPlane = primitive.type === 'plane';
-        this._registerCollider(mesh, {
+        this._registerPrimitiveCollider(mesh, primitive, {
           type: isPlane ? 'surface' : 'furniture',
           metadata: {
             source: 'editable',
@@ -2133,7 +2299,7 @@ export class Room {
 
         if (primitive.collider) {
           const isPlane = primitive.type === 'plane';
-          this._registerCollider(mesh, {
+          this._registerPrimitiveCollider(mesh, primitive, {
             type: isPlane ? 'surface' : 'furniture',
             metadata: {
               source: 'editable',
@@ -2504,6 +2670,28 @@ export class Room {
     }
     this._rebuildEditableLayout();
     return primitive;
+  }
+
+  replaceEditablePrimitive(id, definitions = []) {
+    const replacements = Array.isArray(definitions)
+      ? definitions.map((entry) => this._normalizePrimitive(entry))
+      : [];
+
+    if (this.builtInEditableMeshes.has(id)) {
+      const entry = this.builtInEditableMeshes.get(id);
+      this.deletedBuiltInPrimitives.add(id);
+      entry.mesh.visible = false;
+      entry.mesh.userData.colliderEnabled = false;
+    }
+
+    this.editableLayout.primitives = this.editableLayout.primitives.filter((entry) => entry.id !== id);
+    this.loadedEditableLayout.primitives = (this.loadedEditableLayout.primitives ?? []).filter((entry) => entry.id !== id);
+
+    this.editableLayout.primitives.push(...replacements.map((entry) => this._normalizePrimitive(entry)));
+    this.loadedEditableLayout.primitives.push(...replacements.map((entry) => this._normalizePrimitive(entry)));
+
+    this._rebuildEditableLayout();
+    return replacements;
   }
 
   upsertEditableLight(definition) {
@@ -3172,6 +3360,36 @@ export class Room {
     });
   }
 
+  _registerPrimitiveCollider(mesh, primitive, {
+    type = primitive?.type === 'plane' ? 'surface' : 'furniture',
+    metadata = {},
+  } = {}) {
+    if (!mesh || !primitive?.collider) return;
+
+    if (primitive.type === 'wedge') {
+      const localBoxes = createWedgeLocalColliderBoxes().map((box) => new THREE.Box3(
+        new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.max.z),
+      ));
+      localBoxes.forEach((localBox, index) => {
+        this.colliders.push({
+          mesh,
+          aabb: worldAabbFromLocalBox(localBox, mesh.matrixWorld),
+          type,
+          metadata: {
+            ...metadata,
+            localBox,
+            wedgeProxy: true,
+            wedgeProxyIndex: index,
+          },
+        });
+      });
+      return;
+    }
+
+    this._registerCollider(mesh, { type, metadata });
+  }
+
   getBuildGridConfig() {
     const columns = Math.max(1, this.buildGrid.columns);
     const rows = Math.max(1, this.buildGrid.rows);
@@ -3550,8 +3768,12 @@ export class Room {
       scale: { x: this.width, y: this.depth, z: 1 },
       texture: {
         cell: floorMat.userData.textureCell,
-        repeat: normalizeTextureSettings(floor.userData.textureRepeat),
-        rotation: 0,
+        repeat: {
+          x: floorRepeat.x,
+          y: floorRepeat.y,
+        },
+        rotation: floorRepeat.rotation,
+        offset: { x: 0, y: 0 },
       },
       material: materialToEditableSurface(floorMat, this.floorColor),
       collider: true,

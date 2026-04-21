@@ -119,7 +119,7 @@ function setCameraOccluderEnabled(root, enabled) {
 
 function getVegetationCollisionMode(species) {
   if (!species || species.collision === 'none') return 'none';
-  if (species.kind === 'tree') return 'trunk-proxy';
+  if (species.kind === 'tree') return 'trunk-shape';
   if (species.renderMode === 'instancedCards') return 'none';
   return 'bvh-proxy';
 }
@@ -432,6 +432,34 @@ export class VegetationSystem {
     return trunk;
   }
 
+  _createTreeCollisionProxy(species) {
+    const shape = species?.collisionShape ?? {};
+    const height = Math.max(0.05, Number(shape.height ?? 1));
+    const radius = Math.max(0.025, Number(shape.radius ?? 0.15));
+    const width = Math.max(0.05, Number(shape.width ?? (radius * 2)));
+    const depth = Math.max(0.05, Number(shape.depth ?? (radius * 2)));
+    const offsetY = Number.isFinite(shape.offsetY) ? shape.offsetY : (height * 0.5);
+    const geometry = species?.collision === 'box'
+      ? new THREE.BoxGeometry(width, height, depth)
+      : new THREE.CylinderGeometry(radius, radius, height, 12, 1, false);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xff8a1f,
+      transparent: true,
+      opacity: 0.08,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = 'TreeCollisionProxy';
+    mesh.position.y = offsetY;
+    mesh.visible = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.userData.colliderAlwaysActive = true;
+    mesh.userData.skipOutline = true;
+    return mesh;
+  }
+
   _buildInstancedCards(entry, species) {
     const geometry = this._getSharedClumpGeometry(species.cardCount ?? 3).clone();
     geometry.userData.isVegetationCachedGeometry = false;
@@ -531,14 +559,16 @@ export class VegetationSystem {
       group.add(clone);
 
       if (colliderProxyGroup) {
-        const colliderMesh = this._createProceduralTreeTrunk(species, { excludeBvhCollider: false });
-        colliderMesh.position.copy(position);
+        const colliderMesh = this._createTreeCollisionProxy(species);
+        // Preserve the authored trunk lift so the proxy sits on the ground
+        // instead of getting re-centered at the placement origin.
+        colliderMesh.position.set(
+          position.x,
+          position.y + colliderMesh.position.y,
+          position.z,
+        );
         colliderMesh.quaternion.copy(quaternion);
         colliderMesh.scale.setScalar(scalar);
-        colliderMesh.visible = false;
-        colliderMesh.castShadow = false;
-        colliderMesh.receiveShadow = false;
-        colliderMesh.userData.colliderAlwaysActive = true;
         colliderProxyGroup.add(colliderMesh);
       }
     });
@@ -610,25 +640,53 @@ export class VegetationSystem {
       if (species.collision !== 'none') {
         const collisionMode = getVegetationCollisionMode(species);
         const colliderRoot = group.userData.colliderProxyRoot ?? group;
-        this.room._registerCollider(colliderRoot, {
-          type: 'furniture',
-          metadata: {
-            source: 'vegetation',
-            vegetationId: entry.id,
-            nonWalkable: species.kind === 'tree',
-            collisionMode,
-          },
-          useBvh: collisionMode !== 'none',
-          bvhOptions: collisionMode !== 'none' ? {
-            maxDepth: species.kind === 'tree' ? 3 : 2,
-            maxLeafSize: species.kind === 'tree' ? 12 : 18,
-            maxBoxes: species.kind === 'tree' ? 32 : 24,
-            exclude: (child) => child.userData?.excludeBvhCollider === true,
-          } : null,
-        });
+        const colliderMetadata = {
+          source: 'vegetation',
+          vegetationId: entry.id,
+          nonWalkable: species.kind === 'tree',
+          collisionMode,
+        };
+        if (collisionMode === 'trunk-shape') {
+          (colliderRoot.children ?? []).forEach((proxyMesh, proxyIndex) => {
+            this.room._registerCollider(proxyMesh, {
+              type: 'furniture',
+              metadata: {
+                ...colliderMetadata,
+                proxyIndex,
+              },
+            });
+          });
+        } else {
+          this.room._registerCollider(colliderRoot, {
+            type: 'furniture',
+            metadata: colliderMetadata,
+            useBvh: collisionMode !== 'none',
+            bvhOptions: collisionMode !== 'none' ? {
+              maxDepth: species.kind === 'tree' ? 3 : 2,
+              maxLeafSize: species.kind === 'tree' ? 12 : 18,
+              maxBoxes: species.kind === 'tree' ? 32 : 24,
+              exclude: (child) => child.userData?.excludeBvhCollider === true,
+            } : null,
+          });
+        }
       }
     }
 
     this.room.refreshColliders();
+  }
+
+  setKindVisible(kind, visible) {
+    for (const entry of this.placementObjects.values()) {
+      if (entry.species?.kind === kind) {
+        entry.group.visible = !!visible;
+      }
+    }
+  }
+
+  isKindVisible(kind) {
+    for (const entry of this.placementObjects.values()) {
+      if (entry.species?.kind === kind) return entry.group.visible !== false;
+    }
+    return true;
   }
 }

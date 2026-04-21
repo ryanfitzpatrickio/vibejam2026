@@ -15,11 +15,17 @@ export function bindCanvasEvents(editor) {
     editor.pointerNdc.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
     editor.pointerScreen.x = event.clientX;
     editor.pointerScreen.y = event.clientY;
+    editor._handleCanvasPointerMove?.({ event });
   });
 
   canvas.addEventListener('pointerleave', () => {
     editor.pointerInsideCanvas = false;
     hideProbe(editor);
+  });
+
+  canvas.addEventListener('contextmenu', (event) => {
+    if (!editor.visible) return;
+    event.preventDefault();
   });
 
   /** Tracks where the left-button pointerdown started so we can distinguish
@@ -43,6 +49,18 @@ export function bindCanvasEvents(editor) {
       downActive = false;
       return;
     }
+    const rect = canvas.getBoundingClientRect();
+    editor.pointerNdc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    editor.pointerNdc.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+    const { editableHit } = pickEditableHit(editor);
+    const hitObject = resolveEditableHitObject(editableHit?.object);
+    const editableId = editableIdFromObject(hitObject);
+    editor._handleCanvasPointerDown?.({
+      event,
+      editableHit,
+      hitObject,
+      editableId,
+    });
     downActive = true;
     downX = event.clientX;
     downY = event.clientY;
@@ -57,8 +75,8 @@ export function bindCanvasEvents(editor) {
     if (editor.transformControls?.dragging) return;
     const dx = event.clientX - downX;
     const dy = event.clientY - downY;
-    if ((dx * dx + dy * dy) > CLICK_DRAG_PX * CLICK_DRAG_PX) return;
-    if (performance.now() - downAt > CLICK_MAX_MS) return;
+    const dragDistanceSq = (dx * dx) + (dy * dy);
+    const dragDurationMs = performance.now() - downAt;
 
     // Resync the pointer NDC to where the user actually released so a tiny
     // drift doesn't pick a different object than the highlighted one.
@@ -68,6 +86,26 @@ export function bindCanvasEvents(editor) {
     const { editableHit } = pickEditableHit(editor);
     const hitObject = resolveEditableHitObject(editableHit?.object);
     const editableId = editableIdFromObject(hitObject);
+    if (editor._handleCanvasPointerUp?.({
+      event,
+      editableHit,
+      hitObject,
+      editableId,
+      dragDistanceSq,
+      dragDurationMs,
+    })) {
+      return;
+    }
+    if (dragDistanceSq > CLICK_DRAG_PX * CLICK_DRAG_PX) return;
+    if (dragDurationMs > CLICK_MAX_MS) return;
+    if (editor._handleCanvasClick?.({
+      event,
+      editableHit,
+      hitObject,
+      editableId,
+    })) {
+      return;
+    }
     if (!editableId) {
       editor._setStatus('No editable object under cursor.');
       return;

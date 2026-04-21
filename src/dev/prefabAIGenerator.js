@@ -19,7 +19,7 @@ export async function generatePrefabFromPrompt({ prompt, apiKey, textureAtlases 
     'Use a stable, blocky silhouette. Do not make thin poles, long spires, or giant flat panels unless the prompt clearly asks for them.',
     'Each primitive must use only these fields:',
     '{ id, name, type, position:{x,y,z}, rotation:{x,y,z}, scale:{x,y,z}, texture:{atlas,cell,repeat:{x,y},rotation}, material:{color,roughness,metalness}, collider, castShadow, receiveShadow }',
-    'Allowed primitive types: box, plane, cylinder.',
+    'Allowed primitive types: box, plane, cylinder, wedge.',
     'Keep the object simple, compact, and valid for a 1x1 or small multi-cell prefab.',
     'Use the smallest sensible number of primitives. Favor boxes and cylinders.',
     `Available texture atlases: ${atlasIds}. Use atlas ids only if texture assignment is helpful.`,

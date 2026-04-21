@@ -1,4 +1,5 @@
 import { sortCollidersForPlaneZIndex } from './physics.js';
+import { createWedgeLocalColliderBoxes } from './wedgeCollision.js';
 
 export const ROOM_COLLISION_CONFIG = Object.freeze({
   scaleFactor: 1,
@@ -146,12 +147,32 @@ function createCylinderPoints() {
   return points;
 }
 
+function createWedgePoints() {
+  return [
+    // back
+    { x: -0.5, y: -0.5, z: -0.5 },
+    { x: -0.5, y: 0.5, z: -0.5 },
+    { x: 0.5, y: 0.5, z: -0.5 },
+    { x: 0.5, y: -0.5, z: -0.5 },
+    // bottom front edge
+    { x: -0.5, y: -0.5, z: 0.5 },
+    { x: 0.5, y: -0.5, z: 0.5 },
+  ];
+}
+
+function createBoxCornerPoints(bounds) {
+  if (!bounds?.min || !bounds?.max) return createBoxPoints();
+  return createPointsFromBounds(bounds);
+}
+
 function getPrimitiveLocalPoints(primitive) {
   switch (primitive.type) {
     case 'plane':
       return createPlanePoints();
     case 'cylinder':
       return createCylinderPoints();
+    case 'wedge':
+      return createWedgePoints();
     case 'glb':
       return createPointsFromBounds(GLB_COLLIDER_BOUNDS_BY_ASSET_ID[primitive.glbAssetId]);
     case 'box':
@@ -210,6 +231,17 @@ function buildPrimitiveAabb(primitive, scaleFactor = 1) {
   return aabb;
 }
 
+function buildLocalBoundsAabb(bounds, primitive, scaleFactor = 1) {
+  const points = createBoxCornerPoints(bounds);
+  const aabb = createEmptyAabb();
+
+  for (const point of points) {
+    expandAabb(aabb, transformPrimitivePoint(point, primitive, scaleFactor));
+  }
+
+  return aabb;
+}
+
 export function buildRoomCollidersFromLayout(layout, {
   scaleFactor = ROOM_COLLISION_CONFIG.scaleFactor,
 } = {}) {
@@ -237,6 +269,22 @@ export function buildRoomCollidersFromLayout(layout, {
     if (primitive.type === 'plane' && colliderType === 'surface') {
       metadata.plane = true;
       metadata.zIndex = Number.isFinite(primitive.zIndex) ? Math.trunc(primitive.zIndex) : 0;
+    }
+
+    if (primitive.type === 'wedge') {
+      const boxes = createWedgeLocalColliderBoxes();
+      boxes.forEach((localBox, index) => {
+        colliders.push({
+          type: colliderType,
+          metadata: {
+            ...metadata,
+            wedgeProxy: true,
+            wedgeProxyIndex: index,
+          },
+          aabb: buildLocalBoundsAabb(localBox, primitive, scaleFactor),
+        });
+      });
+      continue;
     }
 
     colliders.push({

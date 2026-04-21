@@ -16,6 +16,8 @@ function devLevelSavePlugin() {
   const customGlbPublicDir = path.resolve(process.cwd(), 'public/models');
   const kitchenLayoutScriptPath = path.resolve(process.cwd(), 'scripts/generate-kitchen-layout-module.mjs');
   const kitchenNavMeshScriptPath = path.resolve(process.cwd(), 'scripts/generate-kitchen-navmesh-module.mjs');
+  const bakeHouseGlbScriptPath = path.resolve(process.cwd(), 'scripts/bake-house-glb.mjs');
+  const optimizeCustomGlbsScriptPath = path.resolve(process.cwd(), 'scripts/optimize-custom-glbs.mjs');
 
   return {
     name: 'dev-level-save',
@@ -66,6 +68,8 @@ function devLevelSavePlugin() {
       server.middlewares.use(
         '/__dev/save-level',
         handleJsonSave(layoutPath, '/levels/kitchen-layout.json', async () => {
+          await runNodeScript(bakeHouseGlbScriptPath);
+          await runNodeScript(optimizeCustomGlbsScriptPath);
           await runNodeScript(kitchenLayoutScriptPath);
           await runNodeScript(kitchenNavMeshScriptPath);
         }),
@@ -172,6 +176,13 @@ export default defineConfig({
         manualChunks: undefined,
       },
     },
+  },
+  // Strip console.* + debugger statements at build time (production only; dev
+  // server is untouched). Reduces bundle size and prevents leaking log strings
+  // into the minified output. See also the runtime shim in src/main.js which
+  // covers any dynamic `console[key]()` calls the static pass can't remove.
+  esbuild: {
+    drop: ['console', 'debugger'],
   },
   server: {
     open: true,

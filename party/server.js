@@ -46,6 +46,11 @@ import { RAID_TASK_TYPES } from '../shared/raidLayout.js';
  * - STATS_ADMIN_TOKEN or STATS_COLLECTOR_TOKEN — required; GET …/stats returns 503 if both missing
  * - GET …/leaderboard returns public aggregate leaderboards
  * - ALLOWED_ORIGINS — comma-separated browser origins allowed to open WebSockets
+ * - TURNSTILE_SECRET — Cloudflare Turnstile secret key; when set, every WS
+ *   upgrade must carry a valid single-use ?cfToken=… (client fetches via
+ *   VITE_TURNSTILE_SITE_KEY). Leave unset to disable (dev default).
+ * - ALLOW_EMPTY_ORIGIN — set "true" ONLY to debug non-browser clients; in prod
+ *   empty Origin headers are rejected (scripts like node `ws` send none).
  * - DEV_LAYOUT_SYNC_ENABLED — set "true" only in dev to accept dev-sync-layout
  * - DEV_LAYOUT_SYNC_TOKEN — must match Vite VITE_DEV_LAYOUT_SYNC_TOKEN when syncing layout from build mode
  * - BENCH_METRICS_TOKEN — optional; when set, exposes GET …/bench-metrics and POST …/bench-metrics/reset
@@ -163,12 +168,71 @@ function getAllowedOrigins(env) {
   return origins;
 }
 
+/**
+ * Origin check for WebSocket upgrades.
+ *
+ * Browsers ALWAYS send Origin on cross-origin WS upgrades; non-browser clients
+ * (node `ws`, python, curl) typically omit it. We treat empty Origin as
+ * untrusted in production — set ALLOW_EMPTY_ORIGIN=true only for debugging.
+ */
 function isAllowedOrigin(origin, env) {
-  if (!origin) return true;
+  if (!origin) {
+    const allowEmpty = String(env?.ALLOW_EMPTY_ORIGIN ?? '').toLowerCase();
+    return allowEmpty === 'true' || allowEmpty === '1';
+  }
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;
   if (LOCAL_ORIGIN_RE.test(normalized)) return true;
   return getAllowedOrigins(env).has(normalized);
+}
+
+/**
+ * Verify a Cloudflare Turnstile token against siteverify.
+ *
+ * Returns true when:
+ * - `TURNSTILE_SECRET` is unset (feature disabled, e.g. dev), OR
+ * - Cloudflare confirms the token is valid and single-use-not-yet-spent.
+ *
+ * Tokens are single-use and expire after ~300s. The client fetches a fresh
+ * one for every (re)connect via the PartySocket `query` hook.
+ */
+async function verifyTurnstileToken(token, env) {
+  const secret = String(env?.TURNSTILE_SECRET ?? '').trim();
+  if (!secret) return true;
+  if (!token) {
+    console.warn('[turnstile] missing cfToken on WS upgrade');
+    return false;
+  }
+  try {
+    const body = new URLSearchParams();
+    body.set('secret', secret);
+    body.set('response', token);
+    // NOTE: intentionally NOT sending `remoteip`. PartyKit routes via multiple
+    // hops, and the IP we observe (CF-Connecting-IP / XFF) can differ from the
+    // one Cloudflare's edge saw when issuing the token, producing spurious
+    // "timeout-or-duplicate" / IP-mismatch failures. Rate limiting already
+    // runs per-IP separately in consumeConnectAttempt().
+    const response = await fetch(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      {
+        method: 'POST',
+        body,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      },
+    );
+    if (!response.ok) {
+      console.warn('[turnstile] siteverify http error', response.status);
+      return false;
+    }
+    const result = await response.json();
+    if (!result?.success) {
+      console.warn('[turnstile] siteverify rejected', result?.['error-codes'] ?? result);
+    }
+    return !!result?.success;
+  } catch (error) {
+    console.warn('[turnstile] siteverify threw', error?.message || error);
+    return false;
+  }
 }
 
 function corsHeadersForRequest(request, env) {
@@ -237,7 +301,7 @@ function getDevLayoutSyncToken(room) {
 }
 
 export default class GameServer {
-  static onBeforeConnect(request, lobby) {
+  static async onBeforeConnect(request, lobby) {
     if (!isAllowedOrigin(request.headers.get('Origin') ?? '', lobby.env)) {
       return new Response('Forbidden origin', { status: 403 });
     }
@@ -247,6 +311,23 @@ export default class GameServer {
         status: 429,
         headers: { 'Retry-After': '60' },
       });
+    }
+
+    // Cloudflare Turnstile: proof-of-humanity on every WS upgrade. Disabled
+    // when TURNSTILE_SECRET is unset (dev default). Token comes from the
+    // client's PartySocket `query` hook as ?cfToken=...
+    const secret = String(lobby?.env?.TURNSTILE_SECRET ?? '').trim();
+    // Skip Turnstile for local-dev origins so `partykit dev` + `vite dev`
+    // works without a site key. LOCAL_ORIGIN_RE covers localhost / 127.0.0.1 / ::1.
+    const origin = normalizeOrigin(request.headers.get('Origin') ?? '');
+    const isLocalOrigin = origin && LOCAL_ORIGIN_RE.test(origin);
+    if (secret && !isLocalOrigin) {
+      const url = new URL(request.url);
+      const token = url.searchParams.get('cfToken') ?? '';
+      const ok = await verifyTurnstileToken(token, lobby.env);
+      if (!ok) {
+        return new Response('Turnstile verification failed', { status: 401 });
+      }
     }
 
     return request;

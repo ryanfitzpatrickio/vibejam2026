@@ -116,6 +116,8 @@ export class CharacterController {
     /** True while E is held (extract + UI). */
     this.interactHeld = false;
     this._prevInteractDown = false;
+    /** When true, pressing interact while grab is held throws the carried target instead. */
+    this.throwOnInteractWhileGrabHeld = false;
 
     this._prevAnimState = 'idle';
     this.forcedAnimationState = null;
@@ -448,13 +450,19 @@ export class CharacterController {
   _handleAbilities() {
     const interactKey = this.keyBindings.interact;
     const interactNow = !!this.keys[interactKey];
+    const grabHeldNow = !!this.keys[this.keyBindings.grab];
+    const useInteractAsThrow = this.throwOnInteractWhileGrabHeld && grabHeldNow;
     if (interactNow && !this._prevInteractDown) {
-      this.smackPressed = true;
-      this.interact();
+      if (useInteractAsThrow) {
+        this.throwPressed = true;
+      } else {
+        this.smackPressed = true;
+        this.interact();
+      }
     }
     this._prevInteractDown = interactNow;
-    this.interactHeld = interactNow;
-    this.grabHeld = !!this.keys[this.keyBindings.grab];
+    this.interactHeld = useInteractAsThrow ? false : interactNow;
+    this.grabHeld = grabHeldNow;
     this.ropeGrabHeld = !!this.keys[this.keyBindings.ropeGrab];
     const heroKeyNow = !!this.keys[this.keyBindings.heroActivate];
     if (heroKeyNow && !this._heroKeyWasDown) this.heroActivatePressed = true;
@@ -466,10 +474,8 @@ export class CharacterController {
       this.mouseButtons.right = false;
       this.squeak();
     }
-    // G (keyboard) / RB (gamepad) is now the throw key. We still drop a
-    // carried prop locally so the existing pickup system stays consistent,
-    // but we also flag throwPressed so the server can release / toss any
-    // held mouse or ball with physics.
+    // Legacy throw shortcut: G / RB still works, but interact can also throw
+    // while the player is actively holding a grabbed target.
     const throwNow = !!this.keys[this.keyBindings.drop];
     if (throwNow && !this._prevThrowDown) {
       this.throwPressed = true;

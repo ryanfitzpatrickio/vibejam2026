@@ -231,6 +231,12 @@ function formatSeconds(value) {
   return `${Math.max(0, Number(value) || 0).toFixed(1)}s`;
 }
 
+function hintItems(hint) {
+  if (!hint) return [];
+  if (Array.isArray(hint.items) && hint.items.length > 0) return hint.items;
+  return [hint];
+}
+
 const HERO_NAMES = Object.freeze({
   brain: 'The Brain',
   jerry: 'Jerry',
@@ -552,36 +558,47 @@ export function HudView(props) {
             'z-index': '120',
             'user-select': 'none',
             display: 'flex',
+            'flex-direction': 'column',
             'align-items': 'center',
             gap: '8px',
-            padding: '6px 12px',
-            background: 'rgba(16, 20, 28, 0.72)',
-            border: '1px solid rgba(255,255,255,0.18)',
-            'border-radius': '999px',
-            color: '#fff',
-            font: LABEL_FONT,
-            'letter-spacing': '0.04em',
-            'text-shadow': LABEL_SHADOW,
-            'backdrop-filter': 'blur(4px)',
           }}
         >
-          <Show when={props.state.hint?.action || props.state.hint?.key}>
-            <span
+          <For each={hintItems(props.state.hint)}>{(hint) => (
+            <div
               style={{
-                display: 'inline-block',
-                'min-width': '22px',
-                padding: '2px 6px',
-                'border-radius': '6px',
-                background: 'rgba(255,255,255,0.14)',
-                border: '1px solid rgba(255,255,255,0.28)',
-                'text-align': 'center',
-                'font-size': '11px',
+                display: 'flex',
+                'align-items': 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                background: 'rgba(16, 20, 28, 0.72)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                'border-radius': '999px',
+                color: '#fff',
+                font: LABEL_FONT,
+                'letter-spacing': '0.04em',
+                'text-shadow': LABEL_SHADOW,
+                'backdrop-filter': 'blur(4px)',
               }}
             >
-              {props.state.hint?.action ? actionLabel(props.state.hint.action) : props.state.hint.key}
-            </span>
-          </Show>
-          <span>{props.state.hint?.text}</span>
+              <Show when={hint?.action || hint?.key}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    'min-width': '22px',
+                    padding: '2px 6px',
+                    'border-radius': '6px',
+                    background: 'rgba(255,255,255,0.14)',
+                    border: '1px solid rgba(255,255,255,0.28)',
+                    'text-align': 'center',
+                    'font-size': '11px',
+                  }}
+                >
+                  {hint?.action ? actionLabel(hint.action) : hint?.key}
+                </span>
+              </Show>
+              <span>{hint?.text}</span>
+            </div>
+          )}</For>
         </div>
       </Show>
 

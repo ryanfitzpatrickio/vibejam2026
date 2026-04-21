@@ -19,6 +19,7 @@ import { CatLocatorOverlay } from '../hud/CatLocatorOverlay.jsx';
 import { ScoreboardOverlay } from '../hud/ScoreboardOverlay.jsx';
 import { ChaseAlertOverlay } from '../hud/ChaseAlertOverlay.jsx';
 import { AdversaryStatusOverlay } from '../hud/AdversaryStatusOverlay.jsx';
+import { ActionJuiceOverlay } from '../hud/ActionJuiceOverlay.js';
 import { WindStreakField } from '../world/WindStreakField.js';
 import { attachEdgeOutlines } from '../materials/index.js';
 import { createOutlinePipeline } from '../postprocessing/OutlinePipeline.js';
@@ -61,7 +62,7 @@ function createWebGLRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.12;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = false;
   // PCFSoftShadowMap is deprecated on WebGLRenderer (Three r183+); PCFShadowMap is the supported path.
   // PCFShadowMap is also more compatible on some mobile Mali GPUs (e.g. G715).
   renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -95,6 +96,12 @@ const HUMAN_CAMERA_ARM_LENGTH = 8.5;
 const MOUSE_CAMERA_SHOULDER_Y = 1.3;
 const HUMAN_CAMERA_SHOULDER_Y = 5.6;
 const HUMAN_NAMEPLATE_OFFSET_Y = 9.35;
+const ACTION_JUICE_MOUSE_OFFSET_Y = 1.14;
+const ACTION_JUICE_HUMAN_OFFSET_Y = 5.6;
+const MISCHIEF_CHAIN_WINDOW_SECONDS = 3.4;
+const ROPE_HINT_RANGE = 1.85;
+const ROPE_POSE_GRACE_SECONDS = 0.22;
+const GRAB_ONE_SHOT_ANIM_SECONDS = 0.6;
 
 function pickRemoteRoombaSnapshot(remotePredators) {
   for (const p of remotePredators.values()) {
@@ -233,12 +240,49 @@ function buildNavMeshOverlay(navMesh) {
   return group;
 }
 
+function createOfflineNetClient(roomId = 'offline') {
+  return {
+    ws: null,
+    roomId,
+    localId: 'offline-local',
+    connected: false,
+    remotePlayers: new Map(),
+    remotePredators: new Map(),
+    pushBalls: [],
+    ropes: [],
+    cheesePickups: [],
+    round: null,
+    extractionPortals: [],
+    adversary: { playerId: null, available: false, safeRadius: 0 },
+    serverState: null,
+    serverSeq: -1,
+    ping: 0,
+    heroClaims: {},
+    unlockItems: [],
+    _listeners: new Set(),
+    connect() {},
+    disconnect() {},
+    on(fn) {
+      this._listeners.add(fn);
+      return () => this._listeners.delete(fn);
+    },
+    sendInput() { return 0; },
+    sendSpawnExtraBall() {},
+    sendTaskComplete() {},
+    sendUnlockPickup() {},
+    sendClaimHero() {},
+    sendDisplayName() {},
+    async fetchLeaderboard() { return null; },
+  };
+}
+
 export async function createGameSession({
   canvas,
   roomId = 'default',
   roomVisibility = 'public',
   onCopyInvite = null,
   onCreatePrivateRoom = null,
+  offlineMode = false,
 } = {}) {
   const scene = new THREE.Scene();
   applyAtmosphere(scene);
@@ -286,6 +330,23 @@ export async function createGameSession({
   // Defer the bake until then so we don't miss any prefab geometry.
   room.ready.then(() => {
     room.setStaticMergeEnabled?.(true);
+  }).catch(() => {});
+  const devLayoutSyncToken = import.meta.env.DEV ? (import.meta.env.VITE_DEV_LAYOUT_SYNC_TOKEN ?? '') : '';
+  let devLayoutReady = false;
+  let devLayoutSyncedForConnection = false;
+  const maybeSyncDevLayoutToServer = () => {
+    if (offlineMode || !devLayoutSyncToken || !devLayoutReady || devLayoutSyncedForConnection || !net.connected) {
+      return;
+    }
+    const layout = room.getEditableLayout?.();
+    if (!layout?.primitives) return;
+    if (net.sendDevSyncLayout?.(layout, devLayoutSyncToken)) {
+      devLayoutSyncedForConnection = true;
+    }
+  };
+  room.ready.then(() => {
+    devLayoutReady = true;
+    maybeSyncDevLayoutToServer();
   }).catch(() => {});
 
   let roomba = null;
@@ -456,12 +517,12 @@ export async function createGameSession({
   const hud = new HUD();
   const roundRaid = new RoundRaidOverlay();
   const catLocator = new CatLocatorOverlay();
+  const actionJuice = new ActionJuiceOverlay({ scene });
 
   const isCoarsePointer = typeof window !== 'undefined'
     && window.matchMedia?.('(pointer: coarse)').matches;
-  const HINT_DONE_KEY = 'vibejam:hint:smackBall:done';
-  let smackBallHintDone = false;
-  try { smackBallHintDone = localStorage.getItem(HINT_DONE_KEY) === '1'; } catch {}
+  const SMACK_BALL_HINT_COOLDOWN_MS = 2200;
+  let smackBallHintCooldownUntil = 0;
   let activeHintId = null;
   let _smackFiredThisFrame = false;
   let _wasHero = false;
@@ -661,9 +722,11 @@ export async function createGameSession({
 
   // --- Multiplayer ---
   const portalArrival = readVibePortalArrivalFromSearch(window.location.search);
-  const net = new NetworkClient(roomId, {
-    portalArrival: portalArrival.active ? portalArrival : null,
-  });
+  const net = offlineMode
+    ? createOfflineNetClient(roomId)
+    : new NetworkClient(roomId, {
+      portalArrival: portalArrival.active ? portalArrival : null,
+    });
   taskController.net = net;
   const unlockCollectibles = new UnlockCollectibles({
     scene,
@@ -740,6 +803,11 @@ export async function createGameSession({
   }
 
   net.on((data) => {
+    if (data?.type === 'open') {
+      devLayoutSyncedForConnection = false;
+      maybeSyncDevLayoutToServer();
+      return;
+    }
     if (data?.type === 'hero-claimed') {
       const expectedType = data.heroKey === 'gus' ? 'unlock_gus' : 'unlock_speedy';
       forEachUnlockMarker((entry) => {
@@ -760,7 +828,7 @@ export async function createGameSession({
   // Per-mesh outlines on remote mice are redundant once the fullscreen outline
   // pass is active; leave the toggle available for comparison.
   remotePlayerManager.setEdgeOutlinesVisible(false);
-  net.connect();
+  if (!offlineMode) net.connect();
 
   /** Track previous smackStunTimer / grabbedTarget per player for audio event detection. */
   const _prevSmackStun = new Map();
@@ -774,6 +842,11 @@ export async function createGameSession({
   const _physicsWorldUp = new THREE.Vector3(0, 1, 0);
   const _physicsJumpSoundPos = new THREE.Vector3();
   const _spatialEventPos = new THREE.Vector3();
+  const _actionJuiceWorldPos = new THREE.Vector3();
+  /** Per-player snapshot state used for popup deltas. */
+  const _prevActionJuiceState = new Map();
+  /** Per-player smack combo window. */
+  const _mischiefChains = new Map();
   let occlusionFrameIndex = 0;
 
   const DEFAULT_PUSH_BALL_RADIUS = 0.38;
@@ -871,6 +944,7 @@ export async function createGameSession({
     labelRenderer.domElement.style.display = perfFlags.labels ? '' : 'none';
     localNameplate.setVisible(perfFlags.labels);
     remotePlayerManager.setNameplatesVisible(perfFlags.labels);
+    actionJuice.setEnabled(perfFlags.labels && perfFlags.gameplayUi);
   }
 
   function setGameplayUiEnabled(enabled) {
@@ -883,6 +957,7 @@ export async function createGameSession({
     chaseAlert.setVisible(perfFlags.gameplayUi);
     adversaryStatus.setVisible(perfFlags.gameplayUi);
     heroPrompt.setEnabled(perfFlags.gameplayUi);
+    actionJuice.setEnabled(perfFlags.labels && perfFlags.gameplayUi);
     taskPromptElement.style.display = 'none';
   }
 
@@ -982,6 +1057,75 @@ export async function createGameSession({
     return scoreboardLabel(id, localId);
   }
 
+  function playerActionJuiceOffsetY(playerState) {
+    return playerState?.isAdversary ? ACTION_JUICE_HUMAN_OFFSET_Y : ACTION_JUICE_MOUSE_OFFSET_Y;
+  }
+
+  function copyPlayerActionJuiceState(playerState) {
+    return {
+      cheeseCarried: Math.max(0, Math.floor(Number(playerState?.cheeseCarried) || 0)),
+      smacksLanded: Math.max(0, Math.floor(Number(playerState?.roundStats?.smacksLanded) || 0)),
+      smackStunTimer: Math.max(0, Number(playerState?.smackStunTimer) || 0),
+    };
+  }
+
+  function spawnActionJuice(playerState, text, tone) {
+    if (!playerState?.position || !text) return;
+    _actionJuiceWorldPos.set(
+      Number(playerState.position.x) || 0,
+      Number(playerState.position.y) || 0,
+      Number(playerState.position.z) || 0,
+    );
+    actionJuice.spawn({
+      text,
+      tone,
+      position: _actionJuiceWorldPos,
+      yOffset: playerActionJuiceOffsetY(playerState),
+    });
+  }
+
+  function syncActionJuicePopups(allPlayers, nowSeconds) {
+    const seen = new Set();
+    for (const [playerId, playerState] of allPlayers) {
+      if (!playerState) continue;
+      seen.add(playerId);
+      const next = copyPlayerActionJuiceState(playerState);
+      const prev = _prevActionJuiceState.get(playerId);
+      if (prev) {
+        const cheeseGain = next.cheeseCarried - prev.cheeseCarried;
+        if (cheeseGain > 0 && playerState.alive !== false && !playerState.isAdversary) {
+          spawnActionJuice(playerState, `+${cheeseGain} 🧀`, 'cheese');
+        }
+
+        const mischiefGain = next.smacksLanded - prev.smacksLanded;
+        if (mischiefGain > 0 && playerState.alive !== false) {
+          const chain = _mischiefChains.get(playerId) ?? { combo: 0, lastAt: -Infinity };
+          chain.combo = (nowSeconds - chain.lastAt) <= MISCHIEF_CHAIN_WINDOW_SECONDS ? chain.combo : 0;
+          chain.combo += mischiefGain;
+          chain.lastAt = nowSeconds;
+          _mischiefChains.set(playerId, chain);
+          spawnActionJuice(
+            playerState,
+            chain.combo > 1 ? `Mischief x${chain.combo}` : 'Mischief!',
+            'mischief',
+          );
+        }
+
+        if (next.smackStunTimer > 0 && prev.smackStunTimer <= 0) {
+          spawnActionJuice(playerState, 'Smacked!', 'smack');
+        }
+      }
+      _prevActionJuiceState.set(playerId, next);
+    }
+
+    for (const playerId of Array.from(_prevActionJuiceState.keys())) {
+      if (!seen.has(playerId)) _prevActionJuiceState.delete(playerId);
+    }
+    for (const playerId of Array.from(_mischiefChains.keys())) {
+      if (!seen.has(playerId)) _mischiefChains.delete(playerId);
+    }
+  }
+
   function buildScoreboardRows() {
     const lid = net.localId;
     if (!lid) return [];
@@ -1014,6 +1158,22 @@ export async function createGameSession({
     return rows.slice(0, 10);
   }
 
+  function nearestRopeDistanceSq(ropesSnapshot, playerPos) {
+    if (!Array.isArray(ropesSnapshot) || !playerPos) return Infinity;
+    let nearestSq = Infinity;
+    for (const rope of ropesSnapshot) {
+      if (!Array.isArray(rope?.segments)) continue;
+      for (const segment of rope.segments) {
+        const dx = (Number(segment?.x) || 0) - playerPos.x;
+        const dy = (Number(segment?.y) || 0) - (playerPos.y + 0.65);
+        const dz = (Number(segment?.z) || 0) - playerPos.z;
+        const distSq = dx * dx + dy * dy + dz * dz;
+        if (distSq < nearestSq) nearestSq = distSq;
+      }
+    }
+    return nearestSq;
+  }
+
   // Visual smoothing: render position lerps toward prediction to hide small corrections
   const renderPos = new THREE.Vector3();
   let renderPosInitialized = false;
@@ -1024,6 +1184,11 @@ export async function createGameSession({
   const MAX_PHYSICS_STEPS = 4;
   let physicsAccum = 0;
   let previousJumpHeld = false;
+  let ropePoseGraceUntil = 0;
+  let localGrabAnimTimer = 0;
+  let prevLocalGrabbedTarget = null;
+  let prevLocalGrabbedBy = null;
+  let prevLocalGrabbedBallId = null;
 
   function copyServerToPrediction(ss) {
     predictionState.position.x = ss.position.x;
@@ -1121,6 +1286,10 @@ export async function createGameSession({
 
   function snapLocalStateToServer(ss) {
     copyServerToPrediction(ss);
+    localGrabAnimTimer = 0;
+    prevLocalGrabbedTarget = ss?.grabbedTarget ?? null;
+    prevLocalGrabbedBy = ss?.grabbedBy ?? null;
+    prevLocalGrabbedBallId = ss?.grabbedBallId ?? null;
     mouse.setYaw(predictionState.rotation);
     previousJumpHeld = false;
     physicsAccum = 0;
@@ -1303,7 +1472,113 @@ export async function createGameSession({
     mouse.visible = perfFlags.localPlayer && !adversary.local;
   }
 
+  // --- Cinematic intro ---------------------------------------------------
+  // Production boots through Cloudflare Turnstile + PartyKit connect + server
+  // spawn — roughly 1–3s of staring at the client's pre-snap camera position
+  // with a fully-rendered HUD. Instead of that, run a drone-style orbit over
+  // the house with no UI until the server actually spawns our player. In dev
+  // there's no Turnstile round-trip, so we enforce a 5s minimum to make the
+  // intro visible / tweakable without having to deploy.
+  const CINEMATIC_MIN_MS = offlineMode ? 0 : (import.meta.env.DEV ? 1000 : 0);
+  const cinematicStartMs = performance.now();
+  let cinematicActive = !offlineMode;
+  const _cineLookAt = new THREE.Vector3(0, 1.2, 0);
+  // Preserve the gameplay fog (near=16, far=68) and swap in a pushed-out fog
+  // while the drone orbits so the house doesn't wash out at the larger radius.
+  // Restored when the cinematic ends.
+  const _cineSavedFog = scene.fog ? { near: scene.fog.near, far: scene.fog.far } : null;
+  if (scene.fog) {
+    scene.fog.near = 60;
+    scene.fog.far = 220;
+  }
+  // The gameplay camera's far plane is 100, which would clip the far side of
+  // the house at our wider orbit radius. Push it out for the intro and
+  // restore on end so gameplay perf/depth precision is unchanged.
+  const _cineSavedCameraFar = camera.far;
+  camera.far = 260;
+  camera.updateProjectionMatrix();
+
+  function setCinematicUiHidden(hidden) {
+    const shown = !hidden;
+    // Gate each UI piece on the perf panel's own toggle so a dev who disabled
+    // HUD via the perf panel doesn't have it reappear after the intro ends.
+    hud.setVisible(shown && perfFlags.gameplayUi);
+    roundRaid.setVisible(shown && perfFlags.gameplayUi);
+    catLocator.setVisible(shown && perfFlags.gameplayUi);
+    scoreboard.setVisible(shown && perfFlags.gameplayUi);
+    toolbar.setVisible(shown && perfFlags.gameplayUi);
+    chaseAlert.setVisible(shown && perfFlags.gameplayUi);
+    adversaryStatus.setVisible(shown && perfFlags.gameplayUi);
+    heroPrompt.setEnabled(shown && perfFlags.gameplayUi);
+    actionJuice.setEnabled(shown && perfFlags.labels && perfFlags.gameplayUi);
+    labelRenderer.domElement.style.display = (shown && perfFlags.labels) ? '' : 'none';
+    // Don't render the local mouse while the drone is flying — we haven't
+    // been spawned yet and the placeholder at world origin looks jarring.
+    mouse.visible = shown
+      && perfFlags.localPlayer
+      && !(predictionState.isAdversary && human?.playerControlled);
+    controller.setInputEnabled(shown);
+    if (!shown) {
+      // Release pointer lock if some earlier click acquired it before the
+      // cinematic started (safety net; under normal boot it's never locked).
+      if (document.pointerLockElement === canvas) document.exitPointerLock?.();
+    }
+  }
+  setCinematicUiHidden(cinematicActive);
+
+  function updateCinematicCamera(timeMs) {
+    const t = Math.max(0, (timeMs - cinematicStartMs) * 0.001);
+    // Slow orbit around the house centroid with a gentle vertical bob.
+    const radius = 72;
+    const baseHeight = 14;
+    const angle = Math.PI + t * 0.14;
+    camera.position.set(
+      Math.cos(angle) * radius,
+      baseHeight + Math.sin(t * 0.3) * 2.2,
+      Math.sin(angle) * radius,
+    );
+    camera.lookAt(_cineLookAt);
+    camera.updateMatrixWorld();
+  }
+
+  function isLocalPlayerSpawned() {
+    if (!net.connected || !net.localId) return false;
+    if (!renderPosInitialized) return false;
+    const ss = net.serverState;
+    if (!ss) return false;
+    return ss.alive !== false;
+  }
+
   function update(timeMs = 0, deltaSeconds = 1 / 60) {
+    if (cinematicActive) {
+      const elapsed = performance.now() - cinematicStartMs;
+      if (elapsed >= CINEMATIC_MIN_MS && isLocalPlayerSpawned()) {
+        cinematicActive = false;
+        setCinematicUiHidden(false);
+        if (_cineSavedFog && scene.fog) {
+          scene.fog.near = _cineSavedFog.near;
+          scene.fog.far = _cineSavedFog.far;
+        }
+        camera.far = _cineSavedCameraFar;
+        camera.updateProjectionMatrix();
+        // Snap render position to the freshly spawned player so there's no
+        // lerp from the drone's last frame — the hand-off happens on the
+        // same frame the HUD lights up.
+        renderPos.set(
+          predictionState.position.x,
+          predictionState.position.y + mouse.groundOffset,
+          predictionState.position.z,
+        );
+      } else {
+        updateCinematicCamera(timeMs || performance.now());
+        render();
+        return {
+          drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, bakeStats: null,
+        };
+      }
+    }
+
+    const nowSeconds = performance.now() * 0.001;
     occlusionFrameIndex += 1;
 
     gamepadManager.update(deltaSeconds);
@@ -1475,7 +1750,20 @@ export async function createGameSession({
       if (controller.forcedAnimationState) {
         emoteManager.cancel();
       }
-      controller.grabLocked = net.serverState?.animState === 'grab';
+      const localGrabbedTarget = net.serverState?.grabbedTarget ?? null;
+      const localGrabbedBy = net.serverState?.grabbedBy ?? null;
+      const localGrabbedBallId = net.serverState?.grabbedBallId ?? null;
+      const startedGrabAnim = (
+        (!!localGrabbedTarget && !prevLocalGrabbedTarget)
+        || (!!localGrabbedBy && !prevLocalGrabbedBy)
+        || (!!localGrabbedBallId && !prevLocalGrabbedBallId)
+      );
+      if (startedGrabAnim) localGrabAnimTimer = GRAB_ONE_SHOT_ANIM_SECONDS;
+      else localGrabAnimTimer = Math.max(0, localGrabAnimTimer - PHYSICS_STEP);
+      prevLocalGrabbedTarget = localGrabbedTarget;
+      prevLocalGrabbedBy = localGrabbedBy;
+      prevLocalGrabbedBallId = localGrabbedBallId;
+      controller.grabLocked = localGrabAnimTimer > 0;
       mouse.rotation.x = net.serverState?.grabbedBy ? Math.PI : 0;
       const cameraHumanMode = !!predictionState.isAdversary;
       const cameraArm = cameraHumanMode ? HUMAN_CAMERA_ARM_LENGTH : MOUSE_CAMERA_ARM_LENGTH;
@@ -1565,6 +1853,7 @@ export async function createGameSession({
       // Detect smack / grab transitions and play spatial audio
       const allPlayers = new Map(net.remotePlayers);
       if (net.serverState) allPlayers.set(net.localId, net.serverState);
+      syncActionJuicePopups(allPlayers, nowSeconds);
       for (const [pid, pState] of allPlayers) {
         const prevStun = _prevSmackStun.get(pid) ?? 0;
         const curStun = pState.smackStunTimer ?? 0;
@@ -1715,6 +2004,17 @@ export async function createGameSession({
     }
 
     const balls = net.pushBalls;
+    const localHeldTarget = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
+    controller.throwOnInteractWhileGrabHeld = localHeldTarget;
+    const ropeDistanceSq = nearestRopeDistanceSq(net.ropes, predictionState.position);
+    const ropeGrabAssistActive = !!(
+      controller.ropeGrabHeld
+      && !predictionState.grounded
+      && ropeDistanceSq <= ROPE_HINT_RANGE * ROPE_HINT_RANGE
+    );
+    const ropePoseSignal = !!(net.serverState?.ropeSwing || predictionState.ropeSwing || ropeGrabAssistActive);
+    if (ropePoseSignal) ropePoseGraceUntil = nowSeconds + ROPE_POSE_GRACE_SECONDS;
+    const ropePoseActive = ropePoseSignal || nowSeconds < ropePoseGraceUntil;
     if (pushBallsRenderVisible && net.connected && Array.isArray(balls) && balls.length > 0) {
       const seen = new Set();
       let count = 0;
@@ -1760,10 +2060,42 @@ export async function createGameSession({
       if (pushBallStates.size > 0) pushBallStates.clear();
     }
 
-    // Context-aware hint: show a smack hint when the player is near a ball
-    // (until they've done it once — persisted locally).
+    // Context-aware hints for held objects, ropes, and ball handling.
     let nextHint = null;
-    if (!smackBallHintDone && Array.isArray(balls) && balls.length > 0 && controller.alive) {
+    if (localHeldTarget && controller.alive) {
+      nextHint = isCoarsePointer
+        ? { id: 'throwHeldBall', key: 'SMACK', text: 'Throw what you are holding' }
+        : { id: 'throwHeldBall', action: 'smack', text: 'Throw what you are holding' };
+    } else if (ropePoseActive && controller.alive) {
+      nextHint = {
+        id: 'ropeSwing',
+        items: isCoarsePointer
+          ? [
+            { key: 'STICK', text: 'Swing on the rope' },
+            { key: 'JUMP', text: 'Jump up the rope' },
+          ]
+          : [
+            { key: 'WASD', text: 'Swing on the rope' },
+            { action: 'jump', text: 'Jump up the rope' },
+          ],
+      };
+    } else if (
+      controller.alive
+      && ropeDistanceSq <= ROPE_HINT_RANGE * ROPE_HINT_RANGE
+    ) {
+      nextHint = {
+        id: 'ropeGrab',
+        items: isCoarsePointer
+          ? [
+            { key: 'JUMP', text: 'Jump toward the rope' },
+            { key: 'ROPE', text: 'Hold to grab the rope' },
+          ]
+          : [
+            { action: 'jump', text: 'Jump toward the rope' },
+            { action: 'grab', text: 'Hold to grab the rope' },
+          ],
+      };
+    } else if (Date.now() >= smackBallHintCooldownUntil && Array.isArray(balls) && balls.length > 0 && controller.alive) {
       let nearestSq = Infinity;
       for (const b of balls) {
         const dx = b.x - mouse.position.x;
@@ -1772,12 +2104,20 @@ export async function createGameSession({
         if (dSq < nearestSq) nearestSq = dSq;
       }
       if (nearestSq < 2.5 * 2.5) {
-        nextHint = isCoarsePointer
-          ? { id: 'smackBall', key: 'SMACK', text: 'Smack the ball' }
-          : { id: 'smackBall', action: 'smack', text: 'Smack the ball' };
+        nextHint = {
+          id: 'smackBall',
+          items: isCoarsePointer
+            ? [
+              { key: 'SMACK', text: 'Smack the ball' },
+              { key: 'GRAB', text: 'Pick up the ball' },
+            ]
+            : [
+              { action: 'smack', text: 'Smack the ball' },
+              { action: 'grab', text: 'Pick up the ball' },
+            ],
+        };
         if (_smackFiredThisFrame) {
-          smackBallHintDone = true;
-          try { localStorage.setItem(HINT_DONE_KEY, '1'); } catch {}
+          smackBallHintCooldownUntil = Date.now() + SMACK_BALL_HINT_COOLDOWN_MS;
           nextHint = null;
         }
       }
@@ -1938,7 +2278,7 @@ export async function createGameSession({
       if (avatar) {
         let targetRoll = 0;
         let targetPitch = 0;
-        const onRope = !!predictionState.ropeSwing || !!net?.serverState?.ropeSwing;
+        const onRope = ropePoseActive;
         if (onRope) {
           // Rope climb: same pose as wall-climb. Belly against the rope, nose
           // pointing up, back facing outward.
@@ -1982,6 +2322,7 @@ export async function createGameSession({
       mouse?.animationManager?.setPlaybackRate?.(animRate);
     }
 
+    actionJuice.update(deltaSeconds);
     render();
     const info = renderer.info;
     return {
@@ -2042,6 +2383,7 @@ export async function createGameSession({
     scene.remove(localNameplateAnchor);
     taskController.dispose();
     unlockCollectibles.dispose();
+    actionJuice.dispose();
     taskPromptElement.remove();
     labelRenderer.domElement.remove();
     outlinePipeline.dispose();
@@ -2161,6 +2503,16 @@ export async function createGameSession({
         label: 'Occlusion x-ray fader (wall fade)',
         get: () => occlusionFader.enabled !== false,
         set: (v) => occlusionFader.setEnabled(v),
+      },
+      grass: {
+        label: 'Grass (vegetation instanced cards)',
+        get: () => room.vegetationSystem?.isKindVisible('grass') !== false,
+        set: (v) => room.vegetationSystem?.setKindVisible('grass', v),
+      },
+      trees: {
+        label: 'Trees (vegetation canopies + trunks)',
+        get: () => room.vegetationSystem?.isKindVisible('tree') !== false,
+        set: (v) => room.vegetationSystem?.setKindVisible('tree', v),
       },
     });
   }

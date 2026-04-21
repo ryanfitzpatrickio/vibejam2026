@@ -77,6 +77,54 @@ function normalizeLine(line = {}) {
   };
 }
 
+function getDefaultCollisionShape({
+  kind = 'grass',
+  treeBuilder = null,
+  size = {},
+} = {}) {
+  if (kind === 'tree') {
+    const builder = normalizeTreeBuilder(treeBuilder ?? {});
+    const radius = round(Math.max(builder.trunk.radiusBase, builder.trunk.radiusTop, 0.03));
+    const height = round(builder.trunk.height);
+    return {
+      width: round(radius * 2),
+      depth: round(radius * 2),
+      radius,
+      height,
+      offsetY: round(height * 0.5),
+    };
+  }
+
+  const width = round(clamp(
+    ((Number(size.widthMin ?? 0.18) + Number(size.widthMax ?? 0.28)) * 0.5),
+    0.05,
+    24,
+  ));
+  const height = round(clamp(
+    ((Number(size.heightMin ?? 0.35) + Number(size.heightMax ?? 0.6)) * 0.5),
+    0.05,
+    32,
+  ));
+  return {
+    width,
+    depth: width,
+    radius: round(width * 0.5),
+    height,
+    offsetY: round(height * 0.5),
+  };
+}
+
+function normalizeCollisionShape(shape = {}, defaults = {}) {
+  const fallback = defaults ?? getDefaultCollisionShape();
+  return {
+    width: round(clamp(Number(shape.width ?? fallback.width), 0.05, 24)),
+    depth: round(clamp(Number(shape.depth ?? fallback.depth), 0.05, 24)),
+    radius: round(clamp(Number(shape.radius ?? fallback.radius), 0.025, 12)),
+    height: round(clamp(Number(shape.height ?? fallback.height), 0.05, 32)),
+    offsetY: round(clamp(Number(shape.offsetY ?? fallback.offsetY), -8, 32)),
+  };
+}
+
 export function createVegetationSpeciesId() {
   return `veg-species-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -93,6 +141,7 @@ export function normalizeVegetationSpecies(entry = {}) {
   const widthMax = Math.max(widthMin, clamp(Number(entry.size?.widthMax ?? 0.28), widthMin, 24));
   const heightMin = clamp(Number(entry.size?.heightMin ?? 0.35), 0.02, 32);
   const heightMax = Math.max(heightMin, clamp(Number(entry.size?.heightMax ?? 0.6), heightMin, 32));
+  const treeBuilder = kind === 'tree' ? normalizeTreeBuilder(entry.treeBuilder) : undefined;
   const defaultAtlas = renderMode === 'instancedCards'
     ? PROP_TEXTURE_ATLAS
     : kind === 'tree'
@@ -120,8 +169,18 @@ export function normalizeVegetationSpecies(entry = {}) {
     lineSpacing: round(clamp(Number(entry.lineSpacing ?? (kind === 'hedge' ? 0.55 : 0.4)), 0.05, 8)),
     shadow: normalizeShadowMode(entry.shadow),
     collision: normalizeCollisionMode(entry.collision),
+    collisionShape: normalizeCollisionShape(entry.collisionShape, getDefaultCollisionShape({
+      kind,
+      treeBuilder,
+      size: {
+        widthMin,
+        widthMax,
+        heightMin,
+        heightMax,
+      },
+    })),
     assetId: typeof entry.assetId === 'string' && entry.assetId.trim() ? entry.assetId.trim() : null,
-    treeBuilder: kind === 'tree' ? normalizeTreeBuilder(entry.treeBuilder) : undefined,
+    treeBuilder,
   };
 }
 
@@ -215,7 +274,7 @@ export const DEFAULT_VEGETATION_LIBRARY = Object.freeze(normalizeVegetationLibra
       },
       wind: { amp: 0.02, freq: 0.5, stiffness: 1.4 },
       shadow: 'full',
-      collision: 'box',
+      collision: 'cylinder',
       assetId: null,
       treeBuilder: normalizeTreeBuilder({
         trunkAssetName: 'tree-oak-a',

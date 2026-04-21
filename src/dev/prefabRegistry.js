@@ -11,6 +11,7 @@ function cloneVectorLike(source, fallback) {
 export const FACE_TEXTURE_SLOTS = Object.freeze({
   box: Object.freeze(['right', 'left', 'top', 'bottom', 'front', 'back']),
   cylinder: Object.freeze(['side', 'top', 'bottom']),
+  wedge: Object.freeze(['back', 'bottom', 'left', 'right', 'slope']),
   plane: Object.freeze([]),
   prop: Object.freeze([]),
 });
@@ -62,7 +63,12 @@ export function createPrefabPartId() {
 }
 
 export function normalizePrefabPrimitive(entry = {}) {
-  const type = entry.type === 'plane' || entry.type === 'cylinder' || entry.type === 'prop' ? entry.type : 'box';
+  const type = entry.type === 'plane'
+    || entry.type === 'cylinder'
+    || entry.type === 'wedge'
+    || entry.type === 'prop'
+    ? entry.type
+    : 'box';
   const texture = entry.texture ?? {};
   const textureRef = normalizeTextureRef(texture, 0);
 
@@ -81,6 +87,10 @@ export function normalizePrefabPrimitive(entry = {}) {
         y: texture.repeat?.y ?? 1,
       },
       rotation: texture.rotation ?? 0,
+      offset: {
+        x: texture.offset?.x ?? 0,
+        y: texture.offset?.y ?? 0,
+      },
     },
     faceTextures: normalizeFaceTextures(type, entry.faceTextures),
     material: {

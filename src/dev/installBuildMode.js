@@ -89,16 +89,29 @@ class BuildModeEditor {
     this.pointerInsideCanvas = false;
     this.raycaster = new THREE.Raycaster();
     this.currentHit = null;
+    this.currentEditableHit = null;
     this._suppressTransformSync = false;
     this.transformMode = 'translate';
+    this.cameraMode = 'follow';
+    this.freeCameraKeys = new Set();
+    this.freeCameraMoveSpeed = 8;
+    this.freeCameraBoostMultiplier = 2.5;
+    this._restoreStaticMergeOnExit = null;
+    this.activeTool = null;
+    this.bisectState = null;
+    this.objectTreeQuery = '';
+    this.selectionHighlightBindings = [];
+    this.selectionHighlightTarget = null;
     this.glbRegistry = null;
     this._glbFileInput = null;
 
     this._createUI();
     this._createProbeVisuals();
+    this._createSelectionHighlight();
     this._createOrbitControls();
     this._createTransformControls();
     this._bindCanvasEvents();
+    this._bindHotkeys();
     this._createPrefabEditorDialog();
     this._createVegetationEditorDialog();
     this._renderPalette();
@@ -118,6 +131,9 @@ class BuildModeEditor {
   toggle() {
     this.visible = !this.visible;
     this.panel.style.display = this.visible ? 'block' : 'none';
+    if (this.objectTreePanel) {
+      this.objectTreePanel.style.display = this.visible ? 'block' : 'none';
+    }
     this.app.room.setSpawnMarkersVisible(this.visible);
     this.app.room.setLightHelpersVisible(this.visible);
     this.app.room.setPortalHelpersVisible(this.visible);
@@ -126,10 +142,14 @@ class BuildModeEditor {
     this.app.room.setRaidTaskHelpersVisible?.(true);
     this.app.room.setRopeHelpersVisible?.(this.visible);
     if (this.visible) {
+      this._restoreStaticMergeOnExit = this.app.room.isStaticMergeEnabled?.() ?? null;
+      if (this._restoreStaticMergeOnExit) {
+        this.app.room.setStaticMergeEnabled(false);
+      }
       this.app.thirdPersonCamera?.setEnabled(false);
-      this.controls.target.copy(this.app.mouse.position);
-      this.controls.target.y += 0.6;
+      this._enterBuildCameraMode();
       this.controls.enabled = true;
+      this.controls.update();
       this.transformControls.enabled = true;
       this._attachTransformControls();
       document.exitPointerLock?.();
@@ -138,6 +158,13 @@ class BuildModeEditor {
       this.transformControls.enabled = false;
       this.transformControls.detach();
       this._hideProbe();
+      this._cancelBisectPlaneTool({ silent: true });
+      this._clearSelectionHighlight();
+      this.freeCameraKeys.clear();
+      if (this._restoreStaticMergeOnExit != null) {
+        this.app.room.setStaticMergeEnabled(this._restoreStaticMergeOnExit);
+        this._restoreStaticMergeOnExit = null;
+      }
       this.app.thirdPersonCamera?.syncFromCamera(this.app.mouse.position);
       this.app.thirdPersonCamera?.setEnabled(true);
     }
@@ -146,15 +173,17 @@ class BuildModeEditor {
   update(deltaSeconds = 1 / 60) {
     if (!this.visible) return;
 
-    const desiredTarget = this.app.mouse.position.clone();
-    desiredTarget.y += 0.6;
-    this.controls.target.lerp(desiredTarget, 1 - Math.exp(-6 * deltaSeconds));
+    this._updateBuildCamera(deltaSeconds);
     this.controls.update();
     this.app.thirdPersonCamera?.syncFromCamera(this.app.mouse.position);
     this._updateProbe();
+    this._updateBisectPreview();
+    this._updateSelectionHighlight();
   }
 
   _createUI() {
+    this._createObjectTreePanel();
+
     this.panel = document.createElement('aside');
     Object.assign(this.panel.style, {
       position: 'fixed',
@@ -240,7 +269,9 @@ class BuildModeEditor {
 
     this._addActionButton('Add Box', () => this._addPrimitive('box'));
     this._addActionButton('Add Plane', () => this._addPrimitive('plane'));
+    this.bisectPlaneButton = this._addActionButton('Bisect Plane', () => this._toggleBisectPlaneTool(), '#3a2a45');
     this._addActionButton('Add Cyl', () => this._addPrimitive('cylinder'));
+    this._addActionButton('Add Wedge', () => this._addPrimitive('wedge'));
     this._addActionButton('Add Prop', () => this._addPrimitive('prop'), '#284423');
     this._addActionButton('Player Spawn', () => this._addSpawnMarker(SPAWN_TYPES.PLAYER), '#1b4450');
     this._addActionButton('Enemy Spawn', () => this._addSpawnMarker(SPAWN_TYPES.ENEMY), '#5a2b1f');
@@ -257,6 +288,7 @@ class BuildModeEditor {
     this._addActionButton('Move', () => this._setTransformMode('translate'));
     this._addActionButton('Rotate', () => this._setTransformMode('rotate'));
     this._addActionButton('Scale', () => this._setTransformMode('scale'));
+    this.freeCameraButton = this._addActionButton('Free Cam: Off', () => this._toggleFreeCameraMode(), '#243742');
     this._addActionButton('Duplicate', () => this._duplicateSelected());
     this._addActionButton('Delete', () => this._deleteSelected(), '#5d221f');
     this._addActionButton('Save', () => this.save(), '#23472d');
@@ -288,6 +320,69 @@ class BuildModeEditor {
     document.body.appendChild(this.panel);
   }
 
+  _createObjectTreePanel() {
+    this.objectTreePanel = document.createElement('aside');
+    Object.assign(this.objectTreePanel.style, {
+      position: 'fixed',
+      top: '20px',
+      left: '20px',
+      width: '320px',
+      maxHeight: 'calc(100vh - 40px)',
+      overflow: 'hidden',
+      zIndex: '140',
+      padding: '14px',
+      borderRadius: '14px',
+      background: 'rgba(12, 10, 9, 0.92)',
+      color: '#f7efe5',
+      border: '1px solid rgba(255,255,255,0.12)',
+      boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+      backdropFilter: 'blur(10px)',
+      fontFamily: 'monospace',
+      display: 'none',
+    });
+
+    const title = document.createElement('div');
+    title.textContent = 'Object Tree';
+    Object.assign(title.style, {
+      fontSize: '13px',
+      fontWeight: '700',
+      marginBottom: '10px',
+      color: '#ffd7a4',
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+    });
+    this.objectTreePanel.appendChild(title);
+
+    this.objectTreeSearchInput = document.createElement('input');
+    this.objectTreeSearchInput.type = 'search';
+    this.objectTreeSearchInput.placeholder = 'Search objects';
+    styleField(this.objectTreeSearchInput);
+    this.objectTreeSearchInput.addEventListener('input', () => {
+      this.objectTreeQuery = this.objectTreeSearchInput.value.trim().toLowerCase();
+      this._refreshObjectTree();
+    });
+    this.objectTreePanel.appendChild(this.objectTreeSearchInput);
+
+    this.objectTreeMeta = document.createElement('div');
+    Object.assign(this.objectTreeMeta.style, {
+      marginTop: '8px',
+      fontSize: '11px',
+      color: '#c9b79d',
+    });
+    this.objectTreePanel.appendChild(this.objectTreeMeta);
+
+    this.objectTreeContainer = document.createElement('div');
+    Object.assign(this.objectTreeContainer.style, {
+      marginTop: '10px',
+      maxHeight: 'calc(100vh - 150px)',
+      overflowY: 'auto',
+      paddingRight: '4px',
+    });
+    this.objectTreePanel.appendChild(this.objectTreeContainer);
+
+    document.body.appendChild(this.objectTreePanel);
+  }
+
   _updateGridNote(grid = this.app.room.getBuildGridConfig()) {
     if (!this.gridNote) return;
     this.gridNote.textContent = `Grid: ${grid.columns}x${grid.rows} | cell ${grid.cellWidth.toFixed(3)} x ${grid.cellDepth.toFixed(3)} | y step ${grid.verticalStep.toFixed(3)}`;
@@ -299,6 +394,144 @@ class BuildModeEditor {
 
   _createProbeVisuals() {
     installProbeVisuals(this);
+  }
+
+  _createSelectionHighlight() {
+    this.selectionHighlightGroup = new THREE.Group();
+    this.selectionHighlightGroup.visible = false;
+    this.selectionHighlightGroup.userData.editorHelper = true;
+    this.selectionHighlightMaterial = new THREE.LineBasicMaterial({
+      color: '#ff8a1f',
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    this.app.scene.add(this.selectionHighlightGroup);
+  }
+
+  _bindHotkeys() {
+    window.addEventListener('keydown', (event) => {
+      if (!this.visible) return;
+      if (this._handleFreeCameraKeyDown(event)) return;
+      if (event.key === 'Escape' && this.activeTool === 'bisect-plane') {
+        event.preventDefault();
+        this._cancelBisectPlaneTool();
+      }
+    });
+    window.addEventListener('keyup', (event) => {
+      this._handleFreeCameraKeyUp(event);
+    });
+  }
+
+  _isTypingInField() {
+    const active = document.activeElement;
+    return active instanceof HTMLInputElement
+      || active instanceof HTMLTextAreaElement
+      || active instanceof HTMLSelectElement
+      || active?.isContentEditable === true;
+  }
+
+  _updateFreeCameraButton() {
+    if (!this.freeCameraButton) return;
+    const active = this.cameraMode === 'free';
+    this.freeCameraButton.textContent = active ? 'Free Cam: On' : 'Free Cam: Off';
+    this.freeCameraButton.style.background = active ? '#1d5b6c' : '#243742';
+    this.freeCameraButton.style.borderColor = active ? 'rgba(120,220,255,0.55)' : 'rgba(255,255,255,0.12)';
+  }
+
+  _toggleFreeCameraMode() {
+    this.cameraMode = this.cameraMode === 'free' ? 'follow' : 'free';
+    this.freeCameraKeys.clear();
+    this._enterBuildCameraMode();
+    this._updateFreeCameraButton();
+    this._setStatus(this.cameraMode === 'free'
+      ? 'Free camera enabled. Left drag orbit, right drag pan, scroll zoom, WASD move.'
+      : 'Build camera following player again.');
+  }
+
+  _enterBuildCameraMode() {
+    if (this.cameraMode === 'free') {
+      const currentOffset = new THREE.Vector3().subVectors(this.app.camera.position, this.controls.target);
+      if (!Number.isFinite(currentOffset.lengthSq()) || currentOffset.lengthSq() < 0.25) {
+        const anchor = this.app.mouse.position.clone();
+        anchor.y += 0.6;
+        this.controls.target.copy(anchor);
+        this.app.camera.position.copy(anchor).add(new THREE.Vector3(6, 5.5, 6));
+        this.app.camera.lookAt(this.controls.target);
+        this.app.camera.updateMatrixWorld();
+      }
+      return;
+    }
+    this.controls.target.copy(this.app.mouse.position);
+    this.controls.target.y += 0.6;
+    const cameraOffset = new THREE.Vector3().subVectors(this.app.camera.position, this.controls.target);
+    if (!Number.isFinite(cameraOffset.lengthSq()) || cameraOffset.lengthSq() < 2.25) {
+      this.app.camera.position.copy(this.controls.target).add(new THREE.Vector3(6, 5.5, 6));
+      this.app.camera.lookAt(this.controls.target);
+      this.app.camera.updateMatrixWorld();
+    }
+  }
+
+  _updateBuildCamera(deltaSeconds) {
+    if (this.cameraMode === 'free') {
+      this._updateFreeCameraMotion(deltaSeconds);
+      return;
+    }
+    const desiredTarget = this.app.mouse.position.clone();
+    desiredTarget.y += 0.6;
+    this.controls.target.lerp(desiredTarget, 1 - Math.exp(-6 * deltaSeconds));
+  }
+
+  _updateFreeCameraMotion(deltaSeconds) {
+    if (!this.freeCameraKeys.size) return;
+    const move = new THREE.Vector3();
+    if (this.freeCameraKeys.has('KeyW')) move.z -= 1;
+    if (this.freeCameraKeys.has('KeyS')) move.z += 1;
+    if (this.freeCameraKeys.has('KeyA')) move.x -= 1;
+    if (this.freeCameraKeys.has('KeyD')) move.x += 1;
+    if (move.lengthSq() <= 0) return;
+
+    move.normalize();
+    const forward = new THREE.Vector3();
+    this.app.camera.getWorldDirection(forward);
+    forward.y = 0;
+    if (forward.lengthSq() < 0.0001) {
+      forward.set(0, 0, -1);
+    } else {
+      forward.normalize();
+    }
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    const delta = new THREE.Vector3()
+      .addScaledVector(right, move.x)
+      .addScaledVector(forward, -move.z)
+      .multiplyScalar(
+        this.freeCameraMoveSpeed
+        * (this.freeCameraKeys.has('ShiftLeft') || this.freeCameraKeys.has('ShiftRight')
+          ? this.freeCameraBoostMultiplier
+          : 1)
+        * deltaSeconds,
+      );
+    this.app.camera.position.add(delta);
+    this.controls.target.add(delta);
+  }
+
+  _handleFreeCameraKeyDown(event) {
+    if (!this.visible || this.cameraMode !== 'free') return false;
+    if (this._isTypingInField()) return false;
+    if (event.altKey || event.ctrlKey || event.metaKey) return false;
+    if (!['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight'].includes(event.code)) return false;
+    this.freeCameraKeys.add(event.code);
+    event.preventDefault();
+    return true;
+  }
+
+  _handleFreeCameraKeyUp(event) {
+    if (this.cameraMode !== 'free') return false;
+    if (!['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight'].includes(event.code)) return false;
+    this.freeCameraKeys.delete(event.code);
+    return true;
   }
 
   _createPrefabEditorDialog() {
@@ -389,6 +622,385 @@ class BuildModeEditor {
 
   _hideProbe() {
     hideProbe(this);
+  }
+
+  _setBisectPreview(start, end) {
+    if (!this.bisectLine) return;
+    if (!start || !end) {
+      this.bisectLine.visible = false;
+      return;
+    }
+    const position = this.bisectLine.geometry.attributes.position;
+    position.setXYZ(0, start.x, start.y, start.z);
+    position.setXYZ(1, end.x, end.y, end.z);
+    position.needsUpdate = true;
+    this.bisectLine.visible = true;
+  }
+
+  _updateBisectButton() {
+    if (!this.bisectPlaneButton) return;
+    const active = this.activeTool === 'bisect-plane';
+    this.bisectPlaneButton.textContent = active ? 'Bisect: On' : 'Bisect Plane';
+    this.bisectPlaneButton.style.background = active ? '#1e5b63' : '#3a2a45';
+    this.bisectPlaneButton.style.borderColor = active ? 'rgba(140,247,255,0.5)' : 'rgba(255,255,255,0.12)';
+  }
+
+  _toggleBisectPlaneTool() {
+    if (this.activeTool === 'bisect-plane') {
+      this._cancelBisectPlaneTool();
+      return;
+    }
+    const primitive = this._selectedPrimitive();
+    if (!primitive || primitive.type !== 'plane') {
+      this._setStatus('Select a plane before using Bisect Plane.', true);
+      return;
+    }
+    this.activeTool = 'bisect-plane';
+    this.bisectState = {
+      planeId: primitive.id,
+      dragStartWorldPoint: null,
+      dragStartLocalPoint: null,
+      dragCurrentWorldPoint: null,
+      dragCurrentLocalPoint: null,
+      isDragging: false,
+      controlsWereEnabled: false,
+    };
+    this._updateBisectButton();
+    this._setStatus('Bisect mode: click and drag on the selected plane. Esc cancels.');
+  }
+
+  _cancelBisectPlaneTool({ silent = false } = {}) {
+    if (this.activeTool !== 'bisect-plane') return;
+    if (this.bisectState?.isDragging) {
+      this.controls.enabled = this.bisectState.controlsWereEnabled && this.visible;
+    }
+    this.activeTool = null;
+    this.bisectState = null;
+    this._setBisectPreview(null, null);
+    this._updateBisectButton();
+    if (!silent) {
+      this._setStatus('Bisect cancelled.');
+    }
+  }
+
+  _updateBisectPreview() {
+    if (this.activeTool !== 'bisect-plane') {
+      this._setBisectPreview(null, null);
+      return;
+    }
+    const state = this.bisectState;
+    const primitive = this._selectedPrimitive();
+    if (!state || !primitive || primitive.type !== 'plane') {
+      this._cancelBisectPlaneTool({ silent: true });
+      return;
+    }
+    if (!state.isDragging || !state.dragStartLocalPoint || !state.dragCurrentLocalPoint) {
+      this._setBisectPreview(null, null);
+      return;
+    }
+    const spec = this._resolvePlaneBisectSpec(primitive, state.dragStartLocalPoint, state.dragCurrentLocalPoint);
+    if (!spec) {
+      this._setBisectPreview(null, null);
+      return;
+    }
+    this._setBisectPreview(spec.previewStartWorld, spec.previewEndWorld);
+  }
+
+  _handleCanvasPointerDown({ editableHit, editableId }) {
+    if (this.activeTool !== 'bisect-plane') return false;
+    const primitive = this._selectedPrimitive();
+    if (!primitive || primitive.type !== 'plane') {
+      this._cancelBisectPlaneTool({ silent: true });
+      this._setStatus('Bisect mode needs a selected plane.', true);
+      return false;
+    }
+    if (!editableHit || editableId !== primitive.id) {
+      this._setStatus('Bisect drag must start on the selected plane.', true);
+      return true;
+    }
+
+    const localPoint = this._planeLocalPoint(primitive, editableHit.point);
+    if (!localPoint) {
+      this._setStatus('Could not resolve the bisect point on that plane.', true);
+      return true;
+    }
+
+    this.bisectState = {
+      planeId: primitive.id,
+      dragStartWorldPoint: editableHit.point.clone(),
+      dragStartLocalPoint: localPoint.clone(),
+      dragCurrentWorldPoint: editableHit.point.clone(),
+      dragCurrentLocalPoint: localPoint.clone(),
+      isDragging: true,
+      controlsWereEnabled: this.controls.enabled,
+    };
+    this.controls.enabled = false;
+    this._setStatus('Bisect mode: drag to place the cut, release to apply.');
+    return true;
+  }
+
+  _handleCanvasPointerMove() {
+    if (this.activeTool !== 'bisect-plane' || !this.bisectState?.isDragging) return false;
+    const primitive = this._selectedPrimitive();
+    if (!primitive || primitive.type !== 'plane') {
+      this._cancelBisectPlaneTool({ silent: true });
+      return false;
+    }
+    const hit = this._intersectSelectedPlaneFromPointer(primitive);
+    if (!hit) return true;
+    this.bisectState.dragCurrentWorldPoint = hit.worldPoint;
+    this.bisectState.dragCurrentLocalPoint = hit.localPoint;
+    return true;
+  }
+
+  _handleCanvasPointerUp() {
+    if (this.activeTool !== 'bisect-plane' || !this.bisectState?.isDragging) return false;
+    const primitive = this._selectedPrimitive();
+    const state = this.bisectState;
+    const hit = primitive ? this._intersectSelectedPlaneFromPointer(primitive) : null;
+    if (hit) {
+      state.dragCurrentWorldPoint = hit.worldPoint;
+      state.dragCurrentLocalPoint = hit.localPoint;
+    }
+    state.isDragging = false;
+    this.controls.enabled = state.controlsWereEnabled && this.visible;
+    const applied = primitive
+      ? this._applyPlaneBisect(primitive, state.dragStartLocalPoint, state.dragCurrentLocalPoint)
+      : false;
+    this._cancelBisectPlaneTool({ silent: true });
+    if (!applied) {
+      this._setStatus('Bisect cancelled.', true);
+    }
+    return true;
+  }
+
+  _handleCanvasClick() {
+    if (this.activeTool !== 'bisect-plane') return false;
+    return !!this.bisectState?.isDragging;
+  }
+
+  _primitiveWorldTransform(primitive) {
+    if (!primitive) return null;
+    const localPosition = new THREE.Vector3(
+      primitive.position?.x ?? 0,
+      primitive.position?.y ?? 0,
+      primitive.position?.z ?? 0,
+    );
+    const localQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+      primitive.rotation?.x ?? 0,
+      primitive.rotation?.y ?? 0,
+      primitive.rotation?.z ?? 0,
+    ));
+    const localScale = new THREE.Vector3(
+      primitive.scale?.x ?? 1,
+      primitive.scale?.y ?? 1,
+      primitive.scale?.z ?? 1,
+    );
+
+    const worldMatrix = new THREE.Matrix4().compose(localPosition, localQuaternion, localScale);
+    if (primitive.prefabInstanceId) {
+      const prefabOrigin = primitive.prefabInstanceOrigin ?? { x: 0, y: 0, z: 0 };
+      const prefabRotation = primitive.prefabInstanceRotation ?? { x: 0, y: 0, z: 0 };
+      const prefabScale = primitive.prefabInstanceScale ?? { x: 1, y: 1, z: 1 };
+      const prefabMatrix = new THREE.Matrix4().compose(
+        new THREE.Vector3(prefabOrigin.x, prefabOrigin.y, prefabOrigin.z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(prefabRotation.x, prefabRotation.y, prefabRotation.z)),
+        new THREE.Vector3(prefabScale.x, prefabScale.y, prefabScale.z),
+      );
+      worldMatrix.premultiply(prefabMatrix);
+    }
+
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    worldMatrix.decompose(position, quaternion, scale);
+    const rotation = new THREE.Euler().setFromQuaternion(quaternion, 'XYZ');
+    return { matrix: worldMatrix, position, quaternion, scale, rotation };
+  }
+
+  _planeLocalPoint(primitive, worldPoint) {
+    const transform = this._primitiveWorldTransform(primitive);
+    if (!transform || !worldPoint) return null;
+    const inverse = transform.matrix.clone().invert();
+    return worldPoint.clone().applyMatrix4(inverse);
+  }
+
+  _intersectSelectedPlaneFromPointer(primitive) {
+    const transform = this._primitiveWorldTransform(primitive);
+    if (!transform) return null;
+    this.raycaster.setFromCamera(this.pointerNdc, this.app.camera);
+    const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(transform.quaternion).normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, transform.position);
+    const worldPoint = new THREE.Vector3();
+    if (!this.raycaster.ray.intersectPlane(plane, worldPoint)) return null;
+    const localPoint = worldPoint.clone().applyMatrix4(transform.matrix.clone().invert());
+    return { worldPoint, localPoint };
+  }
+
+  _resolvePlaneBisectSpec(primitive, startLocalPoint, endLocalPoint) {
+    const transform = this._primitiveWorldTransform(primitive);
+    if (!transform || !startLocalPoint || !endLocalPoint) return null;
+
+    const deltaX = endLocalPoint.x - startLocalPoint.x;
+    const deltaY = endLocalPoint.y - startLocalPoint.y;
+    if ((deltaX * deltaX) + (deltaY * deltaY) < 0.0004) return null;
+
+    const axis = Math.abs(deltaX) >= Math.abs(deltaY) ? 'y' : 'x';
+    const averageCoord = axis === 'x'
+      ? (startLocalPoint.x + endLocalPoint.x) * 0.5
+      : (startLocalPoint.y + endLocalPoint.y) * 0.5;
+    const axisWorldSpan = Math.max(0.0001, transform.scale[axis]);
+    const minNormalizedSpan = Math.min(0.49, 0.08 / axisWorldSpan);
+    const cutCoord = THREE.MathUtils.clamp(averageCoord, -0.5 + minNormalizedSpan, 0.5 - minNormalizedSpan);
+    const spanA = cutCoord + 0.5;
+    const spanB = 0.5 - cutCoord;
+
+    if (spanA <= minNormalizedSpan || spanB <= minNormalizedSpan) return null;
+
+    const previewStartLocal = axis === 'x'
+      ? new THREE.Vector3(cutCoord, -0.5, 0)
+      : new THREE.Vector3(-0.5, cutCoord, 0);
+    const previewEndLocal = axis === 'x'
+      ? new THREE.Vector3(cutCoord, 0.5, 0)
+      : new THREE.Vector3(0.5, cutCoord, 0);
+    const previewStartWorld = previewStartLocal.clone().applyMatrix4(transform.matrix);
+    const previewEndWorld = previewEndLocal.clone().applyMatrix4(transform.matrix);
+
+    return {
+      axis,
+      cutCoord,
+      spanA,
+      spanB,
+      transform,
+      previewStartWorld,
+      previewEndWorld,
+    };
+  }
+
+  _applyPlaneBisect(primitive, startLocalPoint, endLocalPoint) {
+    const spec = this._resolvePlaneBisectSpec(primitive, startLocalPoint, endLocalPoint);
+    if (!spec) {
+      this._setStatus('Bisect needs a real drag across the plane, away from the edges.', true);
+      return false;
+    }
+
+    const {
+      axis,
+      cutCoord,
+      spanA,
+      spanB,
+      transform,
+    } = spec;
+
+    const centerNormA = (-0.5 + cutCoord) * 0.5;
+    const centerNormB = (cutCoord + 0.5) * 0.5;
+    const offsetA = new THREE.Vector3(
+      axis === 'x' ? centerNormA * transform.scale.x : 0,
+      axis === 'y' ? centerNormA * transform.scale.y : 0,
+      0,
+    ).applyQuaternion(transform.quaternion);
+    const offsetB = new THREE.Vector3(
+      axis === 'x' ? centerNormB * transform.scale.x : 0,
+      axis === 'y' ? centerNormB * transform.scale.y : 0,
+      0,
+    ).applyQuaternion(transform.quaternion);
+
+    const pieceA = this._detachPrimitiveCopyFromPrefab(deepClone(primitive));
+    const pieceB = this._detachPrimitiveCopyFromPrefab(deepClone(primitive));
+    pieceA.id = createPrimitiveId();
+    pieceB.id = createPrimitiveId();
+    pieceA.name = `${primitive.name}-a`;
+    pieceB.name = `${primitive.name}-b`;
+    pieceA.position = {
+      x: Number((transform.position.x + offsetA.x).toFixed(4)),
+      y: Number((transform.position.y + offsetA.y).toFixed(4)),
+      z: Number((transform.position.z + offsetA.z).toFixed(4)),
+    };
+    pieceB.position = {
+      x: Number((transform.position.x + offsetB.x).toFixed(4)),
+      y: Number((transform.position.y + offsetB.y).toFixed(4)),
+      z: Number((transform.position.z + offsetB.z).toFixed(4)),
+    };
+    pieceA.rotation = {
+      x: Number(transform.rotation.x.toFixed(6)),
+      y: Number(transform.rotation.y.toFixed(6)),
+      z: Number(transform.rotation.z.toFixed(6)),
+    };
+    pieceB.rotation = {
+      x: Number(transform.rotation.x.toFixed(6)),
+      y: Number(transform.rotation.y.toFixed(6)),
+      z: Number(transform.rotation.z.toFixed(6)),
+    };
+    pieceA.scale = {
+      x: Number((axis === 'x' ? transform.scale.x * spanA : transform.scale.x).toFixed(4)),
+      y: Number((axis === 'y' ? transform.scale.y * spanA : transform.scale.y).toFixed(4)),
+      z: Number(transform.scale.z.toFixed(4)),
+    };
+    pieceB.scale = {
+      x: Number((axis === 'x' ? transform.scale.x * spanB : transform.scale.x).toFixed(4)),
+      y: Number((axis === 'y' ? transform.scale.y * spanB : transform.scale.y).toFixed(4)),
+      z: Number(transform.scale.z.toFixed(4)),
+    };
+    if (pieceA.texture?.repeat && pieceB.texture?.repeat) {
+      pieceA.texture.offset = {
+        x: pieceA.texture.offset?.x ?? 0,
+        y: pieceA.texture.offset?.y ?? 0,
+      };
+      pieceB.texture.offset = {
+        x: pieceB.texture.offset?.x ?? 0,
+        y: pieceB.texture.offset?.y ?? 0,
+      };
+      const rotation = primitive.texture?.rotation ?? 0;
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      if (axis === 'x') {
+        const repeatX = primitive.texture?.repeat?.x ?? pieceA.texture.repeat.x ?? 1;
+        pieceA.texture.repeat.x = Number((repeatX * spanA).toFixed(4));
+        pieceB.texture.repeat.x = Number((repeatX * spanB).toFixed(4));
+        const offsetDeltaA = repeatX * centerNormA;
+        const offsetDeltaB = repeatX * centerNormB;
+        pieceA.texture.offset.x = Number((pieceA.texture.offset.x + (cos * offsetDeltaA)).toFixed(4));
+        pieceA.texture.offset.y = Number((pieceA.texture.offset.y + (sin * offsetDeltaA)).toFixed(4));
+        pieceB.texture.offset.x = Number((pieceB.texture.offset.x + (cos * offsetDeltaB)).toFixed(4));
+        pieceB.texture.offset.y = Number((pieceB.texture.offset.y + (sin * offsetDeltaB)).toFixed(4));
+      } else {
+        const repeatY = primitive.texture?.repeat?.y ?? pieceA.texture.repeat.y ?? 1;
+        pieceA.texture.repeat.y = Number((repeatY * spanA).toFixed(4));
+        pieceB.texture.repeat.y = Number((repeatY * spanB).toFixed(4));
+        const offsetDeltaA = repeatY * centerNormA;
+        const offsetDeltaB = repeatY * centerNormB;
+        pieceA.texture.offset.x = Number((pieceA.texture.offset.x - (sin * offsetDeltaA)).toFixed(4));
+        pieceA.texture.offset.y = Number((pieceA.texture.offset.y + (cos * offsetDeltaA)).toFixed(4));
+        pieceB.texture.offset.x = Number((pieceB.texture.offset.x - (sin * offsetDeltaB)).toFixed(4));
+        pieceB.texture.offset.y = Number((pieceB.texture.offset.y + (cos * offsetDeltaB)).toFixed(4));
+      }
+    }
+
+    pieceA.deleted = false;
+    pieceB.deleted = false;
+
+    const nextLayout = this.app.room.getEditableLayout();
+    const sourceIsBuiltIn = this.app.room.builtInEditableMeshes?.has(primitive.id) === true;
+    nextLayout.primitives = (nextLayout.primitives ?? []).flatMap((entry) => {
+      if (entry.id !== primitive.id) return [entry];
+      if (!sourceIsBuiltIn) {
+        return [pieceA, pieceB];
+      }
+      return [
+        {
+          ...deepClone(entry),
+          deleted: true,
+        },
+        pieceA,
+        pieceB,
+      ];
+    });
+    this.layout = this.app.room.setEditableLayout(nextLayout);
+    this.selectedId = pieceA.id;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Bisected ${primitive.name} into 2 planes.`);
+    return true;
   }
 
   _setTransformMode(mode) {
@@ -575,7 +1187,13 @@ class BuildModeEditor {
       },
       rotation: { x: 0, y: 0, z: 0 },
       scale: { x: autoScale, y: autoScale, z: autoScale },
-      texture: { atlas: 'textures', cell: null, repeat: { x: 1, y: 1 }, rotation: 0 },
+      texture: {
+        atlas: 'textures',
+        cell: null,
+        repeat: { x: 1, y: 1 },
+        rotation: 0,
+        offset: { x: 0, y: 0 },
+      },
       material: { color: '#ffffff', roughness: 0.88, metalness: 0.04 },
       collider: true,
       colliderClearance: 0,
@@ -757,6 +1375,155 @@ class BuildModeEditor {
       ?? this._selectedRope();
   }
 
+  _entryTypeLabel(entry) {
+    if (!entry) return 'object';
+    if (entry.lightType) return `${entry.lightType} light`;
+    if (entry.portalType) return `${normalizeVibePortalType(entry.portalType)} portal`;
+    if (entry.segmentCount != null && entry.anchor) return 'rope';
+    if (entry.taskType != null) return `task · ${entry.taskType}`;
+    if (entry.speciesId) return `vegetation · ${entry.mode}`;
+    if (entry.radius != null && entry.portalType == null) return `extraction · r ${Number(entry.radius).toFixed(2)}`;
+    const spawnLabel = this._spawnLabel(normalizeSpawnType(entry.spawnType));
+    return spawnLabel || entry.type || 'object';
+  }
+
+  _entryOptionLabel(entry) {
+    return `${entry.name} (${this._entryTypeLabel(entry)})`;
+  }
+
+  _objectTreeGroups() {
+    return [
+      { key: 'primitives', label: 'Primitives', entries: this._editorPrimitives() },
+      { key: 'lights', label: 'Lights', entries: this._editorLights() },
+      { key: 'portals', label: 'Portals', entries: this._editorPortals() },
+      { key: 'ropes', label: 'Ropes', entries: this._editorRopes() },
+      { key: 'extraction', label: 'Extraction', entries: this._editorExtractionPortals() },
+      { key: 'tasks', label: 'Tasks', entries: this._editorRaidTasks() },
+      { key: 'vegetation', label: 'Vegetation', entries: this._editorVegetation() },
+    ];
+  }
+
+  _entryMatchesTreeSearch(entry, groupLabel) {
+    const query = this.objectTreeQuery;
+    if (!query) return true;
+    const haystack = [
+      entry.name,
+      entry.id,
+      this._entryTypeLabel(entry),
+      groupLabel,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(query);
+  }
+
+  _refreshObjectTree() {
+    if (!this.objectTreeContainer) return;
+    const groups = this._objectTreeGroups()
+      .map((group) => ({
+        ...group,
+        entries: group.entries.filter((entry) => this._entryMatchesTreeSearch(entry, group.label)),
+      }))
+      .filter((group) => group.entries.length > 0);
+
+    const totalEntries = groups.reduce((sum, group) => sum + group.entries.length, 0);
+    this.objectTreeMeta.textContent = totalEntries
+      ? `${totalEntries} visible object${totalEntries === 1 ? '' : 's'}`
+      : 'No objects match the current search.';
+
+    this.objectTreeContainer.innerHTML = '';
+    if (!groups.length) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No editable objects';
+      Object.assign(empty.style, {
+        padding: '8px 6px',
+        color: '#c9b79d',
+        fontSize: '11px',
+      });
+      this.objectTreeContainer.appendChild(empty);
+      return;
+    }
+
+    groups.forEach((group) => {
+      const details = document.createElement('details');
+      details.open = true;
+      Object.assign(details.style, {
+        marginBottom: '8px',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        background: 'rgba(255,255,255,0.03)',
+      });
+
+      const summary = document.createElement('summary');
+      summary.textContent = `${group.label} (${group.entries.length})`;
+      Object.assign(summary.style, {
+        padding: '8px 10px',
+        cursor: 'pointer',
+        color: '#ffd7a4',
+        fontSize: '11px',
+        userSelect: 'none',
+      });
+      details.appendChild(summary);
+
+      const list = document.createElement('div');
+      Object.assign(list.style, {
+        display: 'grid',
+        gap: '4px',
+        padding: '6px',
+      });
+
+      group.entries.forEach((entry) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        Object.assign(button.style, {
+          display: 'grid',
+          gap: '2px',
+          width: '100%',
+          padding: '8px 10px',
+          borderRadius: '8px',
+          border: entry.id === this.selectedId
+            ? '1px solid rgba(255,138,31,0.75)'
+            : '1px solid rgba(255,255,255,0.08)',
+          background: entry.id === this.selectedId
+            ? 'rgba(255,138,31,0.16)'
+            : 'rgba(255,255,255,0.03)',
+          color: '#fff6ec',
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+        });
+        button.addEventListener('click', () => {
+          this.selectedId = entry.id;
+          this._syncForm();
+          this._setStatus(`Selected ${entry.name}.`);
+        });
+
+        const name = document.createElement('div');
+        name.textContent = entry.name;
+        Object.assign(name.style, {
+          fontSize: '12px',
+          fontWeight: entry.id === this.selectedId ? '700' : '500',
+        });
+        button.appendChild(name);
+
+        const meta = document.createElement('div');
+        meta.textContent = `${this._entryTypeLabel(entry)} · ${entry.id}`;
+        Object.assign(meta.style, {
+          fontSize: '10px',
+          color: entry.id === this.selectedId ? '#ffd7a4' : '#c9b79d',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        });
+        button.appendChild(meta);
+
+        list.appendChild(button);
+      });
+
+      details.appendChild(list);
+      this.objectTreeContainer.appendChild(details);
+    });
+  }
+
   _spawnLabel(spawnType) {
     if (spawnType === SPAWN_TYPES.PLAYER) return 'player spawn';
     if (spawnType === SPAWN_TYPES.ENEMY) return 'enemy spawn';
@@ -825,32 +1592,118 @@ class BuildModeEditor {
     editorEntries.forEach((entry) => {
       const option = document.createElement('option');
       option.value = entry.id;
-      if (entry.lightType) {
-        option.textContent = `${entry.name} (${entry.lightType} light)`;
-      } else if (entry.portalType) {
-        option.textContent = `${entry.name} (${normalizeVibePortalType(entry.portalType)} portal)`;
-      } else if (entry.segmentCount != null && entry.anchor) {
-        option.textContent = `${entry.name} (rope)`;
-      } else if (entry.taskType != null) {
-        option.textContent = `${entry.name} (task · ${entry.taskType})`;
-      } else if (entry.speciesId) {
-        option.textContent = `${entry.name} (vegetation · ${entry.mode})`;
-      } else if (entry.radius != null && entry.portalType == null) {
-        option.textContent = `${entry.name} (extraction · r ${Number(entry.radius).toFixed(2)})`;
-      } else {
-        const spawnLabel = this._spawnLabel(normalizeSpawnType(entry.spawnType));
-        option.textContent = spawnLabel
-          ? `${entry.name} (${spawnLabel})`
-          : `${entry.name} (${entry.type})`;
-      }
+      option.textContent = this._entryOptionLabel(entry);
       this.primitiveSelect.appendChild(option);
     });
     this.primitiveSelect.value = this.selectedId;
     this._attachTransformControls();
   }
 
+  _clearSelectionHighlight() {
+    if (!this.selectionHighlightGroup) return;
+    this.selectionHighlightBindings.forEach((binding) => {
+      binding.helper.geometry?.dispose?.();
+      if (binding.kind === 'box') {
+        binding.helper.material?.dispose?.();
+      }
+    });
+    this.selectionHighlightBindings = [];
+    this.selectionHighlightTarget = null;
+    this.selectionHighlightGroup.clear();
+    this.selectionHighlightGroup.visible = false;
+  }
+
+  _rebuildSelectionHighlight() {
+    this._clearSelectionHighlight();
+    if (!this.visible || !this.selectedId) return;
+    const target = this.app.room.getEditableObject(this.selectedId);
+    if (!target || target.visible === false) return;
+
+    this.selectionHighlightTarget = target;
+    const meshSources = [];
+    target.traverse((child) => {
+      if (!child || child.visible === false) return;
+      if (child.userData?.editorHelper === true) return;
+      if (child.isMesh && child.geometry) {
+        meshSources.push(child);
+      }
+    });
+
+    if (meshSources.length) {
+      meshSources.forEach((source) => {
+        const helper = new THREE.LineSegments(
+          new THREE.EdgesGeometry(source.geometry),
+          this.selectionHighlightMaterial,
+        );
+        helper.matrixAutoUpdate = false;
+        helper.renderOrder = 1200;
+        helper.userData.editorHelper = true;
+        this.selectionHighlightGroup.add(helper);
+        this.selectionHighlightBindings.push({ kind: 'edges', source, helper });
+      });
+    } else {
+      const box = new THREE.Box3().setFromObject(target);
+      if (!box.isEmpty()) {
+        const helper = new THREE.Box3Helper(box, '#ff8a1f');
+        helper.material.depthTest = false;
+        helper.material.depthWrite = false;
+        helper.material.transparent = true;
+        helper.material.opacity = 0.98;
+        helper.material.toneMapped = false;
+        helper.renderOrder = 1200;
+        helper.userData.editorHelper = true;
+        this.selectionHighlightGroup.add(helper);
+        this.selectionHighlightBindings.push({ kind: 'box', source: target, helper, box });
+      }
+    }
+
+    this._updateSelectionHighlight();
+  }
+
+  _updateSelectionHighlight() {
+    if (!this.selectionHighlightGroup) return;
+    if (!this.visible || !this.selectedId) {
+      this.selectionHighlightGroup.visible = false;
+      return;
+    }
+    const target = this.app.room.getEditableObject(this.selectedId);
+    if (!target || target.visible === false) {
+      this.selectionHighlightGroup.visible = false;
+      return;
+    }
+    if (target !== this.selectionHighlightTarget) {
+      this._rebuildSelectionHighlight();
+      return;
+    }
+
+    target.updateWorldMatrix(true, true);
+    let hasVisibleBinding = false;
+    this.selectionHighlightBindings.forEach((binding) => {
+      if (binding.kind === 'edges') {
+        if (!binding.source?.parent || binding.source.visible === false) {
+          binding.helper.visible = false;
+          return;
+        }
+        binding.source.updateWorldMatrix(true, false);
+        binding.helper.matrix.copy(binding.source.matrixWorld);
+        binding.helper.visible = true;
+        hasVisibleBinding = true;
+        return;
+      }
+      binding.box.setFromObject(binding.source);
+      const empty = binding.box.isEmpty();
+      binding.helper.visible = !empty;
+      if (!empty) {
+        hasVisibleBinding = true;
+      }
+    });
+    this.selectionHighlightGroup.visible = hasVisibleBinding;
+  }
+
   _syncForm() {
     this._refreshList();
+    this._refreshObjectTree();
+    this._rebuildSelectionHighlight();
     this._syncPrefabSection();
     this._syncVegetationSection();
     const primitive = this._selectedPrimitive();
@@ -861,6 +1714,22 @@ class BuildModeEditor {
     const raidTask = this._selectedRaidTask();
     const vegetation = this._selectedVegetation();
     const entry = primitive ?? light ?? portal ?? rope ?? extraction ?? raidTask ?? vegetation;
+    if (this.activeTool === 'bisect-plane') {
+      if (!primitive || primitive.type !== 'plane') {
+        this._cancelBisectPlaneTool({ silent: true });
+      } else if (this.bisectState?.planeId !== primitive.id) {
+        this.bisectState = {
+          planeId: primitive.id,
+          firstWorldPoint: null,
+          firstLocalPoint: null,
+        };
+        this._setBisectPreview(null, null);
+        this._updateBisectButton();
+        this._setStatus('Bisect target changed. Click the first point on the new plane.');
+      }
+    } else {
+      this._updateBisectButton();
+    }
     const disabled = !entry;
     const primitiveDisabled = !primitive;
     const propSelected = primitive?.type === 'prop';
