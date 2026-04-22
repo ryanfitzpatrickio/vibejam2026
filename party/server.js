@@ -25,6 +25,7 @@ import { createPushBallWorld } from './pushBallWorld.js';
 import { createRoombaCannonWorld } from './roombaCannonWorld.js';
 import { createMouseLaunchWorld } from './mouseLaunchWorld.js';
 import { createRopeWorld } from './ropeWorld.js';
+import { createFanWorld } from './fanWorld.js';
 import { CheeseWorld } from './cheeseWorld.js';
 import { LEVEL_WORLD_BOUNDS_XZ } from '../shared/levelWorldBounds.js';
 import {
@@ -384,6 +385,7 @@ export default class GameServer {
     this.roombaCannonWorld = createRoombaCannonWorld();
     this.mouseLaunchWorld = createMouseLaunchWorld();
     this.ropeWorld = createRopeWorld({ ropes: Array.isArray(kitchenLayout?.ropes) ? kitchenLayout.ropes : null });
+    this.fanWorld = createFanWorld({ fans: Array.isArray(kitchenLayout?.fans) ? kitchenLayout.fans : null });
     this._lastRopeGrab = new Map();
     this._lastRopeJump = new Map();
     this.cheeseWorld = new CheeseWorld();
@@ -521,6 +523,7 @@ export default class GameServer {
     if (Array.isArray(layout?.ropes)) {
       this.ropeWorld?.setRopes?.(layout.ropes);
     }
+    this.fanWorld?.setFans?.(layout?.fans);
     this.cheeseWorld.setNavMesh(this.levelMouseNavMesh);
     if (resetPredators) {
       this.predators = [];
@@ -627,6 +630,7 @@ export default class GameServer {
       if (botState) this.cheeseWorld.onDeathDropCarried(botState);
       this.mouseLaunchWorld?.removePlayer?.(id);
       this.ropeWorld?.removePlayer?.(id);
+      this.fanWorld?.removePlayer?.(id);
       this._lastRopeGrab?.delete(id);
       this._lastRopeJump?.delete(id);
       this.players.delete(id);
@@ -693,6 +697,7 @@ export default class GameServer {
       respawnPlayer(state, spawn.x, spawn.z, spawn.y);
       this.mouseLaunchWorld?.removePlayer?.(state.id);
       this.ropeWorld?.removePlayer?.(state.id);
+      this.fanWorld?.removePlayer?.(state.id);
       this._lastRopeGrab.delete(state.id);
       this._lastRopeJump?.delete(state.id);
     }
@@ -776,6 +781,7 @@ export default class GameServer {
         pushBalls: this.pushBallWorld.getBallsState(),
         cheesePickups: this.cheeseWorld.serializePickups(),
         ropes: this.ropeWorld.getRopesSnapshot(),
+        fans: this.fanWorld.serialize(),
         round: this.round,
         adversary: {
           playerId: this._currentAdversaryId(),
@@ -1001,6 +1007,7 @@ export default class GameServer {
       if (leaving) this.cheeseWorld.onDeathDropCarried(leaving);
       this.mouseLaunchWorld?.removePlayer?.(conn.id);
       this.ropeWorld?.removePlayer?.(conn.id);
+      this.fanWorld?.removePlayer?.(conn.id);
       this._lastRopeGrab?.delete(conn.id);
       this._lastRopeJump?.delete(conn.id);
       this.players.delete(conn.id);
@@ -1260,6 +1267,7 @@ export default class GameServer {
 
   _startNewRound() {
     this.cheeseWorld.seedScatter();
+    this.fanWorld?.resetRound?.();
     // Hero-unlock resets: clear claims, re-scatter collectibles, clear cooldowns.
     // Player session counters (sewingCollected/speedTokensCollected) persist across rounds.
     this.heroClaims = { gus: null, speedy: null };
@@ -1302,6 +1310,7 @@ export default class GameServer {
       respawnPlayer(state, spawn.x, spawn.z, spawn.y);
       this.mouseLaunchWorld?.removePlayer?.(id);
       this.ropeWorld?.removePlayer?.(id);
+      this.fanWorld?.removePlayer?.(id);
       this._lastRopeGrab.delete(id);
       this._lastRopeJump?.delete(id);
       if (!this.inputQueues.has(id)) {
@@ -1489,6 +1498,7 @@ export default class GameServer {
         } else if (now - state.deathTime >= RAID_RESPAWN_SECONDS) {
           this.mouseLaunchWorld.removePlayer(id);
           this.ropeWorld.removePlayer(id);
+          this.fanWorld.removePlayer(id);
           this._lastRopeGrab.delete(id);
           this._lastRopeJump.delete(id);
           const spawn = this._pickRespawnPoint();
@@ -1526,7 +1536,7 @@ export default class GameServer {
         seqs[id] = isHuman ? (this._lastSeq?.get(id) ?? 0) : 0;
         continue;
       }
-      if (this.ropeWorld.isSwinging(id)) {
+      if (this.ropeWorld.isSwinging(id) || this.fanWorld.isAttached(id)) {
         if (isHuman) {
           const queue = this.inputQueues.get(id);
           if (queue && queue.length) {
@@ -1636,9 +1646,16 @@ export default class GameServer {
           // Press-and-hold grapple: while R is held we keep trying to grab each
           // tick so walking into a rope with R already down latches on.
           if (lastRopeGrab && state.alive && !state.ropeSwing) {
-            const grabbed = this.ropeWorld.tryGrab(id, state);
-            if (grabbed && grabTickJumpPress) {
-              this.ropeWorld.scootUp?.(id, state);
+            const grabbedRope = this.ropeWorld.tryGrab(id, state);
+            if (grabbedRope) {
+              if (grabTickJumpPress) {
+                this.ropeWorld.scootUp?.(id, state);
+              }
+            } else {
+              const grabbedFan = this.fanWorld.tryGrab(id, state);
+              if (grabbedFan && grabTickJumpPress) {
+                this.fanWorld.scootUp?.(id, state);
+              }
             }
           }
           if (lastGrab) grabHeld.add(id);
@@ -2043,6 +2060,7 @@ export default class GameServer {
             target.ropeSwing = null;
             this.mouseLaunchWorld.removePlayer(hit.playerId);
             this.ropeWorld.removePlayer(hit.playerId);
+            this.fanWorld.removePlayer(hit.playerId);
           }
         }
       }
@@ -2050,6 +2068,7 @@ export default class GameServer {
 
     this.mouseLaunchWorld.step(dt, (pid) => this.players.get(pid));
     this.ropeWorld.step(dt, (pid) => this.players.get(pid));
+    this.fanWorld.step(dt, this.players);
 
     tickPlayerChaseScores(new Map([...this.players].filter(([, p]) => !p?.isAdversary)), this.predators, dt);
 
@@ -2119,6 +2138,7 @@ export default class GameServer {
       pushBalls: this.pushBallWorld.getBallsState(),
       cheesePickups: this.cheeseWorld.serializePickups(),
       ropes: this.ropeWorld.getRopesSnapshot(),
+      fans: this.fanWorld.serialize(),
       round: this.round,
       adversary: {
         playerId: this._currentAdversaryId(),

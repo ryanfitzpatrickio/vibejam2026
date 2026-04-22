@@ -3218,9 +3218,9 @@ export default {
       "type": "cylinder",
       "spawnType": "player",
       "position": {
-        "x": 13.25,
+        "x": 10,
         "y": 0.25,
-        "z": -18.25
+        "z": -4
       },
       "rotation": {
         "x": 0,
@@ -5882,13 +5882,13 @@ export default {
       "spawnType": null,
       "position": {
         "x": 0,
-        "y": 12,
+        "y": 12.1,
         "z": 0
       },
       "rotation": {
-        "x": 2.3649211364523164,
-        "y": 0,
-        "z": 0
+        "x": 2.3569049758900977,
+        "y": 0.0001358601137499475,
+        "z": -0.00017355096288389782
       },
       "scale": {
         "x": 52,
@@ -6312,6 +6312,30 @@ export default {
         "atlas": "textures2",
         "cell": 62
       },
+      "deleted": false
+    }
+  ],
+  "fans": [
+    {
+      "id": "fan-mo9yfn4s-d2uya",
+      "name": "fan-1uz",
+      "position": {
+        "x": -2,
+        "y": 12,
+        "z": 8
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "bladeCount": 5,
+      "bladeLength": 2.4,
+      "hubRadius": 0.55,
+      "rodLength": 0.95,
+      "spinSpeed": 5.05,
+      "gripRingCount": 5,
+      "cheeseAmount": 12,
       "deleted": false
     }
   ],

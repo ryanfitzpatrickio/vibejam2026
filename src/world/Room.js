@@ -21,6 +21,7 @@ import { normalizeSpawnType } from '../../shared/spawnPoints.js';
 import { normalizeNavArea } from '../../shared/navConfig.js';
 import { VIBE_PORTAL_TYPES, collectVibePortalPlacementsFromLayout, normalizeVibePortal } from '../../shared/vibePortal.js';
 import { normalizeRope, ROPE_SEGMENT_RADIUS, DEFAULT_ROPE_COLOR } from '../../shared/ropes.js';
+import { normalizeCeilingFan } from '../../shared/ceilingFans.js';
 import {
   LEVEL_BUILD_GRID_COLUMNS,
   LEVEL_BUILD_GRID_ROWS,
@@ -57,6 +58,7 @@ const DEFAULT_EDITABLE_LAYOUT = Object.freeze({
   lights: [],
   portals: [],
   ropes: [],
+  fans: [],
   extractionPortals: [],
   raidTasks: [],
   vegetation: [],
@@ -410,6 +412,115 @@ function createRaidTaskHelperObject(definition) {
   return group;
 }
 
+function createCeilingFanObject(definition) {
+  const fan = normalizeCeilingFan(definition);
+  const group = new THREE.Group();
+  group.name = `${fan.name || fan.id}-fan`;
+  group.userData.fanId = fan.id;
+  group.userData.editableFan = true;
+  group.userData.skipOutline = false;
+
+  const metalMaterial = new THREE.MeshStandardMaterial({
+    color: '#d2c4af',
+    roughness: 0.46,
+    metalness: 0.28,
+  });
+  const bladeMaterial = new THREE.MeshStandardMaterial({
+    color: '#6c4c2f',
+    roughness: 0.9,
+    metalness: 0.04,
+  });
+
+  const canopy = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.13, 0.1, 18),
+    metalMaterial,
+  );
+  canopy.position.y = -0.05;
+  canopy.castShadow = true;
+  canopy.receiveShadow = true;
+  canopy.userData.fanId = fan.id;
+  group.add(canopy);
+
+  const rod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, fan.rodLength, 16),
+    metalMaterial,
+  );
+  rod.position.y = -fan.rodLength * 0.5;
+  rod.castShadow = true;
+  rod.receiveShadow = true;
+  rod.userData.fanId = fan.id;
+  group.add(rod);
+
+  const spinRoot = new THREE.Group();
+  spinRoot.name = 'fan-spin-root';
+  spinRoot.position.y = -fan.rodLength;
+  spinRoot.userData.fanId = fan.id;
+  group.add(spinRoot);
+
+  const hub = new THREE.Mesh(
+    new THREE.CylinderGeometry(fan.hubRadius, fan.hubRadius * 1.06, 0.16, 18),
+    metalMaterial,
+  );
+  hub.castShadow = true;
+  hub.receiveShadow = true;
+  hub.userData.fanId = fan.id;
+  spinRoot.add(hub);
+
+  const bladeGeometry = new THREE.BoxGeometry(fan.bladeLength, 0.035, 0.18);
+  bladeGeometry.translate((fan.bladeLength * 0.5) + fan.hubRadius * 0.42, 0, 0);
+  for (let index = 0; index < fan.bladeCount; index += 1) {
+    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    blade.rotation.y = (index / fan.bladeCount) * Math.PI * 2;
+    blade.castShadow = true;
+    blade.receiveShadow = true;
+    blade.userData.fanId = fan.id;
+    spinRoot.add(blade);
+  }
+
+  const cheeseGroup = new THREE.Group();
+  cheeseGroup.name = 'fan-center-cheese';
+  cheeseGroup.position.y = 0.1;
+  cheeseGroup.userData.fanId = fan.id;
+  cheeseGroup.userData.fanCheese = true;
+  spinRoot.add(cheeseGroup);
+
+  const cheeseBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.13, 0.13, 0.09, 20),
+    new THREE.MeshStandardMaterial({
+      color: '#f7c94a',
+      roughness: 0.75,
+      metalness: 0.02,
+      emissive: new THREE.Color('#774b08'),
+      emissiveIntensity: 0.14,
+    }),
+  );
+  cheeseBody.rotation.z = Math.PI * 0.5;
+  cheeseBody.castShadow = true;
+  cheeseBody.receiveShadow = true;
+  cheeseBody.userData.fanId = fan.id;
+  cheeseGroup.add(cheeseBody);
+
+  for (const holeDef of [
+    { x: 0.04, y: 0.02, z: 0.03, r: 0.026 },
+    { x: -0.03, y: -0.015, z: -0.02, r: 0.018 },
+    { x: -0.015, y: 0.03, z: -0.05, r: 0.016 },
+  ]) {
+    const hole = new THREE.Mesh(
+      new THREE.SphereGeometry(holeDef.r, 10, 8),
+      new THREE.MeshStandardMaterial({
+        color: '#d39d29',
+        roughness: 1,
+        metalness: 0,
+      }),
+    );
+    hole.position.set(holeDef.x, holeDef.y, holeDef.z);
+    hole.userData.fanId = fan.id;
+    cheeseGroup.add(hole);
+  }
+
+  return { definition: fan, group, spinRoot, cheeseGroup };
+}
+
 function createRopeHelperObject(definition, textureMap = null) {
   const r = definition.segmentRadius ?? ROPE_SEGMENT_RADIUS;
   const tint = definition.color ?? DEFAULT_ROPE_COLOR;
@@ -699,12 +810,15 @@ export class Room {
     this.lightHelpersVisible = false;
     this.portalHelpersVisible = false;
     this.ropeHelpersVisible = false;
+    this.fanHelpersVisible = true;
     this.extractionHelpersVisible = false;
     this.raidTaskHelpersVisible = false;
     this.editableMeshes = new Map();
     this.editableLightObjects = new Map();
     this.editablePortalObjects = new Map();
     this.editableRopeObjects = new Map();
+    this.editableFanObjects = new Map();
+    this.fanRuntimeStates = new Map();
     this.editableExtractionPortalObjects = new Map();
     this.editableRaidTaskObjects = new Map();
     this.prefabInstanceGroups = new Map();
@@ -1016,6 +1130,7 @@ export class Room {
         lights: Array.isArray(layout?.lights) ? layout.lights.map((entry) => this._normalizeLight(entry)) : [],
         portals: Array.isArray(layout?.portals) ? layout.portals.map((entry) => this._normalizePortal(entry)) : [],
         ropes: Array.isArray(layout?.ropes) ? layout.ropes.map((entry) => this._normalizeRope(entry)) : [],
+        fans: Array.isArray(layout?.fans) ? layout.fans.map((entry) => this._normalizeFan(entry)) : [],
         extractionPortals: Array.isArray(layout?.extractionPortals)
           ? layout.extractionPortals.map((entry) => this._normalizeExtractionPortal(entry))
           : [],
@@ -1476,6 +1591,10 @@ export class Room {
     return normalizeRope(entry);
   }
 
+  _normalizeFan(entry = {}) {
+    return normalizeCeilingFan(entry);
+  }
+
   _normalizeVegetation(entry = {}) {
     return normalizeVegetationPlacement(entry);
   }
@@ -1490,6 +1609,12 @@ export class Room {
     group.position.set(rope.anchor.x, rope.anchor.y, rope.anchor.z);
     group.visible = this.ropeHelpersVisible && !rope.deleted;
     return { definition: rope, group };
+  }
+
+  _createEditableFanObject(definition) {
+    const entry = createCeilingFanObject(definition);
+    this._applyFanToObject(entry.definition, entry);
+    return entry;
   }
 
   _applyRopeToObject(definition, entry) {
@@ -1523,6 +1648,29 @@ export class Room {
       }
     });
     return rope;
+  }
+
+  _applyFanToObject(definition, entry) {
+    const fan = this._normalizeFan(definition);
+    entry.definition = fan;
+    entry.group.name = `${fan.name || fan.id}-fan`;
+    entry.group.position.set(fan.position.x, fan.position.y, fan.position.z);
+    entry.group.rotation.set(fan.rotation.x, fan.rotation.y, fan.rotation.z);
+    entry.group.scale.set(1, 1, 1);
+    entry.group.visible = !fan.deleted;
+    entry.group.userData.fanId = fan.id;
+    entry.group.userData.fanSpinSpeed = fan.spinSpeed;
+    entry.group.userData.fanBladeLength = fan.bladeLength;
+    entry.group.userData.fanHubRadius = fan.hubRadius;
+    entry.group.userData.fanGripRingCount = fan.gripRingCount;
+    if (entry.spinRoot) {
+      entry.spinRoot.rotation.y = 0;
+    }
+    if (entry.cheeseGroup) {
+      entry.cheeseGroup.visible = fan.cheeseAmount > 0;
+      entry.cheeseGroup.userData.cheeseAmount = fan.cheeseAmount;
+    }
+    return fan;
   }
 
   _registerBuiltInPrimitive(mesh, definition, collider = null) {
@@ -1659,8 +1807,19 @@ export class Room {
     this._rebakeMeshUvs(mesh, nextRepeat);
     mesh.userData.textureRepeat = nextRepeat;
 
+    const nextMaterial = this._createEditablePrimitiveMaterial(primitive);
+    const materialShapeChanged = Array.isArray(mesh.material) !== Array.isArray(nextMaterial)
+      || (Array.isArray(mesh.material) && Array.isArray(nextMaterial) && mesh.material.length !== nextMaterial.length);
+    if (primitive.type === 'plane' || materialShapeChanged) {
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach((material) => material?.dispose?.());
+      } else {
+        mesh.material?.dispose?.();
+      }
+      mesh.material = nextMaterial;
+    }
+
     if (primitive.type === 'plane') {
-      mesh.material = this._createEditablePrimitiveMaterial(primitive);
       const zi = Number.isFinite(primitive.zIndex) ? Math.trunc(primitive.zIndex) : 0;
       mesh.renderOrder = zi;
       return;
@@ -1694,6 +1853,7 @@ export class Room {
     const customLights = [];
     const customPortals = [];
     const customRopes = [];
+    const customFans = [];
     const customExtractionPortals = [];
     const customRaidTasks = [];
     const customVegetation = [];
@@ -1749,6 +1909,12 @@ export class Room {
       }
     }
 
+    for (const fan of this.loadedEditableLayout.fans ?? []) {
+      if (!fan?.deleted) {
+        customFans.push(fan);
+      }
+    }
+
     for (const ep of this.loadedEditableLayout.extractionPortals ?? []) {
       if (!ep?.deleted) {
         customExtractionPortals.push(ep);
@@ -1773,6 +1939,7 @@ export class Room {
       lights: customLights,
       portals: customPortals,
       ropes: customRopes,
+      fans: customFans,
       extractionPortals: customExtractionPortals,
       raidTasks: customRaidTasks,
       vegetation: customVegetation,
@@ -2092,6 +2259,7 @@ export class Room {
     this.editableLightObjects.clear();
     this.editablePortalObjects.clear();
     this.editableRopeObjects.clear();
+    this.editableFanObjects.clear();
     this.editableExtractionPortalObjects.clear();
     this.editableRaidTaskObjects.clear();
     this.prefabInstanceGroups.clear();
@@ -2328,6 +2496,12 @@ export class Room {
       const entry = this._createEditableRopeObject(definition);
       this.editableGroup.add(entry.group);
       this.editableRopeObjects.set(entry.definition.id, entry);
+    }
+
+    for (const definition of this.editableLayout.fans ?? []) {
+      const entry = this._createEditableFanObject(definition);
+      this.editableGroup.add(entry.group);
+      this.editableFanObjects.set(entry.definition.id, entry);
     }
 
     for (const definition of this.editableLayout.extractionPortals ?? []) {
@@ -2606,6 +2780,7 @@ export class Room {
     const lights = (this.editableLayout.lights ?? []).map((entry) => this._normalizeLight(entry));
     const portals = (this.editableLayout.portals ?? []).map((entry) => this._normalizePortal(entry));
     const ropes = (this.editableLayout.ropes ?? []).map((entry) => this._normalizeRope(entry));
+    const fans = (this.editableLayout.fans ?? []).map((entry) => this._normalizeFan(entry));
     const extractionPortals = (this.editableLayout.extractionPortals ?? []).map((entry) => this._normalizeExtractionPortal(entry));
     const raidTasks = (this.editableLayout.raidTasks ?? []).map((entry) => this._normalizeRaidTask(entry));
     const vegetation = (this.editableLayout.vegetation ?? []).map((entry) => this._normalizeVegetation(entry));
@@ -2615,6 +2790,7 @@ export class Room {
       lights,
       portals,
       ropes,
+      fans,
       extractionPortals,
       raidTasks,
       vegetation,
@@ -2628,6 +2804,7 @@ export class Room {
       lights: Array.isArray(layout?.lights) ? layout.lights.map((entry) => this._normalizeLight(entry)) : [],
       portals: Array.isArray(layout?.portals) ? layout.portals.map((entry) => this._normalizePortal(entry)) : [],
       ropes: Array.isArray(layout?.ropes) ? layout.ropes.map((entry) => this._normalizeRope(entry)) : [],
+      fans: Array.isArray(layout?.fans) ? layout.fans.map((entry) => this._normalizeFan(entry)) : [],
       extractionPortals: Array.isArray(layout?.extractionPortals)
         ? layout.extractionPortals.map((entry) => this._normalizeExtractionPortal(entry))
         : [],
@@ -2894,6 +3071,34 @@ export class Room {
     return rope;
   }
 
+  upsertEditableFan(definition) {
+    const fan = this._normalizeFan(definition);
+    const fans = this.editableLayout.fans ?? (this.editableLayout.fans = []);
+    const index = fans.findIndex((entry) => entry.id === fan.id);
+    if (index >= 0) {
+      const previous = this._normalizeFan(fans[index]);
+      fans[index] = fan;
+      if (
+        previous.bladeCount !== fan.bladeCount
+        || Math.abs(previous.bladeLength - fan.bladeLength) > 0.0001
+        || Math.abs(previous.hubRadius - fan.hubRadius) > 0.0001
+        || Math.abs(previous.rodLength - fan.rodLength) > 0.0001
+      ) {
+        this._rebuildEditableLayout();
+        return fan;
+      }
+      const current = this.editableFanObjects.get(fan.id);
+      if (current) {
+        this._applyFanToObject(fan, current);
+      }
+      return fan;
+    }
+
+    fans.push(fan);
+    this._rebuildEditableLayout();
+    return fan;
+  }
+
   removeEditableRope(id) {
     this.editableLayout.ropes = (this.editableLayout.ropes ?? []).filter((entry) => entry.id !== id);
     this._rebuildEditableLayout();
@@ -2902,6 +3107,17 @@ export class Room {
   purgeEditableRope(id) {
     this.editableLayout.ropes = (this.editableLayout.ropes ?? []).filter((entry) => entry.id !== id);
     this.loadedEditableLayout.ropes = (this.loadedEditableLayout.ropes ?? []).filter((entry) => entry.id !== id);
+    this._rebuildEditableLayout();
+  }
+
+  removeEditableFan(id) {
+    this.editableLayout.fans = (this.editableLayout.fans ?? []).filter((entry) => entry.id !== id);
+    this._rebuildEditableLayout();
+  }
+
+  purgeEditableFan(id) {
+    this.editableLayout.fans = (this.editableLayout.fans ?? []).filter((entry) => entry.id !== id);
+    this.loadedEditableLayout.fans = (this.loadedEditableLayout.fans ?? []).filter((entry) => entry.id !== id);
     this._rebuildEditableLayout();
   }
 
@@ -2923,6 +3139,26 @@ export class Room {
       this._applyRopeToObject(rope, current);
     }
     return rope;
+  }
+
+  updateEditableFanTransform(id, transform = {}) {
+    const fans = this.editableLayout.fans ?? [];
+    const index = fans.findIndex((entry) => entry.id === id);
+    if (index < 0) return null;
+
+    const fan = this._normalizeFan(fans[index]);
+    if (transform.position) {
+      fan.position = cloneVectorLike(transform.position, fan.position);
+    }
+    if (transform.rotation) {
+      fan.rotation = cloneVectorLike(transform.rotation, fan.rotation);
+    }
+    fans[index] = fan;
+    const current = this.editableFanObjects.get(id);
+    if (current) {
+      this._applyFanToObject(fan, current);
+    }
+    return fan;
   }
 
   snapRopeToGrid(definition, {
@@ -2957,6 +3193,40 @@ export class Room {
     rope.anchor = roundVectorLike(rope.anchor, { x: 0, y: 0, z: 0 });
     rope.length = Number(rope.length.toFixed(4));
     return rope;
+  }
+
+  snapFanToGrid(definition, {
+    snapY = false,
+    snapPosition = true,
+    allowEdgeOverflow = false,
+  } = {}) {
+    const fan = this._normalizeFan(definition);
+    const grid = this.getBuildGridConfig();
+
+    if (snapPosition) {
+      fan.position.x = this._snapGridAxisPosition(
+        fan.position.x,
+        0.5,
+        grid.roomWidth,
+        grid.cellWidth,
+        allowEdgeOverflow,
+      );
+      fan.position.z = this._snapGridAxisPosition(
+        fan.position.z,
+        0.5,
+        grid.roomDepth,
+        grid.cellDepth,
+        allowEdgeOverflow,
+      );
+    }
+
+    if (snapY) {
+      fan.position.y = snapToStep(fan.position.y, grid.verticalStep);
+    }
+
+    fan.position = roundVectorLike(fan.position, { x: 0, y: 3.35, z: 0 });
+    fan.rotation = roundVectorLike(fan.rotation, { x: 0, y: 0, z: 0 });
+    return fan;
   }
 
   setRopeHelpersVisible(visible) {
@@ -3082,6 +3352,9 @@ export class Room {
     }
     if (this.editableRaidTaskObjects.has(id)) {
       return this.editableRaidTaskObjects.get(id)?.group ?? null;
+    }
+    if (this.editableFanObjects.has(id)) {
+      return this.editableFanObjects.get(id)?.group ?? null;
     }
     if (this.editableRopeObjects.has(id)) {
       return this.editableRopeObjects.get(id)?.group ?? null;
@@ -3831,6 +4104,35 @@ export class Room {
         item.userData.sparkle.position.y = item.position.y;
       }
     });
+
+    this.editableFanObjects.forEach((entry) => {
+      if (!entry?.group || entry.group.visible === false) return;
+      const runtime = this.fanRuntimeStates.get(entry.definition?.id) ?? null;
+      if (entry.spinRoot) {
+        entry.spinRoot.rotation.y = Number.isFinite(runtime?.angle)
+          ? runtime.angle
+          : t * (entry.definition?.spinSpeed ?? 0);
+      }
+      if (entry.cheeseGroup) {
+        entry.cheeseGroup.visible = runtime?.cheeseAvailable ?? ((entry.definition?.cheeseAmount ?? 0) > 0);
+      }
+      if (entry.cheeseGroup?.visible) {
+        const pulse = 1 + Math.sin((t * 4.6) + (entry.group.position.x * 0.17)) * 0.08;
+        entry.cheeseGroup.scale.setScalar(pulse);
+      }
+    });
+  }
+
+  applyFanRuntimeStates(states = null) {
+    this.fanRuntimeStates.clear();
+    if (!Array.isArray(states)) return;
+    for (const state of states) {
+      if (!state?.id) continue;
+      this.fanRuntimeStates.set(state.id, {
+        angle: Number.isFinite(state.angle) ? state.angle : 0,
+        cheeseAvailable: state.cheeseAvailable !== false,
+      });
+    }
   }
 
   /**

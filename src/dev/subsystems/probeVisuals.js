@@ -64,6 +64,7 @@ export function resolveEditableHitObject(object) {
     && !current.userData?.extractionPortalId
     && !current.userData?.raidTaskId
     && !current.userData?.ropeId
+    && !current.userData?.fanId
     && !current.userData?.vegetationId
   ) {
     current = current.parent;
@@ -79,6 +80,7 @@ export function editableIdFromObject(object) {
     ?? object?.userData?.extractionPortalId
     ?? object?.userData?.raidTaskId
     ?? object?.userData?.ropeId
+    ?? object?.userData?.fanId
     ?? object?.userData?.vegetationId
     ?? null;
 }
@@ -214,6 +216,9 @@ export function updateProbe(editor) {
   const rope = editableId
     ? (editor.layout.ropes ?? []).find((entry) => entry.id === editableId)
     : null;
+  const fan = editableId
+    ? (editor.layout.fans ?? []).find((entry) => entry.id === editableId)
+    : null;
   const extraction = editableId
     ? (editor.layout.extractionPortals ?? []).find((entry) => entry.id === editableId)
     : null;
@@ -236,6 +241,7 @@ export function updateProbe(editor) {
     extraction ? `extraction (r ${Number(extraction.radius).toFixed(2)})` : '',
     raidTask ? `raid task (${raidTask.taskType})` : '',
     rope ? `rope (${rope.segmentCount} seg · ${rope.length.toFixed(2)}m)` : '',
+    fan ? `fan (${fan.bladeCount} blades · ${fan.spinSpeed.toFixed(2)} rad/s)` : '',
     vegetation ? `vegetation (${vegetation.mode})` : '',
     `x ${hit.point.x.toFixed(2)} y ${hit.point.y.toFixed(2)} z ${hit.point.z.toFixed(2)}`,
   ].filter(Boolean).join('\n');

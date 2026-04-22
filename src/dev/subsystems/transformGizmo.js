@@ -25,8 +25,9 @@ export function installTransformControls(editor) {
     const extractionPortalId = object?.userData?.extractionPortalId;
     const raidTaskId = object?.userData?.raidTaskId;
     const ropeId = object?.userData?.ropeId;
+    const fanId = object?.userData?.fanId;
     const vegetationId = object?.userData?.vegetationId;
-    if (!primitiveId && !prefabInstanceId && !lightId && !portalId && !ropeId && !extractionPortalId && !raidTaskId && !vegetationId) {
+    if (!primitiveId && !prefabInstanceId && !lightId && !portalId && !ropeId && !fanId && !extractionPortalId && !raidTaskId && !vegetationId) {
       return;
     }
 
@@ -47,6 +48,9 @@ export function installTransformControls(editor) {
       : null;
     const rope = ropeId
       ? (editor.layout.ropes ?? []).find((entry) => entry.id === ropeId)
+      : null;
+    const fan = fanId
+      ? (editor.layout.fans ?? []).find((entry) => entry.id === fanId)
       : null;
     const vegetation = vegetationId
       ? (editor.layout.vegetation ?? []).find((entry) => entry.id === vegetationId)
@@ -108,6 +112,24 @@ export function installTransformControls(editor) {
           snapPosition: true,
           allowEdgeOverflow: true,
         })
+        : fan
+          ? editor.app.room.snapFanToGrid({
+            ...deepClone(fan),
+            position: {
+              x: object.position.x,
+              y: object.position.y,
+              z: object.position.z,
+            },
+            rotation: {
+              x: object.rotation.x,
+              y: object.rotation.y,
+              z: object.rotation.z,
+            },
+          }, {
+            snapY: true,
+            snapPosition: true,
+            allowEdgeOverflow: true,
+          })
         : extraction
           ? editor.app.room.snapExtractionPortalToGrid({
             ...deepClone(extraction),
@@ -228,6 +250,11 @@ export function installTransformControls(editor) {
       });
     } else if (raidTaskId) {
       editor.app.room.updateEditableRaidTaskTransform(raidTaskId, {
+        position: next.position,
+        rotation: next.rotation,
+      });
+    } else if (fanId) {
+      editor.app.room.updateEditableFanTransform(fanId, {
         position: next.position,
         rotation: next.rotation,
       });

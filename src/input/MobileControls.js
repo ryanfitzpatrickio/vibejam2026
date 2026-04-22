@@ -106,6 +106,11 @@ function createIcon(name) {
     addSvgPath(svg, { d: 'M13 4c3 2 3 4 0 6s-3 4 0 6 3 4 0 6' });
   } else if (name === 'hero') {
     addSvgPath(svg, { d: 'M12 3 14.2 8l5.3.5-4 3.8 1.2 5.3L12 14.9 7.3 17.6l1.2-5.3-4-3.8L9.8 8z' });
+  } else if (name === 'human') {
+    addSvgCircle(svg, { cx: '12', cy: '8', r: '3' });
+    addSvgPath(svg, { d: 'M6.5 19c.5-3.7 2.8-5.5 5.5-5.5s5 1.8 5.5 5.5' });
+    addSvgPath(svg, { d: 'M4 12h3' });
+    addSvgPath(svg, { d: 'M17 12h3' });
   } else if (name === 'smack') {
     addSvgPath(svg, { d: 'M4 13 10 7l3 3-6 6z' });
     addSvgPath(svg, { d: 'M11 8l2-2 5 5-2 2' });
@@ -146,6 +151,7 @@ function createButton({ label, icon, primary = false, area = '' }) {
   });
 
   button.append(iconEl, text);
+  button._labelEl = text;
   Object.assign(button.style, {
     appearance: 'none',
     WebkitAppearance: 'none',
@@ -183,12 +189,14 @@ export class MobileControls {
     parent = document.body,
     onSpawnExtraBall = null,
     onOpenEmote = null,
+    onToggleAdversary = null,
   } = {}) {
     this.controller = controller;
     this.thirdPersonCamera = thirdPersonCamera;
     this.parent = parent;
     this.onSpawnExtraBall = onSpawnExtraBall;
     this.onOpenEmote = onOpenEmote;
+    this.onToggleAdversary = onToggleAdversary;
     this.moveX = 0;
     this.moveZ = 0;
     /** When true, move stick cluster to the right and action buttons to the left (gamepad Menu/Start). */
@@ -277,19 +285,44 @@ export class MobileControls {
       WebkitTapHighlightColor: 'transparent',
     });
 
-    const CLUSTER_SIZE = 260;
-    const SATELLITE_SIZE = 54;
-    const JUMP_SIZE = 82;
-    const RADIUS = 96;
+    this.topBar = document.createElement('div');
+    Object.assign(this.topBar.style, {
+      position: 'absolute',
+      top: 'calc(12px + env(safe-area-inset-top))',
+      right: 'calc(12px + env(safe-area-inset-right))',
+      zIndex: '3',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      pointerEvents: 'none',
+      touchAction: 'none',
+      WebkitUserSelect: 'none',
+      WebkitTouchCallout: 'none',
+      WebkitTapHighlightColor: 'transparent',
+    });
 
-    this.buttonStack = document.createElement('div');
-    Object.assign(this.buttonStack.style, {
+    this.actionPad = document.createElement('div');
+    Object.assign(this.actionPad.style, {
       position: 'absolute',
       right: 'calc(12px + env(safe-area-inset-right))',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      width: `${CLUSTER_SIZE}px`,
-      height: `${CLUSTER_SIZE}px`,
+      bottom: 'calc(16px + env(safe-area-inset-bottom))',
+      zIndex: '3',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 68px)',
+      gridAutoRows: '68px',
+      gap: '8px',
+      pointerEvents: 'none',
+      touchAction: 'none',
+      WebkitUserSelect: 'none',
+      WebkitTouchCallout: 'none',
+      WebkitTapHighlightColor: 'transparent',
+    });
+
+    this.throwDock = document.createElement('div');
+    Object.assign(this.throwDock.style, {
+      position: 'absolute',
+      left: 'calc(28px + env(safe-area-inset-left))',
+      bottom: 'calc(180px + env(safe-area-inset-bottom))',
       zIndex: '3',
       pointerEvents: 'none',
       touchAction: 'none',
@@ -299,60 +332,61 @@ export class MobileControls {
     });
 
     this._buttons = {
-      jump: createButton({ label: 'Jump', icon: 'jump', primary: true }),
+      adversary: createButton({ label: 'Human', icon: 'human' }),
       emote: createButton({ label: 'Emote', icon: 'emote' }),
       hero: createButton({ label: 'Hero', icon: 'hero' }),
+      jump: createButton({ label: 'Jump', icon: 'jump' }),
       smack: createButton({ label: 'Smack', icon: 'smack' }),
-      use: createButton({ label: 'Use', icon: 'use' }),
       grab: createButton({ label: 'Grab', icon: 'grab' }),
       throw: createButton({ label: 'Throw', icon: 'drop' }),
-      crouch: createButton({ label: 'Slide', icon: 'crouch' }),
       sprint: createButton({ label: 'Sprint', icon: 'sprint' }),
-      rope: createButton({ label: 'Rope', icon: 'rope' }),
     };
 
-    const center = CLUSTER_SIZE / 2;
-    const placeAt = (el, x, y, size) => {
-      Object.assign(el.style, {
-        position: 'absolute',
-        left: `${x - size / 2}px`,
-        top: `${y - size / 2}px`,
-        width: `${size}px`,
-        height: `${size}px`,
-        padding: '4px',
+    const topButtons = [this._buttons.adversary, this._buttons.emote, this._buttons.hero];
+    topButtons.forEach((button) => {
+      Object.assign(button.style, {
+        width: '62px',
+        height: '54px',
+        padding: '7px 6px',
+        pointerEvents: 'auto',
       });
-      el.style.pointerEvents = 'auto';
-    };
+    });
 
-    placeAt(this._buttons.jump, center, center, JUMP_SIZE);
+    [this._buttons.jump, this._buttons.grab, this._buttons.smack, this._buttons.sprint].forEach((button) => {
+      Object.assign(button.style, {
+        width: '68px',
+        height: '68px',
+        padding: '8px 6px',
+        pointerEvents: 'auto',
+      });
+    });
 
-    const satellites = ['emote', 'hero', 'use', 'smack', 'grab', 'throw', 'crouch', 'sprint', 'rope'];
-    const startAngle = -Math.PI / 2;
-    for (let i = 0; i < satellites.length; i++) {
-      const a = startAngle + (i / satellites.length) * Math.PI * 2;
-      const x = center + Math.cos(a) * RADIUS;
-      const y = center + Math.sin(a) * RADIUS;
-      placeAt(this._buttons[satellites[i]], x, y, SATELLITE_SIZE);
-    }
+    Object.assign(this._buttons.throw.style, {
+      width: '68px',
+      height: '68px',
+      padding: '8px 6px',
+      pointerEvents: 'auto',
+    });
 
-    this.buttonStack.append(
-      this._buttons.jump,
+    this.topBar.append(
+      this._buttons.adversary,
       this._buttons.emote,
       this._buttons.hero,
-      this._buttons.use,
-      this._buttons.smack,
-      this._buttons.grab,
-      this._buttons.throw,
-      this._buttons.crouch,
-      this._buttons.sprint,
-      this._buttons.rope,
     );
+    this.actionPad.append(
+      this._buttons.jump,
+      this._buttons.grab,
+      this._buttons.smack,
+      this._buttons.sprint,
+    );
+    this.throwDock.append(this._buttons.throw);
 
-    this.root.append(this.cameraZone, this.joystickZone, this.buttonStack);
+    this.root.append(this.cameraZone, this.joystickZone, this.topBar, this.actionPad, this.throwDock);
     this.parent.appendChild(this.root);
     this._applySideLayout();
 
-    this._held = { jump: false, sprint: false, crouch: false };
+    this._held = { jump: false, sprint: false, interact: false };
+    this._humanSwitchState = { mode: 'off', hiding: false };
     this._cameraTouchId = null;
     this._cameraLastX = 0;
     this._cameraLastY = 0;
@@ -372,6 +406,8 @@ export class MobileControls {
     this._preventRootTouch = (event) => {
       preventGesture(event);
     };
+
+    this._applyHumanSwitchState();
   }
 
   async init() {
@@ -398,7 +434,21 @@ export class MobileControls {
       left: 'calc(16px + env(safe-area-inset-left))',
       right: 'auto',
     });
-    Object.assign(this.buttonStack.style, m ? {
+    Object.assign(this.actionPad.style, m ? {
+      left: 'calc(12px + env(safe-area-inset-left))',
+      right: 'auto',
+    } : {
+      left: 'auto',
+      right: 'calc(12px + env(safe-area-inset-right))',
+    });
+    Object.assign(this.throwDock.style, m ? {
+      left: 'auto',
+      right: 'calc(28px + env(safe-area-inset-right))',
+    } : {
+      left: 'calc(28px + env(safe-area-inset-left))',
+      right: 'auto',
+    });
+    Object.assign(this.topBar.style, m ? {
       left: 'calc(12px + env(safe-area-inset-left))',
       right: 'auto',
     } : {
@@ -497,25 +547,12 @@ export class MobileControls {
       if (kb) this.controller.keys[kb.sprint] = false;
     });
 
-    this._bindHoldButton(this._buttons.crouch, () => {
-      this._held.crouch = true;
-      if (kb) this.controller.keys[kb.crouch] = true;
-    }, () => {
-      this._held.crouch = false;
-      if (kb) this.controller.keys[kb.crouch] = false;
-    });
-
     this._bindHoldButton(this._buttons.jump, () => {
       this._held.jump = true;
       if (kb) this.controller.keys[kb.jump] = true;
     }, () => {
       this._held.jump = false;
       if (kb) this.controller.keys[kb.jump] = false;
-    });
-
-    this._bindTapButton(this._buttons.use, () => {
-      if (!kb) return;
-      this.controller.keys[kb.interact] = true;
     });
 
     this._bindHoldButton(this._buttons.grab, () => {
@@ -530,24 +567,49 @@ export class MobileControls {
       if (kb) this.controller.keys[kb.drop] = false;
     });
 
-    this._bindHoldButton(this._buttons.rope, () => {
-      if (kb) this.controller.keys[kb.ropeGrab] = true;
+    this._bindHoldButton(this._buttons.smack, () => {
+      this._held.interact = true;
+      if (kb) this.controller.keys[kb.interact] = true;
     }, () => {
-      if (kb) this.controller.keys[kb.ropeGrab] = false;
-    });
-
-    this._bindTapButton(this._buttons.smack, () => {
-      if (this.controller) this.controller.smackPressed = true;
+      this._held.interact = false;
+      if (kb) this.controller.keys[kb.interact] = false;
     });
 
     this._bindTapButton(this._buttons.hero, () => {
-      if (!kb) return;
-      this.controller.keys[kb.heroActivate] = true;
+      if (this.controller) this.controller.heroActivatePressed = true;
+    });
+
+    this._bindTapButton(this._buttons.adversary, () => {
+      if (this.controller) this.controller.adversaryTogglePressed = true;
+      this.onToggleAdversary?.();
     });
 
     this._bindTapButton(this._buttons.emote, () => {
       this.onOpenEmote?.();
     });
+  }
+
+  setHumanSwitchState(state = {}) {
+    this._humanSwitchState = {
+      mode: state.mode ?? 'off',
+      hiding: !!state.hiding,
+    };
+    this._applyHumanSwitchState();
+  }
+
+  _applyHumanSwitchState() {
+    const mode = this._humanSwitchState.mode;
+    const button = this._buttons.adversary;
+    if (!button) return;
+    if (mode === 'off' || mode === 'remote') {
+      button.style.display = 'none';
+      return;
+    }
+    button.style.display = '';
+    if (button._labelEl) {
+      button._labelEl.textContent = mode === 'local' ? 'Mouse' : 'Human';
+    }
+    button.style.opacity = this._humanSwitchState.hiding ? '0.92' : '1';
   }
 
   _bindHoldButton(button, onDown, onUp) {
@@ -709,15 +771,15 @@ export class MobileControls {
     const kb = this.controller?.keyBindings;
     if (kb) {
       this.controller.keys[kb.sprint] = false;
-      this.controller.keys[kb.crouch] = false;
       this.controller.keys[kb.jump] = false;
+      this.controller.keys[kb.interact] = false;
       this.controller.keys[kb.grab] = false;
       this.controller.keys[kb.drop] = false;
       this.controller.keys[kb.ropeGrab] = false;
     }
     this._held.jump = false;
     this._held.sprint = false;
-    this._held.crouch = false;
+    this._held.interact = false;
     for (const button of Object.values(this._buttons)) {
       setButtonActive(button, false);
     }

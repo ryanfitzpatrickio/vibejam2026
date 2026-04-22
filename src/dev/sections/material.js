@@ -27,6 +27,10 @@ export function installMaterialSection(editor) {
     max: (editor._activeTextureAtlas().manifest?.cells?.length ?? 100) - 1,
   }, (value) => {
     editor._updateSelected((primitive) => {
+      if (typeof editor._setTextureCellValue === 'function') {
+        editor._setTextureCellValue(primitive, value);
+        return;
+      }
       primitive.texture.cell = Number.isFinite(value)
         ? clamp(Math.round(value), 0, (editor._activeTextureAtlas().manifest?.cells?.length ?? 100) - 1)
         : null;
@@ -34,6 +38,58 @@ export function installMaterialSection(editor) {
     });
     editor._highlightPalette();
   });
+
+  editor.textureTargetWrap = document.createElement('div');
+  Object.assign(editor.textureTargetWrap.style, {
+    display: 'grid',
+    gap: '6px',
+    marginTop: '10px',
+    marginBottom: '10px',
+  });
+  section.appendChild(editor.textureTargetWrap);
+
+  const targetLabel = document.createElement('div');
+  targetLabel.textContent = 'Texture Target';
+  Object.assign(targetLabel.style, {
+    color: '#d7c5a7',
+    fontSize: '11px',
+  });
+  editor.textureTargetWrap.appendChild(targetLabel);
+
+  editor.textureTargetBar = document.createElement('div');
+  Object.assign(editor.textureTargetBar.style, {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+  });
+  editor.textureTargetWrap.appendChild(editor.textureTargetBar);
+
+  editor.textureTargetHint = document.createElement('div');
+  Object.assign(editor.textureTargetHint.style, {
+    color: '#a99b8a',
+    fontSize: '11px',
+    lineHeight: '1.4',
+  });
+  editor.textureTargetWrap.appendChild(editor.textureTargetHint);
+
+  editor.clearTextureOverrideButton = document.createElement('button');
+  editor.clearTextureOverrideButton.type = 'button';
+  editor.clearTextureOverrideButton.textContent = 'Clear Face Override';
+  styleField(editor.clearTextureOverrideButton);
+  Object.assign(editor.clearTextureOverrideButton.style, {
+    cursor: 'pointer',
+    background: '#3d2a20',
+    color: '#ffe6d1',
+  });
+  editor.clearTextureOverrideButton.addEventListener('click', () => {
+    editor._updateSelected((primitive) => {
+      if (typeof editor._clearTextureOverride === 'function') {
+        editor._clearTextureOverride(primitive);
+      }
+    });
+    editor._highlightPalette();
+  });
+  editor.textureTargetWrap.appendChild(editor.clearTextureOverrideButton);
 
   editor.colorInput = document.createElement('input');
   editor.colorInput.type = 'color';

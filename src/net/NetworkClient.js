@@ -66,6 +66,9 @@ export class NetworkClient {
   /** Authoritative rope segment positions (server-authoritative); empty until init/snapshot */
   ropes = [];
 
+  /** Authoritative ceiling fan runtime state; empty until init/snapshot */
+  fans = [];
+
   /** @type {{ id: string, x: number, y: number, z: number, amount: number }[]} */
   cheesePickups = [];
 
@@ -143,6 +146,7 @@ export class NetworkClient {
       this.localId = null;
       this.remotePredators.clear();
       this.pushBalls = [];
+      this.fans = [];
       this.cheesePickups = [];
       this.round = null;
       this.extractionPortals = [];
@@ -277,6 +281,12 @@ export class NetworkClient {
     }
   }
 
+  _applyFansPayload(data) {
+    if (Array.isArray(data.fans)) {
+      this.fans = data.fans;
+    }
+  }
+
   _applyCheesePayload(data) {
     if (Array.isArray(data.cheesePickups)) {
       this.cheesePickups = data.cheesePickups;
@@ -311,6 +321,7 @@ export class NetworkClient {
         }
         this._applyPushBallsPayload(data);
         this._applyRopesPayload(data);
+        this._applyFansPayload(data);
         this._applyCheesePayload(data);
         if (data.round) this.round = data.round;
         if (data.adversary) this.adversary = data.adversary;
@@ -395,6 +406,7 @@ export class NetworkClient {
         }
         this._applyPushBallsPayload(data);
         this._applyRopesPayload(data);
+        this._applyFansPayload(data);
         this._applyCheesePayload(data);
         if (data.round) this.round = data.round;
         if (data.adversary) this.adversary = data.adversary;

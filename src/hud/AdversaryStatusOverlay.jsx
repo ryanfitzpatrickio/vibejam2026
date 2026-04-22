@@ -47,7 +47,7 @@ function AdversaryStatusView(props) {
   };
 
   return (
-    <Show when={isMobile() && buttonLabel()}>
+    <Show when={props.renderMobileToggle !== false && isMobile() && buttonLabel()}>
       <button
         type="button"
         id="adversary-toggle-mobile"
@@ -75,7 +75,7 @@ function AdversaryStatusView(props) {
 }
 
 export class AdversaryStatusOverlay {
-  constructor({ container = document.body, onToggle = null } = {}) {
+  constructor({ container = document.body, onToggle = null, renderMobileToggle = true } = {}) {
     this._mount = document.createElement('div');
     container.appendChild(this._mount);
     const [state, setState] = createStore({
@@ -88,7 +88,13 @@ export class AdversaryStatusOverlay {
     this._setState = setState;
     this._onToggle = onToggle;
     this._dispose = render(
-      () => <AdversaryStatusView state={state} onToggle={() => this._onToggle?.()} />,
+      () => (
+        <AdversaryStatusView
+          state={state}
+          onToggle={() => this._onToggle?.()}
+          renderMobileToggle={renderMobileToggle}
+        />
+      ),
       this._mount,
     );
   }

@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { PrefabEditorDialog } from './PrefabEditorDialog.js';
 import { VegetationEditorDialog } from './VegetationEditorDialog.js';
-import { DEFAULT_PREFAB_LIBRARY, normalizePrefabLibrary } from './prefabRegistry.js';
+import { DEFAULT_PREFAB_LIBRARY, FACE_TEXTURE_SLOTS, normalizePrefabLibrary } from './prefabRegistry.js';
 import { DEFAULT_VEGETATION_LIBRARY, normalizeVegetationLibrary } from './vegetationRegistry.js';
-import { clamp, createAtlasButtonStyle, deepClone } from './editorShared.js';
+import { clamp, createAtlasButtonStyle, deepClone, titleCase } from './editorShared.js';
 import {
   createDefaultPrimitive,
   createDefaultLight,
   createDefaultPortal,
   createDefaultRope,
+  createDefaultFan,
   createDefaultExtractionPortal,
   createDefaultRaidTask,
   createPrimitiveId,
@@ -41,6 +42,7 @@ import { installPrefabSection } from './sections/prefab.js';
 import { installPaletteSection } from './sections/palette.js';
 import { installGlbSection } from './sections/glb.js';
 import { installRopeSection } from './sections/rope.js';
+import { installFanSection } from './sections/fan.js';
 import { installExtractionSection } from './sections/extraction.js';
 import { installRaidTaskSection } from './sections/raidTask.js';
 import { installVegetationSection } from './sections/vegetation.js';
@@ -58,7 +60,7 @@ import {
   attachTransformControls,
   setTransformMode,
 } from './subsystems/transformGizmo.js';
-import { loadTextureAtlases, TEXTURE_ATLASES } from './textureAtlasRegistry.js';
+import { DEFAULT_TEXTURE_ATLAS, loadTextureAtlases, TEXTURE_ATLASES } from './textureAtlasRegistry.js';
 import { assetUrl } from '../utils/assetUrl.js';
 import { SPAWN_TYPES, normalizeSpawnType } from '../../shared/spawnPoints.js';
 import { NAV_AREA_TYPES, normalizeNavArea } from '../../shared/navConfig.js';
@@ -81,6 +83,12 @@ class BuildModeEditor {
     this.layout = app.room.getEditableLayout();
     this.selectedId = this.layout.primitives[0]?.id
       ?? this.layout.vegetation?.[0]?.id
+      ?? this.layout.fans?.[0]?.id
+      ?? this.layout.lights?.[0]?.id
+      ?? this.layout.portals?.[0]?.id
+      ?? this.layout.ropes?.[0]?.id
+      ?? this.layout.extractionPortals?.[0]?.id
+      ?? this.layout.raidTasks?.[0]?.id
       ?? null;
     this.visible = false;
     this.statusTimer = null;
@@ -104,6 +112,7 @@ class BuildModeEditor {
     this.selectionHighlightTarget = null;
     this.glbRegistry = null;
     this._glbFileInput = null;
+    this.textureTarget = 'all';
 
     this._createUI();
     this._createProbeVisuals();
@@ -283,6 +292,7 @@ class BuildModeEditor {
     this._addActionButton('Vibe Portal', () => this._addPortal(VIBE_PORTAL_TYPES.EXIT), '#125341');
     this._addActionButton('Return Portal', () => this._addPortal(VIBE_PORTAL_TYPES.RETURN), '#5b241c');
     this._addActionButton('Rope', () => this._addRope(), '#5e4322');
+    this._addActionButton('Ceiling Fan', () => this._addFan(), '#4a3b24');
     this._addActionButton('Extract hole', () => this._addExtractionPortal(), '#1a4d42');
     this._addActionButton('Task marker', () => this._addRaidTask(), '#4d3a1a');
     this._addActionButton('Move', () => this._setTransformMode('translate'));
@@ -300,6 +310,7 @@ class BuildModeEditor {
     this._createLightSection();
     this._createPortalSection();
     this._createRopeSection();
+    this._createFanSection();
     this._createExtractionSection();
     this._createRaidTaskSection();
     this._createPrefabSection();
@@ -1036,6 +1047,10 @@ class BuildModeEditor {
     installRopeSection(this);
   }
 
+  _createFanSection() {
+    installFanSection(this);
+  }
+
   _createExtractionSection() {
     installExtractionSection(this);
   }
@@ -1341,6 +1356,132 @@ class BuildModeEditor {
     return this._editorPrimitives().find((entry) => entry.id === this.selectedId) ?? null;
   }
 
+  _getTextureTargets(primitive) {
+    if (!primitive) return ['all'];
+    return ['all', ...(FACE_TEXTURE_SLOTS[primitive.type] ?? [])];
+  }
+
+  _ensureTextureTarget(primitive) {
+    const targets = this._getTextureTargets(primitive);
+    if (!targets.includes(this.textureTarget)) {
+      this.textureTarget = 'all';
+    }
+  }
+
+  _getPaletteSelectedTextureRef(primitive) {
+    if (!primitive) return null;
+    if (this.textureTarget === 'all') return primitive.texture ?? null;
+    if (Object.prototype.hasOwnProperty.call(primitive.faceTextures ?? {}, this.textureTarget)) {
+      return primitive.faceTextures[this.textureTarget];
+    }
+    return null;
+  }
+
+  _getEffectiveTextureRef(primitive, slot) {
+    if (!primitive) return null;
+    if (Object.prototype.hasOwnProperty.call(primitive.faceTextures ?? {}, slot)) {
+      return primitive.faceTextures[slot];
+    }
+    return primitive.texture ?? null;
+  }
+
+  _getTextureCellInputValue(primitive) {
+    const ref = this._getPaletteSelectedTextureRef(primitive);
+    return ref?.cell ?? '';
+  }
+
+  _setTextureCellValue(primitive, value) {
+    if (!primitive) return;
+    const maxCell = (this._activeTextureAtlas().manifest?.cells?.length ?? 100) - 1;
+    const clampedValue = Number.isFinite(value) ? clamp(Math.round(value), 0, maxCell) : null;
+    const atlasId = this.activeTextureAtlasId;
+
+    if (this.textureTarget === 'all') {
+      primitive.texture.atlas = atlasId;
+      primitive.texture.cell = clampedValue;
+      return;
+    }
+
+    primitive.faceTextures ||= {};
+    if (clampedValue == null) {
+      delete primitive.faceTextures[this.textureTarget];
+      return;
+    }
+    primitive.faceTextures[this.textureTarget] = {
+      atlas: atlasId,
+      cell: clampedValue,
+    };
+  }
+
+  _clearTextureOverride(primitive) {
+    if (!primitive || this.textureTarget === 'all') return;
+    if (!primitive.faceTextures) return;
+    delete primitive.faceTextures[this.textureTarget];
+  }
+
+  _syncTextureTargetButtons(primitive) {
+    if (!this.textureTargetWrap || !this.textureTargetBar || !this.textureTargetHint) return;
+
+    const targets = this._getTextureTargets(primitive);
+    const hasFaceTargets = !!primitive && targets.length > 1;
+    this.textureTargetWrap.style.display = primitive ? 'grid' : 'none';
+    this.textureTargetBar.innerHTML = '';
+
+    targets.forEach((target) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = target === 'all' ? 'All' : titleCase(target);
+      Object.assign(button.style, {
+        padding: '6px 8px',
+        borderRadius: '8px',
+        border: '1px solid rgba(255,255,255,0.12)',
+        background: this.textureTarget === target ? '#6d4f2a' : 'rgba(255,255,255,0.06)',
+        color: '#fff4e8',
+        cursor: primitive ? 'pointer' : 'default',
+        fontFamily: 'inherit',
+        fontSize: '11px',
+        opacity: primitive ? '1' : '0.45',
+      });
+      button.disabled = !primitive;
+      button.addEventListener('click', () => {
+        this.textureTarget = target;
+        this._syncForm();
+      });
+      this.textureTargetBar.appendChild(button);
+    });
+
+    if (this.clearTextureOverrideButton) {
+      const hasOverride = primitive
+        && this.textureTarget !== 'all'
+        && Object.prototype.hasOwnProperty.call(primitive.faceTextures ?? {}, this.textureTarget);
+      this.clearTextureOverrideButton.style.display = hasFaceTargets ? 'inline-flex' : 'none';
+      this.clearTextureOverrideButton.disabled = !hasOverride;
+    }
+
+    if (!primitive) {
+      this.textureTargetHint.textContent = 'Select a primitive to choose shared or per-face textures.';
+      return;
+    }
+
+    if (!hasFaceTargets) {
+      this.textureTargetHint.textContent = 'This primitive uses one shared texture for all faces.';
+      return;
+    }
+
+    if (this.textureTarget === 'all') {
+      this.textureTargetHint.textContent = `All faces inherit atlas ${primitive.texture.atlas ?? DEFAULT_TEXTURE_ATLAS}, cell ${primitive.texture.cell ?? 'none'} unless a face override is set.`;
+      return;
+    }
+
+    const override = Object.prototype.hasOwnProperty.call(primitive.faceTextures ?? {}, this.textureTarget)
+      ? primitive.faceTextures[this.textureTarget]
+      : null;
+    const effective = this._getEffectiveTextureRef(primitive, this.textureTarget);
+    this.textureTargetHint.textContent = override == null
+      ? `${titleCase(this.textureTarget)} inherits atlas ${effective?.atlas ?? DEFAULT_TEXTURE_ATLAS}, cell ${effective?.cell ?? 'none'}.`
+      : `${titleCase(this.textureTarget)} overrides to atlas ${override.atlas ?? DEFAULT_TEXTURE_ATLAS}, cell ${override.cell ?? 'none'}.`;
+  }
+
   _selectedLight() {
     return this._editorLights().find((entry) => entry.id === this.selectedId) ?? null;
   }
@@ -1361,6 +1502,10 @@ class BuildModeEditor {
     return this._editorRaidTasks().find((entry) => entry.id === this.selectedId) ?? null;
   }
 
+  _selectedFan() {
+    return (this.layout.fans ?? []).find((entry) => entry.id === this.selectedId) ?? null;
+  }
+
   _selectedVegetation() {
     return this._editorVegetation().find((entry) => entry.id === this.selectedId) ?? null;
   }
@@ -1371,6 +1516,7 @@ class BuildModeEditor {
       ?? this._selectedPortal()
       ?? this._selectedExtractionPortal()
       ?? this._selectedRaidTask()
+      ?? this._selectedFan()
       ?? this._selectedVegetation()
       ?? this._selectedRope();
   }
@@ -1382,6 +1528,7 @@ class BuildModeEditor {
     if (entry.segmentCount != null && entry.anchor) return 'rope';
     if (entry.taskType != null) return `task · ${entry.taskType}`;
     if (entry.speciesId) return `vegetation · ${entry.mode}`;
+    if (entry.bladeCount != null && entry.spinSpeed != null) return 'ceiling fan';
     if (entry.radius != null && entry.portalType == null) return `extraction · r ${Number(entry.radius).toFixed(2)}`;
     const spawnLabel = this._spawnLabel(normalizeSpawnType(entry.spawnType));
     return spawnLabel || entry.type || 'object';
@@ -1397,6 +1544,7 @@ class BuildModeEditor {
       { key: 'lights', label: 'Lights', entries: this._editorLights() },
       { key: 'portals', label: 'Portals', entries: this._editorPortals() },
       { key: 'ropes', label: 'Ropes', entries: this._editorRopes() },
+      { key: 'fans', label: 'Fans', entries: (this.layout.fans ?? []).filter((entry) => entry.deleted !== true) },
       { key: 'extraction', label: 'Extraction', entries: this._editorExtractionPortals() },
       { key: 'tasks', label: 'Tasks', entries: this._editorRaidTasks() },
       { key: 'vegetation', label: 'Vegetation', entries: this._editorVegetation() },
@@ -1548,6 +1696,10 @@ class BuildModeEditor {
     return (this.layout.ropes ?? []).filter((entry) => entry.deleted !== true);
   }
 
+  _editorFans() {
+    return (this.layout.fans ?? []).filter((entry) => entry.deleted !== true);
+  }
+
   _editorExtractionPortals() {
     return (this.layout.extractionPortals ?? []).filter((entry) => entry.deleted !== true);
   }
@@ -1566,6 +1718,7 @@ class BuildModeEditor {
       ...this._editorLights(),
       ...this._editorPortals(),
       ...this._editorRopes(),
+      ...this._editorFans(),
       ...this._editorExtractionPortals(),
       ...this._editorRaidTasks(),
       ...this._editorVegetation(),
@@ -1710,10 +1863,11 @@ class BuildModeEditor {
     const light = this._selectedLight();
     const portal = this._selectedPortal();
     const rope = this._selectedRope();
+    const fan = this._selectedFan();
     const extraction = this._selectedExtractionPortal();
     const raidTask = this._selectedRaidTask();
     const vegetation = this._selectedVegetation();
-    const entry = primitive ?? light ?? portal ?? rope ?? extraction ?? raidTask ?? vegetation;
+    const entry = primitive ?? light ?? portal ?? rope ?? fan ?? extraction ?? raidTask ?? vegetation;
     if (this.activeTool === 'bisect-plane') {
       if (!primitive || primitive.type !== 'plane') {
         this._cancelBisectPlaneTool({ silent: true });
@@ -1736,6 +1890,7 @@ class BuildModeEditor {
     const lightDisabled = !light;
     const portalDisabled = !portal;
     const ropeDisabled = !rope;
+    const fanDisabled = !fan;
     const extractionDisabled = !extraction;
     const raidTaskDisabled = !raidTask;
     const vegetationDisabled = !vegetation;
@@ -1821,6 +1976,17 @@ class BuildModeEditor {
     });
 
     [
+      this.fanBladeCountInput,
+      this.fanBladeLengthInput,
+      this.fanHubRadiusInput,
+      this.fanRodLengthInput,
+      this.fanSpinSpeedInput,
+      this.fanCheeseAmountInput,
+    ].forEach((field) => {
+      if (field) field.disabled = fanDisabled;
+    });
+
+    [
       this.vegetationDensityInput,
       this.vegetationSeedInput,
       this.vegetationAreaShapeSelect,
@@ -1838,6 +2004,7 @@ class BuildModeEditor {
     this.lightSection.style.display = light ? 'block' : 'none';
     this.portalSection.style.display = portal ? 'block' : 'none';
     if (this.ropeSection) this.ropeSection.style.display = rope ? 'block' : 'none';
+    if (this.fanSection) this.fanSection.style.display = fan ? 'block' : 'none';
     if (this.extractionSection) this.extractionSection.style.display = extraction ? 'block' : 'none';
     if (this.raidTaskSection) this.raidTaskSection.style.display = raidTask ? 'block' : 'none';
     this.scaleInputs._wrap.style.display = primitive || vegetation ? 'block' : 'none';
@@ -1852,8 +2019,11 @@ class BuildModeEditor {
     }
     this.navAreaSelect._wrap.style.display = primitive && !propSelected ? 'grid' : 'none';
     this.prefabSelect.disabled = primitiveDisabled;
+    this._ensureTextureTarget(primitive);
+    this._syncTextureTargetButtons(primitive);
 
     if (!entry) {
+      this.textureCellInput.value = '';
       this._highlightPalette();
       return;
     }
@@ -1873,8 +2043,11 @@ class BuildModeEditor {
       this.scaleInputs.x.value = primitive.scale.x;
       this.scaleInputs.y.value = primitive.scale.y;
       this.scaleInputs.z.value = primitive.scale.z;
-      this.activeTextureAtlasId = primitive.texture.atlas ?? this.activeTextureAtlasId;
-      this.textureCellInput.value = primitive.texture.cell ?? '';
+      const paletteRef = this._getPaletteSelectedTextureRef(primitive)
+        ?? (this.textureTarget === 'all' ? primitive.texture : null)
+        ?? this._getEffectiveTextureRef(primitive, this.textureTarget);
+      this.activeTextureAtlasId = paletteRef?.atlas ?? primitive.texture.atlas ?? this.activeTextureAtlasId;
+      this.textureCellInput.value = this._getTextureCellInputValue(primitive);
       this.textureCellInput.max = String((this._activeTextureAtlas().manifest?.cells?.length ?? 100) - 1);
       this.colorInput.value = primitive.material.color;
       this.repeatInputs.x.value = primitive.texture.repeat.x;
@@ -1958,6 +2131,27 @@ class BuildModeEditor {
       }
     }
 
+    if (fan) {
+      if (this.fanBladeCountInput) this.fanBladeCountInput.value = fan.bladeCount;
+      if (this.fanBladeLengthInput) {
+        this.fanBladeLengthInput.value = fan.bladeLength;
+        this.fanBladeLengthInput._output.textContent = Number(fan.bladeLength).toFixed(2);
+      }
+      if (this.fanHubRadiusInput) {
+        this.fanHubRadiusInput.value = fan.hubRadius;
+        this.fanHubRadiusInput._output.textContent = Number(fan.hubRadius).toFixed(2);
+      }
+      if (this.fanRodLengthInput) {
+        this.fanRodLengthInput.value = fan.rodLength;
+        this.fanRodLengthInput._output.textContent = Number(fan.rodLength).toFixed(2);
+      }
+      if (this.fanSpinSpeedInput) {
+        this.fanSpinSpeedInput.value = fan.spinSpeed;
+        this.fanSpinSpeedInput._output.textContent = Number(fan.spinSpeed).toFixed(2);
+      }
+      if (this.fanCheeseAmountInput) this.fanCheeseAmountInput.value = fan.cheeseAmount;
+    }
+
     if (vegetation) {
       this.scaleInputs.x.value = vegetation.scale.x;
       this.scaleInputs.y.value = vegetation.scale.y;
@@ -1977,8 +2171,11 @@ class BuildModeEditor {
   }
 
   _highlightPalette() {
-    const selectedCell = String(this._selectedPrimitive()?.texture.cell ?? '');
-    const selectedAtlas = this._selectedPrimitive()?.texture?.atlas ?? this.activeTextureAtlasId;
+    const primitive = this._selectedPrimitive();
+    const selectedRef = this._getPaletteSelectedTextureRef(primitive)
+      ?? (this.textureTarget === 'all' ? primitive?.texture : null);
+    const selectedCell = String(selectedRef?.cell ?? '');
+    const selectedAtlas = selectedRef?.atlas ?? this.activeTextureAtlasId;
     this.paletteGrid.querySelectorAll('button').forEach((button) => {
       button.style.outline = button.dataset.cellIndex === selectedCell && button.dataset.atlasId === selectedAtlas
         ? '2px solid #ffe39d'
@@ -2191,6 +2388,7 @@ class BuildModeEditor {
     this.layout = this.app.room.getEditableLayout();
     this.selectedId = this.layout.primitives[0]?.id
       ?? this.layout.vegetation?.[0]?.id
+      ?? this.layout.fans?.[0]?.id
       ?? this.layout.lights?.[0]?.id
       ?? this.layout.portals?.[0]?.id
       ?? this.layout.ropes?.[0]?.id
@@ -2315,6 +2513,22 @@ class BuildModeEditor {
       return;
     }
 
+    const fan = this._selectedFan();
+    if (fan) {
+      const next = deepClone(fan);
+      mutator(next);
+      const snapped = this.app.room.snapFanToGrid(next, {
+        snapY,
+        snapPosition,
+        allowEdgeOverflow: true,
+      });
+      this.app.room.upsertEditableFan(snapped);
+      this.layout = this.app.room.getEditableLayout();
+      this._syncForm();
+      this._attachTransformControls();
+      return;
+    }
+
     const rope = this._selectedRope();
     if (!rope) {
       return;
@@ -2392,6 +2606,19 @@ class BuildModeEditor {
     this._syncForm();
     this._attachTransformControls();
     this._setStatus(`Added ${rope.name}.`);
+  }
+
+  _addFan() {
+    const fan = this.app.room.snapFanToGrid(
+      createDefaultFan(this.app),
+      { snapY: true, snapPosition: true, allowEdgeOverflow: true },
+    );
+    this.app.room.upsertEditableFan(fan);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = fan.id;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Added ${fan.name}.`);
   }
 
   _addExtractionPortal() {
@@ -2551,6 +2778,22 @@ class BuildModeEditor {
       this._setStatus(`Duplicated ${raidTask.name}.`);
       return;
     }
+    const fan = this._selectedFan();
+    if (fan) {
+      const copy = deepClone(fan);
+      copy.id = `fan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      copy.name = `${fan.name}-copy`;
+      copy.position.x += grid.cellWidth;
+      copy.position.z += grid.cellDepth;
+      const snapped = this.app.room.snapFanToGrid(copy, { snapY: true, allowEdgeOverflow: true });
+      this.app.room.upsertEditableFan(snapped);
+      this.layout = this.app.room.getEditableLayout();
+      this.selectedId = snapped.id;
+      this._syncForm();
+      this._attachTransformControls();
+      this._setStatus(`Duplicated ${fan.name}.`);
+      return;
+    }
     const vegetation = this._selectedVegetation();
     if (vegetation) {
       const copy = deepClone(vegetation);
@@ -2589,10 +2832,11 @@ class BuildModeEditor {
     const light = this._selectedLight();
     const portal = this._selectedPortal();
     const rope = this._selectedRope();
+    const fan = this._selectedFan();
     const extraction = this._selectedExtractionPortal();
     const raidTask = this._selectedRaidTask();
     const vegetation = this._selectedVegetation();
-    const currentName = primitive?.name ?? light?.name ?? portal?.name ?? rope?.name
+    const currentName = primitive?.name ?? light?.name ?? portal?.name ?? rope?.name ?? fan?.name
       ?? extraction?.name ?? raidTask?.name ?? vegetation?.name ?? 'object';
     if (light) {
       this.app.room.purgeEditableLight(this.selectedId);
@@ -2602,6 +2846,8 @@ class BuildModeEditor {
       this.app.room.purgeEditableExtractionPortal(this.selectedId);
     } else if (raidTask) {
       this.app.room.purgeEditableRaidTask(this.selectedId);
+    } else if (fan) {
+      this.app.room.purgeEditableFan(this.selectedId);
     } else if (vegetation) {
       this.app.room.purgeEditableVegetation(this.selectedId);
     } else if (rope) {
@@ -2615,6 +2861,7 @@ class BuildModeEditor {
       ?? this.layout.lights?.[0]?.id
       ?? this.layout.portals?.[0]?.id
       ?? this.layout.ropes?.[0]?.id
+      ?? this.layout.fans?.[0]?.id
       ?? this.layout.extractionPortals?.[0]?.id
       ?? this.layout.raidTasks?.[0]?.id
       ?? null;

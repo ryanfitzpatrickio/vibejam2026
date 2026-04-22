@@ -643,7 +643,9 @@ export class VegetationSystem {
         const colliderMetadata = {
           source: 'vegetation',
           vegetationId: entry.id,
-          nonWalkable: species.kind === 'tree',
+          // Tree collision uses an authored trunk proxy, so it should behave like
+          // other solid primitive colliders instead of opting out of support/step-up.
+          nonWalkable: false,
           collisionMode,
         };
         if (collisionMode === 'trunk-shape') {

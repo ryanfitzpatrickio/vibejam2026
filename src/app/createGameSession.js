@@ -1024,6 +1024,7 @@ export async function createGameSession({
   });
   const chaseAlert = new ChaseAlertOverlay();
   const adversaryStatus = new AdversaryStatusOverlay({
+    renderMobileToggle: !isCoarsePointer,
     onToggle: () => { controller.adversaryTogglePressed = true; },
   });
   const windStreaks = new WindStreakField({ camera });
@@ -1841,6 +1842,7 @@ export async function createGameSession({
     }
 
     placementMode?.update(deltaSeconds);
+    room.applyFanRuntimeStates(net.connected ? net.fans : null);
     room.updateLoot(timeMs);
     vibePortalManager.update(deltaSeconds);
 
@@ -1944,6 +1946,7 @@ export async function createGameSession({
     const humanRolePatch = getAdversaryStatusPatch(isAlive);
     adversaryStatus.update(humanRolePatch);
     hud.updateHumanRole(humanRolePatch);
+    mobileControls?.setHumanSwitchState?.(humanRolePatch);
 
     roundRaid.updatePhaseBanner(net.connected ? net.round : null, Date.now() / 1000, {
       subtitle: (net.round?.phase === 'extract' && (net.serverState?.extractProgress ?? 0) > 0.02)
