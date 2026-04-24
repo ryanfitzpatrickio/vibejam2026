@@ -3,6 +3,7 @@ import {
   DEFAULT_PREFAB_LIBRARY,
   FACE_TEXTURE_SLOTS,
   createPrefabId,
+  createPrefabPartId,
   normalizePrefab,
   normalizePrefabLibrary,
   normalizePrefabPrimitive,
@@ -45,6 +46,9 @@ export class PrefabEditorDialog {
     this.selectedPartId = null;
     this.textureTarget = 'all';
     this.meshes = new Map();
+    this.raycaster = new THREE.Raycaster();
+    this.pointerNdc = new THREE.Vector2();
+    this._pointerDown = null;
     this._raf = 0;
     this._suppressTransformSync = false;
 
@@ -101,10 +105,40 @@ export class PrefabEditorDialog {
       inset: '0',
       zIndex: '160',
       display: 'none',
-      gridTemplateColumns: 'minmax(440px, 1fr) 380px',
+      gridTemplateColumns: '260px minmax(440px, 1fr) 380px',
       background: 'rgba(0,0,0,0.68)',
       backdropFilter: 'blur(8px)',
     });
+
+    this.leftPanel = document.createElement('aside');
+    Object.assign(this.leftPanel.style, {
+      overflowY: 'auto',
+      padding: '18px 14px',
+      boxSizing: 'border-box',
+      background: 'rgba(12,10,9,0.92)',
+      color: '#f7efe5',
+      fontFamily: 'monospace',
+      borderRight: '1px solid rgba(255,255,255,0.08)',
+    });
+    this.overlay.appendChild(this.leftPanel);
+
+    const treeTitle = document.createElement('div');
+    treeTitle.textContent = 'PREFAB TREE';
+    Object.assign(treeTitle.style, {
+      fontWeight: '700',
+      letterSpacing: '0.08em',
+      color: '#ffd7a4',
+      marginBottom: '10px',
+      fontSize: '12px',
+    });
+    this.leftPanel.appendChild(treeTitle);
+
+    this.partTree = document.createElement('div');
+    Object.assign(this.partTree.style, {
+      display: 'grid',
+      gap: '5px',
+    });
+    this.leftPanel.appendChild(this.partTree);
 
     this.viewportWrap = document.createElement('div');
     Object.assign(this.viewportWrap.style, {
@@ -243,6 +277,7 @@ export class PrefabEditorDialog {
     });
     this.transformControls.addEventListener('objectChange', () => this._onTransformObjectChange());
     this.scene.add(this.transformControls.getHelper());
+    this._bindViewportSelection();
 
     this.previewRoot = new THREE.Group();
     this.scene.add(this.previewRoot);
@@ -275,6 +310,35 @@ export class PrefabEditorDialog {
     });
   }
 
+  _bindViewportSelection() {
+    this.canvas.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      this._pointerDown = { x: event.clientX, y: event.clientY };
+    });
+
+    this.canvas.addEventListener('pointerup', (event) => {
+      if (event.button !== 0 || !this._pointerDown) return;
+      const dx = event.clientX - this._pointerDown.x;
+      const dy = event.clientY - this._pointerDown.y;
+      this._pointerDown = null;
+      if ((dx * dx + dy * dy) > 25) return;
+      if (this.transformControls.dragging) return;
+
+      const rect = this.canvas.getBoundingClientRect();
+      this.pointerNdc.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -(((event.clientY - rect.top) / rect.height) * 2 - 1),
+      );
+      this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+      const hits = this.raycaster.intersectObjects([...this.meshes.values()], false);
+      const partId = hits[0]?.object?.userData?.prefabPartId;
+      if (partId) {
+        event.preventDefault();
+        this._selectPart(partId, { source: 'viewport' });
+      }
+    });
+  }
+
   _createPrefabSection() {
     const section = this._createSection('Prefab');
 
@@ -298,6 +362,7 @@ export class PrefabEditorDialog {
       if (!prefab) return;
       prefab.name = this.prefabNameInput.value || 'Prefab';
       this._syncPrefabOptions();
+      this._syncPartTree();
     });
     section.appendChild(this.prefabNameInput);
 
@@ -372,9 +437,7 @@ export class PrefabEditorDialog {
     this.partSelect = document.createElement('select');
     this._styleField(this.partSelect);
     this.partSelect.addEventListener('change', () => {
-      this.selectedPartId = this.partSelect.value || null;
-      this._syncForm();
-      this._attachTransformControls();
+      this._selectPart(this.partSelect.value || null, { source: 'dropdown' });
     });
     section.appendChild(this.partSelect);
 
@@ -400,6 +463,7 @@ export class PrefabEditorDialog {
       if (!part) return;
       part.name = this.partNameInput.value || part.type;
       this._syncPartOptions();
+      this._syncPartTree();
       this._rebuildScene();
     });
     section.appendChild(this.partNameInput);
@@ -502,6 +566,14 @@ export class PrefabEditorDialog {
       this._rebuildScene();
     });
 
+    this.offsetInputs = this._createVector2Inputs(section, 'Texture Offset', { step: 0.01 }, (axis, value) => {
+      const part = this._selectedPart();
+      if (!part) return;
+      part.texture.offset ||= { x: 0, y: 0 };
+      part.texture.offset[axis] = Number.isFinite(value) ? value : 0;
+      this._rebuildScene();
+    });
+
     this.roughnessInput = this._createRangeField(section, 'Roughness', 0, 1, 0.01, (value) => {
       const part = this._selectedPart();
       if (!part) return;
@@ -566,9 +638,8 @@ export class PrefabEditorDialog {
       button.addEventListener('click', () => {
         const part = this._selectedPart();
         if (!part) return;
-        part.texture.atlas = activeAtlas.id;
         this._setTextureCellValue(part, cell.index);
-        this._syncForm();
+        this._syncForm({ syncAtlas: false });
         this._rebuildScene();
         this._highlightPalette();
       });
@@ -609,7 +680,7 @@ export class PrefabEditorDialog {
       });
       button.addEventListener('click', () => {
         this.activeTextureAtlasId = atlas.id;
-        this._syncForm();
+        this._syncForm({ syncAtlas: false });
         this._renderPalette();
       });
       this.textureAtlasTabs.appendChild(button);
@@ -841,13 +912,96 @@ export class PrefabEditorDialog {
     this.partSelect.value = this.selectedPartId;
   }
 
-  _syncForm() {
+  _syncPartTree() {
+    if (!this.partTree) return;
+    this.partTree.innerHTML = '';
+    const prefab = this._selectedPrefab();
+    if (!prefab) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No prefab selected';
+      empty.style.color = 'rgba(255,255,255,0.55)';
+      empty.style.fontSize = '11px';
+      this.partTree.appendChild(empty);
+      return;
+    }
+
+    const root = document.createElement('div');
+    Object.assign(root.style, {
+      padding: '8px 9px',
+      borderRadius: '8px',
+      background: 'rgba(255,255,255,0.06)',
+      border: '1px solid rgba(255,255,255,0.12)',
+      color: '#fff4e8',
+      fontSize: '12px',
+      fontWeight: '700',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    });
+    root.textContent = `▾ ${prefab.name}`;
+    this.partTree.appendChild(root);
+
+    if (!prefab.primitives.length) {
+      const empty = document.createElement('div');
+      empty.textContent = '  No parts';
+      empty.style.color = 'rgba(255,255,255,0.55)';
+      empty.style.fontSize = '11px';
+      this.partTree.appendChild(empty);
+      return;
+    }
+
+    prefab.primitives.forEach((part) => {
+      const selected = part.id === this.selectedPartId;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = `  ${selected ? '●' : '○'} ${part.name} (${part.type})`;
+      Object.assign(button.style, {
+        width: '100%',
+        padding: '7px 8px',
+        borderRadius: '8px',
+        border: selected ? '1px solid rgba(255,215,164,0.7)' : '1px solid rgba(255,255,255,0.1)',
+        background: selected ? 'rgba(109,79,42,0.72)' : 'rgba(255,255,255,0.035)',
+        color: selected ? '#ffe6ba' : '#d9cbb9',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        fontSize: '11px',
+        textAlign: 'left',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      });
+      button.addEventListener('click', () => this._selectPart(part.id, { source: 'tree' }));
+      this.partTree.appendChild(button);
+    });
+  }
+
+  _selectPart(partId, { source = 'ui' } = {}) {
+    const prefab = this._selectedPrefab();
+    const nextId = prefab?.primitives?.some((part) => part.id === partId) ? partId : null;
+    if (this.selectedPartId === nextId) {
+      this._attachTransformControls();
+      return;
+    }
+    this.selectedPartId = nextId;
+    this._syncForm();
+    this._attachTransformControls();
+    if (source === 'viewport') {
+      const part = this._selectedPart();
+      this._setStatus(part ? `Selected ${part.name}.` : 'No part selected.');
+    }
+  }
+
+  _syncForm({ syncAtlas = true } = {}) {
     this._syncPrefabOptions();
     this._syncPartOptions();
+    this._syncPartTree();
 
     const prefab = this._selectedPrefab();
     const part = this._selectedPart();
     this._ensureTextureTarget(part);
+    if (syncAtlas) {
+      this._syncActiveAtlasToSelectedTexture(part);
+    }
 
     this.prefabNameInput.value = prefab?.name ?? '';
     this.prefabSizeInputs.x.value = prefab?.size?.x ?? 1;
@@ -863,6 +1017,7 @@ export class PrefabEditorDialog {
       this.textureCellInput,
       this.colorInput,
       ...Object.values(this.repeatInputs),
+      ...Object.values(this.offsetInputs),
       this.roughnessInput,
       this.metalnessInput,
     ].forEach((field) => {
@@ -891,6 +1046,8 @@ export class PrefabEditorDialog {
     this.colorInput.value = part.material.color;
     this.repeatInputs.x.value = part.texture.repeat.x;
     this.repeatInputs.y.value = part.texture.repeat.y;
+    this.offsetInputs.x.value = part.texture.offset?.x ?? 0;
+    this.offsetInputs.y.value = part.texture.offset?.y ?? 0;
     this.roughnessInput.value = part.material.roughness;
     this.roughnessInput._output.textContent = Number(part.material.roughness).toFixed(2);
     this.metalnessInput.value = part.material.metalness;
@@ -937,6 +1094,21 @@ export class PrefabEditorDialog {
       return part.faceTextures[slot];
     }
     return part.texture ?? null;
+  }
+
+  _getTextureRefForActiveTarget(part) {
+    if (!part) return null;
+    if (this.textureTarget === 'all') return part.texture ?? null;
+    return this._getEffectiveTextureCell(part, this.textureTarget);
+  }
+
+  _syncActiveAtlasToSelectedTexture(part) {
+    const textureRef = this._getTextureRefForActiveTarget(part);
+    const atlasId = textureRef?.atlas ?? DEFAULT_TEXTURE_ATLAS;
+    if (!this.textureAtlases.some((atlas) => atlas.id === atlasId)) return;
+    if (this.activeTextureAtlasId === atlasId) return;
+    this.activeTextureAtlasId = atlasId;
+    this._renderPalette();
   }
 
   _getTextureCellInputValue(part) {
@@ -1193,14 +1365,19 @@ export class PrefabEditorDialog {
       material.side = side;
 
       if (textureRef && Number.isFinite(textureRef.cell)) {
-        const map = this.room._createAtlasTexture?.(textureRef.cell, {
-          x: part.texture.repeat.x,
-          y: part.texture.repeat.y,
-          rotation: part.texture.rotation,
-          atlas: textureRef.atlas ?? DEFAULT_TEXTURE_ATLAS,
-        });
+        const map = this.room._createAtlasTexture?.(
+          textureRef.cell,
+          textureRef.atlas ?? DEFAULT_TEXTURE_ATLAS,
+          part.type === 'prop' ? part.chroma : null,
+        );
         if (map) {
-          material.map = map;
+          material.map = map.clone();
+          material.map.repeat.set(part.texture.repeat.x, part.texture.repeat.y);
+          material.map.offset.set(part.texture.offset?.x ?? 0, part.texture.offset?.y ?? 0);
+          material.map.rotation = part.texture.rotation ?? 0;
+          material.map.center.set(0.5, 0.5);
+          material.map.needsUpdate = true;
+          material.addEventListener('dispose', () => material.map?.dispose?.());
         }
         material.userData.textureAtlas = textureRef.atlas ?? DEFAULT_TEXTURE_ATLAS;
         material.userData.textureCell = textureRef.cell;

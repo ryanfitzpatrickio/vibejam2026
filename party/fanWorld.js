@@ -11,6 +11,10 @@ const FAN_BUMP_UP_SPEED = 4.2;
 const FAN_BUMP_TANGENT_SPEED = 7.4;
 const FAN_BUMP_COOLDOWN_S = 0.45;
 const FAN_BLADE_ANGLE_TOLERANCE = 0.22;
+const FAN_GRAB_MIN_ANGLE_TOLERANCE = 0.28;
+const FAN_GRAB_VERTICAL_RANGE = 1.15;
+const FAN_HUB_LANDING_VERTICAL_RANGE = 0.38;
+const FAN_HUB_LANDING_BOUNCE = 1.2;
 
 function shortestAngleDelta(target, current) {
   let diff = target - current;
@@ -31,6 +35,14 @@ function ringRadius(fan, ringIndex) {
   const steps = Math.max(1, fan.gripRingCount - 1);
   const t = Math.min(1, Math.max(0, ringIndex / steps));
   return inner + ((outer - inner) * t);
+}
+
+function ringIndexForRadius(fan, radius) {
+  const rings = Math.max(2, fan.gripRingCount);
+  const inner = Math.max(0.08, fan.hubRadius * 0.68);
+  const outer = fan.hubRadius * 0.42 + fan.bladeLength;
+  const t = Math.min(1, Math.max(0, (radius - inner) / Math.max(0.001, outer - inner)));
+  return Math.min(rings - 1, Math.max(0, Math.round(t * (rings - 1))));
 }
 
 function anchorState(fanState, bladeIndex, ringIndex) {
@@ -103,6 +115,33 @@ export function createFanWorld(options = {}) {
     const pz = state.position.z;
     for (const fanState of fans.values()) {
       const fan = fanState.def;
+      const fanY = fan.position.y - fan.rodLength;
+      const verticalDelta = Math.abs(fanY - py);
+      const dx = px - fan.position.x;
+      const dz = pz - fan.position.z;
+      const radial = Math.hypot(dx, dz);
+      const minRadius = Math.max(0.08, fan.hubRadius * 0.55);
+      const maxRadius = fan.hubRadius * 0.42 + fan.bladeLength + CEILING_FAN_GRAB_RANGE;
+      if (verticalDelta <= FAN_GRAB_VERTICAL_RANGE && radial >= minRadius && radial <= maxRadius) {
+        const theta = Math.atan2(dx, dz);
+        const ringIndex = ringIndexForRadius(fan, radial);
+        const ringRadial = ringRadius(fan, ringIndex);
+        const angleTolerance = Math.max(
+          FAN_GRAB_MIN_ANGLE_TOLERANCE,
+          Math.min(0.72, CEILING_FAN_GRAB_RANGE / Math.max(0.35, radial)),
+        );
+        for (let bladeIndex = 0; bladeIndex < fan.bladeCount; bladeIndex += 1) {
+          const bladeTheta = fan.rotation.y + fanState.angle + ((bladeIndex / fan.bladeCount) * TAU);
+          const angleDelta = Math.abs(shortestAngleDelta(theta, bladeTheta));
+          if (angleDelta > angleTolerance) continue;
+          const tangentMiss = Math.sin(angleDelta) * radial;
+          const radialMiss = radial - Math.min(maxRadius, Math.max(minRadius, ringRadial));
+          const distSq = (verticalDelta * verticalDelta) + (tangentMiss * tangentMiss) + (radialMiss * radialMiss);
+          if (!best || distSq < best.distSq) {
+            best = { fanId: fan.id, bladeIndex, ringIndex, distSq };
+          }
+        }
+      }
       for (let bladeIndex = 0; bladeIndex < fan.bladeCount; bladeIndex += 1) {
         for (let ringIndex = 0; ringIndex < fan.gripRingCount; ringIndex += 1) {
           const anchor = anchorState(fanState, bladeIndex, ringIndex);
@@ -157,6 +196,38 @@ export function createFanWorld(options = {}) {
     }
   }
 
+  function awardHubCheese(fanState, state) {
+    if (!fanState?.cheeseAvailable || !state?.alive) return false;
+    fanState.cheeseAvailable = false;
+    state.cheeseCarried = Math.max(0, Math.floor(state.cheeseCarried ?? 0)) + fanState.def.cheeseAmount;
+    if (state.roundStats) {
+      state.roundStats.cheeseCollected += fanState.def.cheeseAmount;
+    }
+    return true;
+  }
+
+  function tryLandOnHub(fanState, state) {
+    if (!state?.alive || state.ropeSwing) return false;
+    const fan = fanState.def;
+    const hubY = fan.position.y - fan.rodLength;
+    const dx = state.position.x - fan.position.x;
+    const dz = state.position.z - fan.position.z;
+    const radius = Math.max(CEILING_FAN_CENTER_PICKUP_RADIUS, fan.hubRadius + 0.18);
+    if ((dx * dx + dz * dz) > radius * radius) return false;
+    if (state.velocity.y > 1.2) return false;
+    if (Math.abs(state.position.y - hubY) > FAN_HUB_LANDING_VERTICAL_RANGE) return false;
+
+    state.position.y = hubY;
+    state.velocity.x *= 0.55;
+    state.velocity.z *= 0.55;
+    state.velocity.y = Math.max(0, state.velocity.y);
+    state.grounded = true;
+    state.canDoubleJump = true;
+    state.hasDoubleJumped = false;
+    awardHubCheese(fanState, state);
+    return true;
+  }
+
   function step(dt, players) {
     for (const fanState of fans.values()) {
       fanState.angle = wrapAngle(fanState.angle + (fanState.def.spinSpeed * dt));
@@ -196,15 +267,11 @@ export function createFanWorld(options = {}) {
       state.grounded = false;
       state.animState = 'jump';
 
-      if (fanState.cheeseAvailable && ride.ringIndex === 0) {
+      if (fanState.cheeseAvailable && ride.ringIndex <= 1) {
         const dx = state.position.x - fanState.def.position.x;
         const dz = state.position.z - fanState.def.position.z;
         if (dx * dx + dz * dz <= CEILING_FAN_CENTER_PICKUP_RADIUS * CEILING_FAN_CENTER_PICKUP_RADIUS) {
-          fanState.cheeseAvailable = false;
-          state.cheeseCarried = Math.max(0, Math.floor(state.cheeseCarried ?? 0)) + fanState.def.cheeseAmount;
-          if (state.roundStats) {
-            state.roundStats.cheeseCollected += fanState.def.cheeseAmount;
-          }
+          awardHubCheese(fanState, state);
         }
       }
 
@@ -221,6 +288,15 @@ export function createFanWorld(options = {}) {
 
     for (const [playerId, state] of players) {
       if (!state?.alive || riders.has(playerId)) continue;
+      for (const fanState of fans.values()) {
+        if (tryLandOnHub(fanState, state)) {
+          if ((bumpCooldown.get(playerId) ?? 0) <= 0) {
+            state.velocity.y = Math.max(state.velocity.y, FAN_HUB_LANDING_BOUNCE);
+            bumpCooldown.set(playerId, FAN_BUMP_COOLDOWN_S);
+          }
+          break;
+        }
+      }
       if ((bumpCooldown.get(playerId) ?? 0) > 0) continue;
       const handsY = state.position.y + PLAYER_GRAB_OFFSET_Y;
       for (const fanState of fans.values()) {

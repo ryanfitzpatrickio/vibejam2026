@@ -386,35 +386,54 @@ function createRaidTaskHelperObject(definition) {
   after.visible = false;
   group.add(before, after);
 
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.06, 0.06, 1.1, 12),
-    new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.92,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-  );
-  pole.position.y = 0.55;
-  pole.userData.raidTaskId = definition.id;
-  pole.userData.skipOutline = true;
-  before.add(pole);
+  const disposeChildren = (root) => {
+    root.traverse((child) => {
+      if (child.geometry) child.geometry.dispose?.();
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material?.dispose?.());
+      } else {
+        child.material?.dispose?.();
+      }
+    });
+    root.clear();
+  };
 
-  const top = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.26, 0),
-    new THREE.MeshBasicMaterial({
-      color: '#ffd27a',
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-  );
-  top.position.y = 1.22;
-  top.userData.raidTaskId = definition.id;
-  top.userData.skipOutline = true;
-  before.add(top);
+  const markTaskVisual = (object, slot) => {
+    object.userData.raidTaskId = definition.id;
+    object.userData.raidTaskPrefabSlot = slot;
+    object.userData.skipOutline = true;
+    return object;
+  };
+
+  const applyPrefabTransform = (root, prefab, slot) => {
+    root.userData.raidTaskId = definition.id;
+    root.userData.raidTaskPrefabSlot = slot;
+    root.userData.editableRaidTaskPrefab = true;
+    root.userData.skipOutline = true;
+    root.position.set(prefab?.position?.x ?? 0, prefab?.position?.y ?? 0, prefab?.position?.z ?? 0);
+    root.rotation.set(prefab?.rotation?.x ?? 0, prefab?.rotation?.y ?? 0, prefab?.rotation?.z ?? 0);
+    root.scale.set(prefab?.scale?.x ?? 1, prefab?.scale?.y ?? 1, prefab?.scale?.z ?? 1);
+  };
+
+  const addPrefabPrimitive = (root, part, slot) => {
+    const mesh = new THREE.Mesh(
+      createPrimitiveGeometry(part.type),
+      new THREE.MeshStandardMaterial({
+        color: part.material?.color ?? '#ffffff',
+        roughness: part.material?.roughness ?? 0.82,
+        metalness: part.material?.metalness ?? 0.04,
+      }),
+    );
+    mesh.name = part.name ?? `${slot}-part`;
+    mesh.position.set(part.position?.x ?? 0, part.position?.y ?? 0, part.position?.z ?? 0);
+    mesh.rotation.set(part.rotation?.x ?? 0, part.rotation?.y ?? 0, part.rotation?.z ?? 0);
+    mesh.scale.set(part.scale?.x ?? 1, part.scale?.y ?? 1, part.scale?.z ?? 1);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    markTaskVisual(mesh, slot);
+    root.add(mesh);
+    return mesh;
+  };
 
   const addBox = (root, name, colorHex, position, scale, rotation = {}) => {
     const mesh = new THREE.Mesh(
@@ -430,35 +449,117 @@ function createRaidTaskHelperObject(definition) {
     mesh.name = name;
     mesh.position.set(position.x, position.y, position.z);
     mesh.rotation.set(rotation.x ?? 0, rotation.y ?? 0, rotation.z ?? 0);
-    mesh.userData.raidTaskId = definition.id;
-    mesh.userData.skipOutline = true;
+    markTaskVisual(mesh, root === before ? 'before' : 'after');
     root.add(mesh);
     return mesh;
   };
 
-  if (definition.taskType === RAID_TASK_TYPES.TOPPLE_TOWER) {
-    addBox(before, 'can-stack-1', '#ff9eb8', { x: -0.22, y: 0.2, z: 0 }, { x: 0.22, y: 0.4, z: 0.22 });
-    addBox(before, 'can-stack-2', '#8be9ff', { x: 0, y: 0.62, z: 0 }, { x: 0.24, y: 0.42, z: 0.24 });
-    addBox(before, 'can-stack-3', '#ffe080', { x: 0.22, y: 1.05, z: 0 }, { x: 0.22, y: 0.4, z: 0.22 });
-    addBox(after, 'knocked-can-1', '#ff9eb8', { x: -0.46, y: 0.12, z: -0.14 }, { x: 0.46, y: 0.18, z: 0.22 }, { z: 0.5 });
-    addBox(after, 'knocked-can-2', '#8be9ff', { x: 0.12, y: 0.14, z: 0.28 }, { x: 0.42, y: 0.18, z: 0.24 }, { y: 0.8, z: -0.25 });
-    addBox(after, 'knocked-can-3', '#ffe080', { x: 0.48, y: 0.13, z: -0.22 }, { x: 0.42, y: 0.18, z: 0.22 }, { y: -0.5, z: 0.35 });
-  } else if (definition.taskType === RAID_TASK_TYPES.KNIFE_DRAWER) {
-    addBox(before, 'closed-drawer', '#8b5a2b', { x: 0, y: 0.42, z: 0 }, { x: 0.9, y: 0.34, z: 0.52 });
-    addBox(before, 'drawer-handle', '#facc15', { x: 0, y: 0.42, z: -0.29 }, { x: 0.42, y: 0.06, z: 0.06 });
-    addBox(after, 'open-drawer', '#8b5a2b', { x: 0, y: 0.42, z: -0.3 }, { x: 0.9, y: 0.34, z: 0.52 });
-    addBox(after, 'knife-glint-1', '#e5e7eb', { x: -0.22, y: 0.66, z: -0.58 }, { x: 0.08, y: 0.04, z: 0.58 }, { y: 0.2 });
-    addBox(after, 'knife-glint-2', '#e5e7eb', { x: 0.2, y: 0.64, z: -0.52 }, { x: 0.08, y: 0.04, z: 0.5 }, { y: -0.18 });
-  } else if (definition.taskType === RAID_TASK_TYPES.SABOTAGE_ROOMBA) {
-    addBox(before, 'roomba-mini', '#64748b', { x: 0, y: 0.22, z: 0 }, { x: 0.75, y: 0.22, z: 0.75 });
-    addBox(after, 'roomba-mini-jammed', '#64748b', { x: 0, y: 0.22, z: 0 }, { x: 0.75, y: 0.22, z: 0.75 });
-    addBox(after, 'jammed-crumbs', '#ffe080', { x: 0.18, y: 0.38, z: -0.12 }, { x: 0.28, y: 0.12, z: 0.28 }, { y: 0.4 });
-  }
+  const addDefaultMarker = () => {
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.06, 1.1, 12),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    pole.position.y = 0.55;
+    markTaskVisual(pole, 'before');
+    before.add(pole);
+
+    const top = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.26, 0),
+      new THREE.MeshBasicMaterial({
+        color: '#ffd27a',
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    top.position.y = 1.22;
+    markTaskVisual(top, 'before');
+    before.add(top);
+  };
+
+  const buildFallbackVisuals = (task, slot) => {
+    if (task.taskType === RAID_TASK_TYPES.TOPPLE_TOWER) {
+      if (slot === 'before') {
+        addBox(before, 'can-stack-1', '#ff9eb8', { x: -0.22, y: 0.2, z: 0 }, { x: 0.22, y: 0.4, z: 0.22 });
+        addBox(before, 'can-stack-2', '#8be9ff', { x: 0, y: 0.62, z: 0 }, { x: 0.24, y: 0.42, z: 0.24 });
+        addBox(before, 'can-stack-3', '#ffe080', { x: 0.22, y: 1.05, z: 0 }, { x: 0.22, y: 0.4, z: 0.22 });
+      } else {
+        addBox(after, 'knocked-can-1', '#ff9eb8', { x: -0.46, y: 0.12, z: -0.14 }, { x: 0.46, y: 0.18, z: 0.22 }, { z: 0.5 });
+        addBox(after, 'knocked-can-2', '#8be9ff', { x: 0.12, y: 0.14, z: 0.28 }, { x: 0.42, y: 0.18, z: 0.24 }, { y: 0.8, z: -0.25 });
+        addBox(after, 'knocked-can-3', '#ffe080', { x: 0.48, y: 0.13, z: -0.22 }, { x: 0.42, y: 0.18, z: 0.22 }, { y: -0.5, z: 0.35 });
+      }
+    } else if (task.taskType === RAID_TASK_TYPES.KNIFE_DRAWER) {
+      if (slot === 'before') {
+        addBox(before, 'closed-drawer', '#8b5a2b', { x: 0, y: 0.42, z: 0 }, { x: 0.9, y: 0.34, z: 0.52 });
+        addBox(before, 'drawer-handle', '#facc15', { x: 0, y: 0.42, z: -0.29 }, { x: 0.42, y: 0.06, z: 0.06 });
+      } else {
+        addBox(after, 'open-drawer', '#8b5a2b', { x: 0, y: 0.42, z: -0.3 }, { x: 0.9, y: 0.34, z: 0.52 });
+        addBox(after, 'knife-glint-1', '#e5e7eb', { x: -0.22, y: 0.66, z: -0.58 }, { x: 0.08, y: 0.04, z: 0.58 }, { y: 0.2 });
+        addBox(after, 'knife-glint-2', '#e5e7eb', { x: 0.2, y: 0.64, z: -0.52 }, { x: 0.08, y: 0.04, z: 0.5 }, { y: -0.18 });
+      }
+    } else if (task.taskType === RAID_TASK_TYPES.SABOTAGE_ROOMBA) {
+      if (slot === 'before') {
+        addBox(before, 'roomba-mini', '#64748b', { x: 0, y: 0.22, z: 0 }, { x: 0.75, y: 0.22, z: 0.75 });
+      } else {
+        addBox(after, 'roomba-mini-jammed', '#64748b', { x: 0, y: 0.22, z: 0 }, { x: 0.75, y: 0.22, z: 0.75 });
+        addBox(after, 'jammed-crumbs', '#ffe080', { x: 0.18, y: 0.38, z: -0.12 }, { x: 0.28, y: 0.12, z: 0.28 }, { y: 0.4 });
+      }
+    } else if (slot === 'before') {
+      addDefaultMarker();
+    }
+  };
+
+  const rebuildVisuals = (task) => {
+    disposeChildren(before);
+    disposeChildren(after);
+    applyPrefabTransform(before, task.beforePrefab, 'before');
+    applyPrefabTransform(after, task.afterPrefab, 'after');
+
+    const hasBeforePrefab = task.beforePrefab?.enabled && task.beforePrefab.primitives?.length;
+    const hasAfterPrefab = task.afterPrefab?.enabled && task.afterPrefab.primitives?.length;
+    if (hasBeforePrefab) {
+      task.beforePrefab.primitives.forEach((part) => addPrefabPrimitive(before, part, 'before'));
+    }
+    if (hasAfterPrefab) {
+      task.afterPrefab.primitives.forEach((part) => addPrefabPrimitive(after, part, 'after'));
+    }
+    if (!hasBeforePrefab && !task.beforePrefab) buildFallbackVisuals(task, 'before');
+    if (!hasAfterPrefab && !task.afterPrefab) buildFallbackVisuals(task, 'after');
+  };
+
+  rebuildVisuals(definition);
 
   group.userData.setRaidTaskCompleted = (completed) => {
     before.visible = !completed;
     after.visible = !!completed;
   };
+  group.userData.setRaidTaskEditorPreview = (slot = 'auto', completed = false) => {
+    if (slot === 'both') {
+      before.visible = true;
+      after.visible = true;
+      return;
+    }
+    if (slot === 'before') {
+      before.visible = true;
+      after.visible = false;
+      return;
+    }
+    if (slot === 'after') {
+      before.visible = false;
+      after.visible = true;
+      return;
+    }
+    group.userData.setRaidTaskCompleted(completed);
+  };
+  group.userData.getRaidTaskPrefabObject = (slot) => (slot === 'after' ? after : before);
+  group.userData.rebuildRaidTaskVisuals = rebuildVisuals;
 
   return group;
 }
@@ -509,7 +610,7 @@ function createCeilingFanObject(definition) {
   group.add(spinRoot);
 
   const hub = new THREE.Mesh(
-    new THREE.CylinderGeometry(fan.hubRadius, fan.hubRadius * 1.06, 0.16, 18),
+    new THREE.CylinderGeometry(fan.hubRadius * 1.18, fan.hubRadius * 1.24, 0.2, 24),
     metalMaterial,
   );
   hub.castShadow = true;
@@ -517,7 +618,7 @@ function createCeilingFanObject(definition) {
   hub.userData.fanId = fan.id;
   spinRoot.add(hub);
 
-  const bladeGeometry = new THREE.BoxGeometry(fan.bladeLength, 0.035, 0.18);
+  const bladeGeometry = new THREE.BoxGeometry(fan.bladeLength, 0.035, fan.bladeWidth);
   bladeGeometry.translate((fan.bladeLength * 0.5) + fan.hubRadius * 0.42, 0, 0);
   for (let index = 0; index < fan.bladeCount; index += 1) {
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
@@ -530,13 +631,13 @@ function createCeilingFanObject(definition) {
 
   const cheeseGroup = new THREE.Group();
   cheeseGroup.name = 'fan-center-cheese';
-  cheeseGroup.position.y = 0.1;
+  cheeseGroup.position.y = 0.22;
   cheeseGroup.userData.fanId = fan.id;
   cheeseGroup.userData.fanCheese = true;
   spinRoot.add(cheeseGroup);
 
   const cheeseBody = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.13, 0.13, 0.09, 20),
+    new THREE.CylinderGeometry(0.22, 0.22, 0.12, 24),
     new THREE.MeshStandardMaterial({
       color: '#f7c94a',
       roughness: 0.75,
@@ -872,6 +973,7 @@ export class Room {
     this.fanRuntimeStates = new Map();
     this.editableExtractionPortalObjects = new Map();
     this.editableRaidTaskObjects = new Map();
+    this.raidTaskPrefabEditTargets = new Map();
     this.prefabInstanceGroups = new Map();
     this.prefabInstanceIdByPrimitiveId = new Map();
     this.ready = Promise.all([
@@ -1712,6 +1814,7 @@ export class Room {
     entry.group.userData.fanId = fan.id;
     entry.group.userData.fanSpinSpeed = fan.spinSpeed;
     entry.group.userData.fanBladeLength = fan.bladeLength;
+    entry.group.userData.fanBladeWidth = fan.bladeWidth;
     entry.group.userData.fanHubRadius = fan.hubRadius;
     entry.group.userData.fanGripRingCount = fan.gripRingCount;
     if (entry.spinRoot) {
@@ -2244,6 +2347,7 @@ export class Room {
     entry.group.scale.set(1, 1, 1);
     entry.group.visible = this.raidTaskHelpersVisible && !task.deleted;
     entry.group.userData.raidTaskId = task.id;
+    entry.group.userData.rebuildRaidTaskVisuals?.(task);
     entry.group.userData.setRaidTaskCompleted?.(false);
     return task;
   }
@@ -2822,6 +2926,22 @@ export class Room {
     }
   }
 
+  setRaidTaskPrefabEditorPreview(taskId, slot = 'auto') {
+    if (!taskId) return;
+    const entry = this.editableRaidTaskObjects.get(taskId);
+    entry?.group.userData.setRaidTaskEditorPreview?.(slot);
+  }
+
+  setRaidTaskPrefabEditTarget(taskId, slot = 'marker') {
+    if (!taskId) return;
+    const normalized = slot === 'before' || slot === 'after' ? slot : 'marker';
+    if (normalized === 'marker') {
+      this.raidTaskPrefabEditTargets.delete(taskId);
+    } else {
+      this.raidTaskPrefabEditTargets.set(taskId, normalized);
+    }
+  }
+
   getVibePortalPlacements() {
     return collectVibePortalPlacementsFromLayout(this.getEditableLayout());
   }
@@ -3133,6 +3253,7 @@ export class Room {
       if (
         previous.bladeCount !== fan.bladeCount
         || Math.abs(previous.bladeLength - fan.bladeLength) > 0.0001
+        || Math.abs(previous.bladeWidth - fan.bladeWidth) > 0.0001
         || Math.abs(previous.hubRadius - fan.hubRadius) > 0.0001
         || Math.abs(previous.rodLength - fan.rodLength) > 0.0001
       ) {
@@ -3403,7 +3524,12 @@ export class Room {
       return this.editableExtractionPortalObjects.get(id)?.group ?? null;
     }
     if (this.editableRaidTaskObjects.has(id)) {
-      return this.editableRaidTaskObjects.get(id)?.group ?? null;
+      const entry = this.editableRaidTaskObjects.get(id);
+      const slot = this.raidTaskPrefabEditTargets.get(id);
+      if (slot === 'before' || slot === 'after') {
+        return entry?.group.userData.getRaidTaskPrefabObject?.(slot) ?? entry?.group ?? null;
+      }
+      return entry?.group ?? null;
     }
     if (this.editableFanObjects.has(id)) {
       return this.editableFanObjects.get(id)?.group ?? null;
@@ -3550,6 +3676,35 @@ export class Room {
     if (index < 0) return null;
 
     const task = this._normalizeRaidTask(list[index]);
+    const prefabSlot = transform.prefabSlot === 'before' || transform.prefabSlot === 'after'
+      ? transform.prefabSlot
+      : null;
+    if (prefabSlot) {
+      const key = prefabSlot === 'after' ? 'afterPrefab' : 'beforePrefab';
+      const currentPrefab = task[key] ?? {
+        enabled: true,
+        prefabId: '',
+        name: '',
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        primitives: [],
+      };
+      task[key] = {
+        ...currentPrefab,
+        enabled: currentPrefab.enabled !== false,
+        position: transform.position ? cloneVectorLike(transform.position, currentPrefab.position) : currentPrefab.position,
+        rotation: transform.rotation ? cloneVectorLike(transform.rotation, currentPrefab.rotation) : currentPrefab.rotation,
+        scale: transform.scale ? cloneVectorLike(transform.scale, currentPrefab.scale) : currentPrefab.scale,
+      };
+      list[index] = this._normalizeRaidTask(task);
+      const current = this.editableRaidTaskObjects.get(id);
+      if (current) {
+        this._applyRaidTaskToObject(list[index], current);
+      }
+      return list[index];
+    }
+
     if (transform.position) {
       task.position = cloneVectorLike(transform.position, task.position);
     }

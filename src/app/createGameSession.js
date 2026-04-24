@@ -2396,12 +2396,12 @@ export async function createGameSession({
         id: 'ropeGrab',
         items: isCoarsePointer
           ? [
-            { key: 'JUMP', text: 'Jump toward the rope' },
-            { key: 'ROPE', text: 'Hold to grab the rope' },
+            { key: 'JUMP', text: 'Jump toward the rope or fan' },
+            { key: 'ROPE', text: 'Hold to grab rope / fan blades' },
           ]
           : [
-            { action: 'jump', text: 'Jump toward the rope' },
-            { action: 'grab', text: 'Hold to grab the rope' },
+            { action: 'jump', text: 'Jump toward the rope or fan' },
+            { action: 'grab', text: 'Hold to grab rope / fan blades' },
           ],
       };
     } else if (Date.now() >= smackBallHintCooldownUntil && Array.isArray(balls) && balls.length > 0 && controller.alive) {

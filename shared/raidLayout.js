@@ -27,6 +27,52 @@ export const RAID_TASK_TYPE_LABELS = Object.freeze({
   [RAID_TASK_TYPES.UNLOCK_SPEEDY]: 'Unlock Speedy',
 });
 
+function cloneVectorLike(source, fallback) {
+  return {
+    x: Number.isFinite(source?.x) ? source.x : fallback.x,
+    y: Number.isFinite(source?.y) ? source.y : fallback.y,
+    z: Number.isFinite(source?.z) ? source.z : fallback.z,
+  };
+}
+
+function normalizeTaskPrefabPrimitive(entry = {}) {
+  const type = entry.type === 'plane'
+    || entry.type === 'cylinder'
+    || entry.type === 'wedge'
+    || entry.type === 'prop'
+    ? entry.type
+    : 'box';
+  return {
+    id: typeof entry.id === 'string' && entry.id ? entry.id : `task-prefab-part-${Math.random().toString(36).slice(2, 8)}`,
+    name: typeof entry.name === 'string' ? entry.name : `${type}-part`,
+    type,
+    position: cloneVectorLike(entry.position, { x: 0, y: 0.5, z: 0 }),
+    rotation: cloneVectorLike(entry.rotation, { x: 0, y: 0, z: 0 }),
+    scale: cloneVectorLike(entry.scale, { x: 1, y: 1, z: 1 }),
+    material: {
+      color: typeof entry.material?.color === 'string' ? entry.material.color : '#ffffff',
+      roughness: Number.isFinite(entry.material?.roughness) ? entry.material.roughness : 0.82,
+      metalness: Number.isFinite(entry.material?.metalness) ? entry.material.metalness : 0.04,
+    },
+  };
+}
+
+export function normalizeRaidTaskPrefab(value = null) {
+  if (!value || typeof value !== 'object') return null;
+  const primitives = Array.isArray(value.primitives)
+    ? value.primitives.slice(0, 64).map((entry) => normalizeTaskPrefabPrimitive(entry))
+    : [];
+  return {
+    enabled: value.enabled === true,
+    prefabId: typeof value.prefabId === 'string' ? value.prefabId : '',
+    name: typeof value.name === 'string' ? value.name : '',
+    position: cloneVectorLike(value.position, { x: 0, y: 0, z: 0 }),
+    rotation: cloneVectorLike(value.rotation, { x: 0, y: 0, z: 0 }),
+    scale: cloneVectorLike(value.scale, { x: 1, y: 1, z: 1 }),
+    primitives,
+  };
+}
+
 /**
  * @param {object} [entry]
  */
@@ -73,6 +119,8 @@ export function normalizeRaidTaskEntry(entry = {}) {
       y: Number.isFinite(entry.rotation?.y) ? entry.rotation.y : 0,
       z: Number.isFinite(entry.rotation?.z) ? entry.rotation.z : 0,
     },
+    beforePrefab: normalizeRaidTaskPrefab(entry.beforePrefab),
+    afterPrefab: normalizeRaidTaskPrefab(entry.afterPrefab),
     deleted: entry.deleted === true,
   };
 }

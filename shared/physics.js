@@ -456,7 +456,7 @@ function resolveAgainstBox(state, box, radius, height, previousPosition = null, 
   return true;
 }
 
-function findNearbyWallContact(state, colliders, radius, height, probeDistance) {
+export function findNearbyWallContact(state, colliders, radius, height, probeDistance) {
   const footY = state.position.y + 0.02;
   const headY = state.position.y + height - 0.02;
   let bestContact = null;
@@ -530,7 +530,7 @@ function findNearbyWallContact(state, colliders, radius, height, probeDistance) 
   return bestContact;
 }
 
-function applyWallHold(state, wallContact) {
+export function applyWallHold(state, wallContact) {
   if (!wallContact) return false;
 
   if (wallContact.axis === 'x') {

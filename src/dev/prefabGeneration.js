@@ -21,6 +21,7 @@ export function createLocalPrimitive(type, grid) {
       cell: 0,
       repeat: { x: 1, y: 1 },
       rotation: 0,
+      offset: { x: 0, y: 0 },
     },
   });
 

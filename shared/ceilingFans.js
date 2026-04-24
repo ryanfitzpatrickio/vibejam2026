@@ -14,13 +14,14 @@ function cloneVector3(source, fallback) {
 
 export const DEFAULT_CEILING_FAN_BLADE_COUNT = 4;
 export const DEFAULT_CEILING_FAN_BLADE_LENGTH = 1.1;
+export const DEFAULT_CEILING_FAN_BLADE_WIDTH = 0.18;
 export const DEFAULT_CEILING_FAN_HUB_RADIUS = 0.18;
 export const DEFAULT_CEILING_FAN_ROD_LENGTH = 0.34;
 export const DEFAULT_CEILING_FAN_SPIN_SPEED = 2.6;
 export const DEFAULT_CEILING_FAN_CHEESE_AMOUNT = 12;
 export const DEFAULT_CEILING_FAN_GRIP_RING_COUNT = 5;
-export const CEILING_FAN_GRAB_RANGE = 0.7;
-export const CEILING_FAN_CENTER_PICKUP_RADIUS = 0.42;
+export const CEILING_FAN_GRAB_RANGE = 1.05;
+export const CEILING_FAN_CENTER_PICKUP_RADIUS = 0.95;
 
 export function createCeilingFanId() {
   return `fan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -38,6 +39,7 @@ export function normalizeCeilingFan(entry = {}) {
     rotation: cloneVector3(entry.rotation, { x: 0, y: 0, z: 0 }),
     bladeCount: Math.round(clampNumber(entry.bladeCount, 2, 8, DEFAULT_CEILING_FAN_BLADE_COUNT)),
     bladeLength: clampNumber(entry.bladeLength, 0.45, 3.4, DEFAULT_CEILING_FAN_BLADE_LENGTH),
+    bladeWidth: clampNumber(entry.bladeWidth, 0.08, 0.8, DEFAULT_CEILING_FAN_BLADE_WIDTH),
     hubRadius: clampNumber(entry.hubRadius, 0.08, 0.75, DEFAULT_CEILING_FAN_HUB_RADIUS),
     rodLength: clampNumber(entry.rodLength, 0.08, 1.5, DEFAULT_CEILING_FAN_ROD_LENGTH),
     spinSpeed: clampNumber(entry.spinSpeed, 0.1, 12, DEFAULT_CEILING_FAN_SPIN_SPEED),

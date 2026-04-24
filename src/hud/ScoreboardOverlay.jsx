@@ -11,6 +11,8 @@ import {
 import { HeartHealthHappy, MouseHeadTarget, CheeseItem, StaminaBolt } from './hudSprites.jsx';
 import { inputSource } from '../input/inputSource.js';
 
+const MAX_SCOREBOARD_ROWS = 5;
+
 function isFormTarget(target) {
   return target instanceof HTMLElement
     && (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName));
@@ -120,7 +122,7 @@ function KeyboardControlsImage() {
       <Callout fromX="479" fromY="198" toX="216" toY="218" labelX="38" labelY="222" label="Space jump" color="#fca5a5" />
       <Callout fromX="328" fromY="110" toX="216" toY="262" labelX="38" labelY="266" label="Tab players" color="#d9f99d" />
 
-      <Callout fromX="387" fromY="110" toX="686" toY="86" labelX="704" labelY="90" label="Q grab" color="#c4b5fd" />
+      <Callout fromX="387" fromY="110" toX="686" toY="86" labelX="704" labelY="90" label="Q grab / fan" color="#c4b5fd" />
       <Callout fromX="471" fromY="110" toX="686" toY="122" labelX="704" labelY="126" label="E smack / throw held" color="#fda4af" />
       <Callout fromX="513" fromY="110" toX="686" toY="158" labelX="704" labelY="162" label="R spawn ball" color="#fde68a" />
       <Callout fromX="555" fromY="110" toX="686" toY="194" labelX="704" labelY="198" label="F emote" color="#99f6e4" />
@@ -211,7 +213,7 @@ function ControllerControlsImage() {
       <Callout fromX="472" fromY="112" toX="634" toY="112" labelX="648" labelY="116" label="B hold + X throw" color="#fde68a" />
       <Callout fromX="544" fromY="196" toX="634" toY="146" labelX="648" labelY="150" label="A jump" color="#fca5a5" />
       <Callout fromX="514" fromY="166" toX="634" toY="180" labelX="648" labelY="184" label="X smack / throw held" color="#fda4af" />
-      <Callout fromX="574" fromY="166" toX="634" toY="214" labelX="648" labelY="218" label="B grab" color="#c4b5fd" />
+      <Callout fromX="574" fromY="166" toX="634" toY="214" labelX="648" labelY="218" label="B grab / fan" color="#c4b5fd" />
       <Callout fromX="544" fromY="136" toX="634" toY="248" labelX="648" labelY="252" label="Y emote" color="#99f6e4" />
       <Callout fromX="380" fromY="137" toX="126" toY="180" labelX="38" labelY="184" label="View players" color="#d9f99d" />
       <Callout fromX="416" fromY="137" toX="126" toY="214" labelX="38" labelY="218" label="Menu adversary" color="#f0abfc" />
@@ -488,7 +490,7 @@ export class ScoreboardOverlay {
   }
 
   setRows(rows) {
-    const next = Array.isArray(rows) ? rows : [];
+    const next = Array.isArray(rows) ? rows.slice(0, MAX_SCOREBOARD_ROWS) : [];
     batch(() => {
       this._setState({ rows: next });
     });

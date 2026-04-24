@@ -81,6 +81,8 @@ class BuildModeEditor {
     this.prefabLibrary = normalizePrefabLibrary(prefabLibrary ?? DEFAULT_PREFAB_LIBRARY);
     this.vegetationLibrary = normalizeVegetationLibrary(vegetationLibrary ?? DEFAULT_VEGETATION_LIBRARY);
     this.layout = app.room.getEditableLayout();
+    this.activeRaidTaskVisualTarget = 'marker';
+    this.activeRaidTaskVisualPreview = 'auto';
     this.selectedId = this.layout.primitives[0]?.id
       ?? this.layout.vegetation?.[0]?.id
       ?? this.layout.fans?.[0]?.id
@@ -1960,6 +1962,12 @@ class BuildModeEditor {
 
     [
       this.raidTaskTypeSelect,
+      this.raidTaskVisualTargetSelect,
+      this.raidTaskVisualPreviewSelect,
+      this.raidTaskBeforePrefabEnabledToggle,
+      this.raidTaskAfterPrefabEnabledToggle,
+      this.raidTaskBeforePrefabSelect,
+      this.raidTaskAfterPrefabSelect,
     ].forEach((field) => {
       if (field) field.disabled = raidTaskDisabled;
     });
@@ -1978,6 +1986,7 @@ class BuildModeEditor {
     [
       this.fanBladeCountInput,
       this.fanBladeLengthInput,
+      this.fanBladeWidthInput,
       this.fanHubRadiusInput,
       this.fanRodLengthInput,
       this.fanSpinSpeedInput,
@@ -2103,6 +2112,26 @@ class BuildModeEditor {
 
     if (raidTask && this.raidTaskTypeSelect) {
       this.raidTaskTypeSelect.value = raidTask.taskType;
+      if (this.raidTaskVisualTargetSelect) {
+        this.raidTaskVisualTargetSelect.value = this.activeRaidTaskVisualTarget;
+        this.app.room.setRaidTaskPrefabEditTarget(raidTask.id, this.activeRaidTaskVisualTarget);
+      }
+      if (this.raidTaskVisualPreviewSelect) {
+        this.raidTaskVisualPreviewSelect.value = this.activeRaidTaskVisualPreview;
+        this.app.room.setRaidTaskPrefabEditorPreview(raidTask.id, this.activeRaidTaskVisualPreview);
+      }
+      if (this.raidTaskBeforePrefabEnabledToggle) {
+        this.raidTaskBeforePrefabEnabledToggle.checked = raidTask.beforePrefab?.enabled === true;
+      }
+      if (this.raidTaskAfterPrefabEnabledToggle) {
+        this.raidTaskAfterPrefabEnabledToggle.checked = raidTask.afterPrefab?.enabled === true;
+      }
+      if (this.raidTaskBeforePrefabSelect && raidTask.beforePrefab?.prefabId) {
+        this.raidTaskBeforePrefabSelect.value = raidTask.beforePrefab.prefabId;
+      }
+      if (this.raidTaskAfterPrefabSelect && raidTask.afterPrefab?.prefabId) {
+        this.raidTaskAfterPrefabSelect.value = raidTask.afterPrefab.prefabId;
+      }
     }
 
     if (rope && this.ropeLengthInput) {
@@ -2136,6 +2165,10 @@ class BuildModeEditor {
       if (this.fanBladeLengthInput) {
         this.fanBladeLengthInput.value = fan.bladeLength;
         this.fanBladeLengthInput._output.textContent = Number(fan.bladeLength).toFixed(2);
+      }
+      if (this.fanBladeWidthInput) {
+        this.fanBladeWidthInput.value = fan.bladeWidth;
+        this.fanBladeWidthInput._output.textContent = Number(fan.bladeWidth).toFixed(2);
       }
       if (this.fanHubRadiusInput) {
         this.fanHubRadiusInput.value = fan.hubRadius;
@@ -2207,6 +2240,7 @@ class BuildModeEditor {
         this.prefabSelect.value = this.prefabLibrary.prefabs[0].id;
       }
     }
+    this._syncRaidTaskPrefabSection?.();
 
     const prefab = this._selectedPrefab();
     if (!this.prefabMeta) return;

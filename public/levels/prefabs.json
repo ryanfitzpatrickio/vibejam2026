@@ -46,7 +46,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "right": {
@@ -102,7 +106,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -141,7 +149,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -180,7 +192,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -230,7 +246,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "front": {
@@ -274,7 +294,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "front": {
@@ -329,7 +353,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -368,7 +396,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -407,7 +439,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -446,7 +482,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -485,7 +525,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -524,7 +568,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -574,7 +622,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -613,7 +665,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -652,7 +708,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -691,7 +751,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -741,7 +805,11 @@
               "x": 3,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -780,7 +848,11 @@
               "x": 3,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -819,7 +891,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -858,7 +934,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -908,7 +988,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "right": {
@@ -960,7 +1044,11 @@
               "x": 0.8,
               "y": 0.4
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -999,7 +1087,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "top": {
@@ -1043,7 +1135,11 @@
               "x": 0.8,
               "y": 0.4
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1082,7 +1178,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1093,7 +1193,8 @@
           "prefabInstanceOrigin": null,
           "collider": true,
           "castShadow": true,
-          "receiveShadow": true
+          "receiveShadow": true,
+          "zIndex": 0
         },
         {
           "id": "prefab-part-mnnirj16-2eu5e",
@@ -1121,7 +1222,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1132,7 +1237,8 @@
           "prefabInstanceOrigin": null,
           "collider": true,
           "castShadow": true,
-          "receiveShadow": true
+          "receiveShadow": true,
+          "zIndex": 0
         }
       ]
     },
@@ -1171,7 +1277,11 @@
               "x": 0.5,
               "y": 0.5
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1210,7 +1320,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1260,7 +1374,11 @@
               "x": 1,
               "y": 0.6
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1299,7 +1417,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1338,7 +1460,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1388,7 +1514,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1427,7 +1557,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1466,7 +1600,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1505,7 +1643,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1544,7 +1686,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1583,7 +1729,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1622,7 +1772,11 @@
               "x": 0.5,
               "y": 0.5
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "side": {
@@ -1670,7 +1824,11 @@
               "x": 0.8,
               "y": 0.4
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "top": {
@@ -1725,7 +1883,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "right": {
@@ -1777,7 +1939,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {
             "right": {
@@ -1829,7 +1995,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1879,7 +2049,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1918,7 +2092,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1957,7 +2135,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -1996,7 +2178,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -2035,7 +2221,11 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
@@ -2074,13 +2264,855 @@
               "x": 1,
               "y": 1
             },
-            "rotation": 0
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
           },
           "faceTextures": {},
           "material": {
             "color": "#ffffff",
             "roughness": 0.6,
             "metalness": 0
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        }
+      ]
+    },
+    {
+      "id": "prefab-mocynit6-78bvx",
+      "name": "counter",
+      "size": {
+        "x": 3,
+        "y": 1,
+        "z": 1
+      },
+      "primitives": [
+        {
+          "id": "prefab-part-mocynw8f-m6d4j",
+          "name": "box-part",
+          "type": "box",
+          "position": {
+            "x": -1,
+            "y": 1,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 4,
+            "y": 2,
+            "z": 2
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 32,
+            "repeat": {
+              "x": 2,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures2",
+              "cell": 14
+            }
+          },
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-mocyxt94-7ytl9",
+          "name": "box-part",
+          "type": "box",
+          "position": {
+            "x": 0,
+            "y": 2.1185,
+            "z": 0.1269
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 6,
+            "y": 0.25,
+            "z": 2.25
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 16,
+            "repeat": {
+              "x": 3,
+              "y": 2
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "right": {
+              "atlas": "textures",
+              "cell": 16
+            }
+          },
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-mocz6bsr-xr4z4",
+          "name": "box-part",
+          "type": "box",
+          "position": {
+            "x": 0,
+            "y": 3.2445,
+            "z": -0.872
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 6,
+            "y": 2,
+            "z": 0.25
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 0,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-mocz7y39-k9hnf",
+          "name": "open shelf",
+          "type": "plane",
+          "position": {
+            "x": 2,
+            "y": 1.1316,
+            "z": 0
+          },
+          "rotation": {
+            "x": -1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 2,
+            "z": 2
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 0,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "zIndex": 0
+        },
+        {
+          "id": "prefab-part-mocz8zcm-j3o3z",
+          "name": "open bottom",
+          "type": "box",
+          "position": {
+            "x": 1.9942,
+            "y": 0.1174,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 0.25,
+            "z": 2
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 0,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-mocz9zgl-uqdq4",
+          "name": "cupboard wall",
+          "type": "plane",
+          "position": {
+            "x": 2.9896,
+            "y": 1.2409,
+            "z": 0.0001
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1.5707963267948966,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 2,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 0,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "zIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "prefab-moczbgwn-05hse",
+      "name": "counter Copy",
+      "size": {
+        "x": 3,
+        "y": 1,
+        "z": 1
+      },
+      "primitives": [
+        {
+          "id": "prefab-part-moczbgwn-4sc3w",
+          "name": "box-part",
+          "type": "box",
+          "position": {
+            "x": -1,
+            "y": 1,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 4,
+            "y": 2,
+            "z": 2
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 32,
+            "repeat": {
+              "x": 2,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures2",
+              "cell": 14
+            }
+          },
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-moczbgwn-zl5z3",
+          "name": "box-part",
+          "type": "box",
+          "position": {
+            "x": 0,
+            "y": 2.1185,
+            "z": 0.1269
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 6,
+            "y": 0.25,
+            "z": 2.25
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 16,
+            "repeat": {
+              "x": 3,
+              "y": 2
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "right": {
+              "atlas": "textures",
+              "cell": 16
+            }
+          },
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-moczbgwn-lehna",
+          "name": "box-part",
+          "type": "box",
+          "position": {
+            "x": 0,
+            "y": 3.2445,
+            "z": -0.872
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 6,
+            "y": 2,
+            "z": 0.25
+          },
+          "texture": {
+            "atlas": "textures3",
+            "cell": 10,
+            "repeat": {
+              "x": 3,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-moczbgwn-jytu4",
+          "name": "open shelf",
+          "type": "plane",
+          "position": {
+            "x": 2,
+            "y": 1.0118,
+            "z": 0
+          },
+          "rotation": {
+            "x": -1.5707963267948966,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 2,
+            "z": 2
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 38,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "zIndex": 0
+        },
+        {
+          "id": "prefab-part-moczbgwn-f15hw",
+          "name": "open bottom",
+          "type": "box",
+          "position": {
+            "x": 1.9942,
+            "y": 0.1174,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 0.25,
+            "z": 2
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 32,
+            "repeat": {
+              "x": 1,
+              "y": 0.1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-moczbgwn-ynqp1",
+          "name": "cupboard wall",
+          "type": "plane",
+          "position": {
+            "x": 3.003,
+            "y": 1.25,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1.5707963267948966,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 2,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 32,
+            "repeat": {
+              "x": 1,
+              "y": 0.8
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "zIndex": 0
+        },
+        {
+          "id": "prefab-part-moczchf8-fleo9",
+          "name": "cupboard wall-copy",
+          "type": "plane",
+          "position": {
+            "x": 2,
+            "y": 1.5,
+            "z": -1
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 1,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 32,
+            "repeat": {
+              "x": 1,
+              "y": 0.5
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "zIndex": 0
+        },
+        {
+          "id": "prefab-part-moczhjv3-1qh5o",
+          "name": "cupboard wall-copy-copy",
+          "type": "plane",
+          "position": {
+            "x": 1.4981,
+            "y": 1,
+            "z": 1.0028
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 2,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 14,
+            "repeat": {
+              "x": 0.5,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0.75,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "zIndex": 0
+        },
+        {
+          "id": "prefab-part-mod82xjs-9vcat",
+          "name": "cupboard wall-copy-copy-copy",
+          "type": "plane",
+          "position": {
+            "x": 3.0058,
+            "y": 1,
+            "z": 1.4894
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1.5707963267948966,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 2,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 14,
+            "repeat": {
+              "x": 0.5,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0.25,
+              "y": 0
+            }
+          },
+          "faceTextures": {},
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true,
+          "zIndex": 0
+        },
+        {
+          "id": "prefab-part-mod86aqk-lws1d",
+          "name": "box-part-copy",
+          "type": "box",
+          "position": {
+            "x": 1,
+            "y": 5.25,
+            "z": -0.5
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 4,
+            "y": 2,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 32,
+            "repeat": {
+              "x": 2,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures2",
+              "cell": 14
+            }
+          },
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-mod86ogu-3moww",
+          "name": "wedge-part",
+          "type": "wedge",
+          "position": {
+            "x": -1.5,
+            "y": 5.25,
+            "z": 0.5
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": -1.5707963267948963
+          },
+          "scale": {
+            "x": 2,
+            "y": 1,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures",
+            "cell": 31,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "slope": {
+              "atlas": "textures",
+              "cell": 28
+            }
+          },
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-mod897eo-1pqlc",
+          "name": "box-part-copy-copy",
+          "type": "box",
+          "position": {
+            "x": -2.4878,
+            "y": 5.25,
+            "z": 1.0027
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1.5707963267948966,
+            "z": 0
+          },
+          "scale": {
+            "x": 4,
+            "y": 2,
+            "z": 1
+          },
+          "texture": {
+            "atlas": "textures2",
+            "cell": 32,
+            "repeat": {
+              "x": 2,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures2",
+              "cell": 14
+            }
+          },
+          "material": {
+            "color": "#ffffff",
+            "roughness": 0.88,
+            "metalness": 0.04
           },
           "prefabInstanceOrigin": null,
           "collider": true,

@@ -20,6 +20,12 @@ export function installFanSection(editor) {
     });
   });
 
+  editor.fanBladeWidthInput = createRangeField(section, 'Blade Width', 0.08, 0.8, 0.01, (value) => {
+    editor._updateSelected((fan) => {
+      fan.bladeWidth = value;
+    });
+  });
+
   editor.fanHubRadiusInput = createRangeField(section, 'Hub Radius', 0.08, 0.75, 0.01, (value) => {
     editor._updateSelected((fan) => {
       fan.hubRadius = value;

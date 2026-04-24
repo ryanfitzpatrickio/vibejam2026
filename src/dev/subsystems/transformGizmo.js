@@ -24,6 +24,7 @@ export function installTransformControls(editor) {
     const portalId = object?.userData?.portalId;
     const extractionPortalId = object?.userData?.extractionPortalId;
     const raidTaskId = object?.userData?.raidTaskId;
+    const raidTaskPrefabSlot = object?.userData?.raidTaskPrefabSlot;
     const ropeId = object?.userData?.ropeId;
     const fanId = object?.userData?.fanId;
     const vegetationId = object?.userData?.vegetationId;
@@ -148,7 +149,25 @@ export function installTransformControls(editor) {
             snapPosition: true,
             allowEdgeOverflow: true,
           })
-          : raidTask
+        : raidTask && (raidTaskPrefabSlot === 'before' || raidTaskPrefabSlot === 'after')
+          ? {
+            position: {
+              x: Number(object.position.x.toFixed(4)),
+              y: Number(object.position.y.toFixed(4)),
+              z: Number(object.position.z.toFixed(4)),
+            },
+            rotation: {
+              x: Number(object.rotation.x.toFixed(4)),
+              y: Number(object.rotation.y.toFixed(4)),
+              z: Number(object.rotation.z.toFixed(4)),
+            },
+            scale: {
+              x: Number(object.scale.x.toFixed(4)),
+              y: Number(object.scale.y.toFixed(4)),
+              z: Number(object.scale.z.toFixed(4)),
+            },
+          }
+        : raidTask
             ? editor.app.room.snapRaidTaskToGrid({
               ...deepClone(raidTask),
               position: {
@@ -252,6 +271,8 @@ export function installTransformControls(editor) {
       editor.app.room.updateEditableRaidTaskTransform(raidTaskId, {
         position: next.position,
         rotation: next.rotation,
+        scale: next.scale,
+        prefabSlot: raidTaskPrefabSlot,
       });
     } else if (fanId) {
       editor.app.room.updateEditableFanTransform(fanId, {

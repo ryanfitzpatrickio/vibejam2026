@@ -597,6 +597,8 @@ export function createMouseBotBrain() {
     nextTeaseEmoteAt: 0,
     activeEmote: null,
     emoteUntil: 0,
+    throwGrabReleaseAt: 0,
+    throwWallHangUntil: 0,
   };
 }
 
@@ -623,6 +625,8 @@ export function resetMouseBotBrain(brain) {
   brain.nextTeaseEmoteAt = 0;
   brain.activeEmote = null;
   brain.emoteUntil = 0;
+  brain.throwGrabReleaseAt = 0;
+  brain.throwWallHangUntil = 0;
 }
 
 /**

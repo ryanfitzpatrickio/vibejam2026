@@ -27,13 +27,13 @@
     "bake:house-glb": "node scripts/bake-house-glb.mjs"
   },
   "dependencies": {
-    "@chenglou/pretext": "^0.0.4",
+    "@chenglou/pretext": "^0.0.5",
     "cannon-es": "^0.20.0",
     "mathcat": "^0.0.11",
-    "navcat": "^0.2.0",
-    "nipplejs": "^1.0.1",
+    "navcat": "^0.3.0",
+    "nipplejs":  "^1.0.1",
     "obscenity": "^0.4.6",
-    "partysocket": "^1.1.16",
+    "partysocket": "^1.1.18",
     "solid-js": "^1.9.12",
     "three": "^0.184.0",
     "three-mesh-bvh": "^0.9.9"
@@ -46,7 +46,7 @@
     "sharp": "^0.34.5",
     "vite": "8.0.5",
     "vite-plugin-solid": "^2.11.12",
-    "wrangler": "^4.80.0",
+    "wrangler": "^4.85.0",
     "ws": "^8.20.0"
   }
 }

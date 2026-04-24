@@ -2249,23 +2249,182 @@
       "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
-      "id": "primitive-mnnjsxyz-kdd7m",
-      "name": "plane-p8c",
+      "id": "primitive-mod97hld-5svmi",
+      "name": "plane-p8c-a-a",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -3.9481,
+        "y": 12,
+        "z": 24.0883
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 44.1037,
+        "y": 3.8233,
+        "z": 0.1
+      },
+      "texture": {
+        "atlas": "textures3",
+        "cell": 22,
+        "repeat": {
+          "x": 10.1778,
+          "y": 0.8823
+        },
+        "rotation": 0,
+        "offset": {
+          "x": -0.9111,
+          "y": -5.5588
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": false,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1000
+    },
+    {
+      "id": "primitive-mod97hld-c85yv",
+      "name": "plane-p8c-a-b",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 22,
+        "y": 12,
+        "z": 24.1
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 7.8963,
+        "y": 3.8233,
+        "z": 0.1
+      },
+      "texture": {
+        "atlas": "textures3",
+        "cell": 22,
+        "repeat": {
+          "x": 1.8222,
+          "y": 0.8823
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 5.0889,
+          "y": -5.5588
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": false,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1000
+    },
+    {
+      "id": "primitive-mod9b5wc-18k6m",
+      "name": "plane-p8c-b-a-a",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -3.9469,
+        "y": 12,
+        "z": 21.169
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 44.1062,
+        "y": 2.0153,
+        "z": 0.1
+      },
+      "texture": {
+        "atlas": "textures3",
+        "cell": 22,
+        "repeat": {
+          "x": 10.1784,
+          "y": 0.4651
+        },
+        "rotation": 0,
+        "offset": {
+          "x": -0.9108,
+          "y": -4.8851
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": false,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 1000
+    },
+    {
+      "id": "primitive-mod9am3o-bmx2k",
+      "name": "plane-p8c-b-b",
       "type": "plane",
       "spawnType": null,
       "position": {
         "x": 0,
         "y": 12,
-        "z": 0
+        "z": -2.9194
       },
       "rotation": {
-        "x": -1.5707963267948966,
+        "x": -1.570796,
         "y": 0,
         "z": 0
       },
       "scale": {
         "x": 52,
-        "y": 52,
+        "y": 46.1614,
         "z": 0.1
       },
       "texture": {
@@ -2273,12 +2432,12 @@
         "cell": 22,
         "repeat": {
           "x": 12,
-          "y": 12
+          "y": 10.6526
         },
         "rotation": 0,
         "offset": {
           "x": 0,
-          "y": 0
+          "y": 0.6737
         }
       },
       "faceTextures": {},
@@ -3271,7 +3430,7 @@
       "position": {
         "x": 12,
         "y": 0.25,
-        "z": 20.5
+        "z": 16
       },
       "rotation": {
         "x": 0,
@@ -3840,448 +3999,6 @@
       "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
-      "id": "prefab-instance-mnuxyhg5-q8dne-part-1",
-      "name": "countertop-base",
-      "type": "box",
-      "spawnType": null,
-      "position": {
-        "x": 0,
-        "y": 2,
-        "z": -0.2656
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 4,
-        "y": 4,
-        "z": 3.5
-      },
-      "texture": {
-        "atlas": "textures2",
-        "cell": 13,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {
-        "right": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "left": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "back": {
-          "atlas": "textures2",
-          "cell": 38
-        }
-      },
-      "material": {
-        "color": "#FFFFFF",
-        "roughness": 0.8,
-        "metalness": 0
-      },
-      "glbAssetId": null,
-      "prefabId": "prefab-mnuxlqk0-zqfpf",
-      "navArea": "default",
-      "prefabInstanceId": "prefab-instance-mnuxyhg5-q8dne",
-      "prefabInstanceOrigin": {
-        "x": 20.0001,
-        "y": 0,
-        "z": 20.2366
-      },
-      "prefabInstanceRotation": {
-        "x": 3.1361,
-        "y": 0.0068,
-        "z": -3.1399
-      },
-      "prefabInstanceScale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "collider": true,
-      "colliderClearance": 0,
-      "castShadow": true,
-      "receiveShadow": true,
-      "deleted": false,
-      "bakedAssetId": "asset-house-kitchen-layout"
-    },
-    {
-      "id": "prefab-instance-mnuxyhg5-q8dne-part-2",
-      "name": "countertop-surface",
-      "type": "box",
-      "spawnType": null,
-      "position": {
-        "x": 0,
-        "y": 4.2126,
-        "z": 0
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 4,
-        "y": 0.5,
-        "z": 4
-      },
-      "texture": {
-        "atlas": "textures2",
-        "cell": 20,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {
-        "right": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "left": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "back": {
-          "atlas": "textures2",
-          "cell": 38
-        }
-      },
-      "material": {
-        "color": "#FFFFFF",
-        "roughness": 0.2,
-        "metalness": 0
-      },
-      "glbAssetId": null,
-      "prefabId": "prefab-mnuxlqk0-zqfpf",
-      "navArea": "default",
-      "prefabInstanceId": "prefab-instance-mnuxyhg5-q8dne",
-      "prefabInstanceOrigin": {
-        "x": 20.0001,
-        "y": 0,
-        "z": 20.2366
-      },
-      "prefabInstanceRotation": {
-        "x": 3.1361,
-        "y": 0.0068,
-        "z": -3.1399
-      },
-      "prefabInstanceScale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "collider": true,
-      "colliderClearance": 0,
-      "castShadow": true,
-      "receiveShadow": true,
-      "deleted": false,
-      "bakedAssetId": "asset-house-kitchen-layout"
-    },
-    {
-      "id": "prefab-instance-mnuxyhg5-q8dne-part-3",
-      "name": "countertop-box-part",
-      "type": "box",
-      "spawnType": null,
-      "position": {
-        "x": 0,
-        "y": 6.159,
-        "z": -1.7374
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 4,
-        "y": 3.5,
-        "z": 0.5
-      },
-      "texture": {
-        "atlas": "textures2",
-        "cell": 95,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {},
-      "material": {
-        "color": "#ffffff",
-        "roughness": 0.88,
-        "metalness": 0.04
-      },
-      "glbAssetId": null,
-      "prefabId": "prefab-mnuxlqk0-zqfpf",
-      "navArea": "default",
-      "prefabInstanceId": "prefab-instance-mnuxyhg5-q8dne",
-      "prefabInstanceOrigin": {
-        "x": 20.0001,
-        "y": 0,
-        "z": 20.2366
-      },
-      "prefabInstanceRotation": {
-        "x": 3.1361,
-        "y": 0.0068,
-        "z": -3.1399
-      },
-      "prefabInstanceScale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "collider": true,
-      "colliderClearance": 0,
-      "castShadow": true,
-      "receiveShadow": true,
-      "deleted": false,
-      "bakedAssetId": "asset-house-kitchen-layout"
-    },
-    {
-      "id": "prefab-instance-mnuy1dn9-bs5br-part-1",
-      "name": "countertop-base",
-      "type": "box",
-      "spawnType": null,
-      "position": {
-        "x": 0,
-        "y": 1.9772,
-        "z": -0.2656
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 4,
-        "y": 4,
-        "z": 3.5
-      },
-      "texture": {
-        "atlas": "textures2",
-        "cell": 13,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {
-        "right": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "left": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "back": {
-          "atlas": "textures2",
-          "cell": 38
-        }
-      },
-      "material": {
-        "color": "#FFFFFF",
-        "roughness": 0.8,
-        "metalness": 0
-      },
-      "glbAssetId": null,
-      "prefabId": "prefab-mnuxlqk0-zqfpf",
-      "navArea": "default",
-      "prefabInstanceId": "prefab-instance-mnuy1dn9-bs5br",
-      "prefabInstanceOrigin": {
-        "x": 16.0515,
-        "y": 0.0032,
-        "z": 20.2359
-      },
-      "prefabInstanceRotation": {
-        "x": 3.1416,
-        "y": -0.018,
-        "z": 3.1416
-      },
-      "prefabInstanceScale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "collider": true,
-      "colliderClearance": 0,
-      "castShadow": true,
-      "receiveShadow": true,
-      "deleted": false,
-      "bakedAssetId": "asset-house-kitchen-layout"
-    },
-    {
-      "id": "prefab-instance-mnuy1dn9-bs5br-part-2",
-      "name": "countertop-surface",
-      "type": "box",
-      "spawnType": null,
-      "position": {
-        "x": 0,
-        "y": 4.2126,
-        "z": 0
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 4,
-        "y": 0.5,
-        "z": 4
-      },
-      "texture": {
-        "atlas": "textures2",
-        "cell": 20,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {
-        "right": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "left": {
-          "atlas": "textures2",
-          "cell": 38
-        },
-        "back": {
-          "atlas": "textures2",
-          "cell": 38
-        }
-      },
-      "material": {
-        "color": "#FFFFFF",
-        "roughness": 0.2,
-        "metalness": 0
-      },
-      "glbAssetId": null,
-      "prefabId": "prefab-mnuxlqk0-zqfpf",
-      "navArea": "default",
-      "prefabInstanceId": "prefab-instance-mnuy1dn9-bs5br",
-      "prefabInstanceOrigin": {
-        "x": 16.0515,
-        "y": 0.0032,
-        "z": 20.2359
-      },
-      "prefabInstanceRotation": {
-        "x": 3.1416,
-        "y": -0.018,
-        "z": 3.1416
-      },
-      "prefabInstanceScale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "collider": true,
-      "colliderClearance": 0,
-      "castShadow": true,
-      "receiveShadow": true,
-      "deleted": false,
-      "bakedAssetId": "asset-house-kitchen-layout"
-    },
-    {
-      "id": "prefab-instance-mnuy1dn9-bs5br-part-3",
-      "name": "countertop-box-part",
-      "type": "box",
-      "spawnType": null,
-      "position": {
-        "x": 0,
-        "y": 6.159,
-        "z": -1.7374
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 4,
-        "y": 3.5,
-        "z": 0.5
-      },
-      "texture": {
-        "atlas": "textures2",
-        "cell": 95,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {},
-      "material": {
-        "color": "#ffffff",
-        "roughness": 0.88,
-        "metalness": 0.04
-      },
-      "glbAssetId": null,
-      "prefabId": "prefab-mnuxlqk0-zqfpf",
-      "navArea": "default",
-      "prefabInstanceId": "prefab-instance-mnuy1dn9-bs5br",
-      "prefabInstanceOrigin": {
-        "x": 16.0515,
-        "y": 0.0032,
-        "z": 20.2359
-      },
-      "prefabInstanceRotation": {
-        "x": 3.1416,
-        "y": -0.018,
-        "z": 3.1416
-      },
-      "prefabInstanceScale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "collider": true,
-      "colliderClearance": 0,
-      "castShadow": true,
-      "receiveShadow": true,
-      "deleted": false,
-      "bakedAssetId": "asset-house-kitchen-layout"
-    },
-    {
       "id": "primitive-mnw3vjz8-oy4k0",
       "name": "garage",
       "type": "plane",
@@ -4599,118 +4316,6 @@
       "receiveShadow": true,
       "deleted": false,
       "zIndex": 1111
-    },
-    {
-      "id": "primitive-mo5s8izk-camex",
-      "name": "prop-dhp",
-      "type": "prop",
-      "spawnType": null,
-      "position": {
-        "x": 18,
-        "y": 4.9,
-        "z": 21.1
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "texture": {
-        "atlas": "props",
-        "cell": 0,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {},
-      "material": {
-        "color": "#ffffff",
-        "roughness": 1,
-        "metalness": 0
-      },
-      "chroma": {
-        "similarity": 0.4,
-        "feather": 0.06
-      },
-      "glbAssetId": null,
-      "prefabId": null,
-      "navArea": "default",
-      "prefabInstanceId": null,
-      "prefabInstanceOrigin": null,
-      "prefabInstanceRotation": null,
-      "prefabInstanceScale": null,
-      "collider": false,
-      "colliderClearance": 0,
-      "castShadow": false,
-      "receiveShadow": false,
-      "deleted": false
-    },
-    {
-      "id": "primitive-mo5se1xq-cw6h6",
-      "name": "prop-1w0",
-      "type": "prop",
-      "spawnType": null,
-      "position": {
-        "x": 15.3,
-        "y": 4.8,
-        "z": 19.3
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
-      "scale": {
-        "x": 1,
-        "y": 1,
-        "z": 1
-      },
-      "texture": {
-        "atlas": "props",
-        "cell": 4,
-        "repeat": {
-          "x": 1,
-          "y": 1
-        },
-        "rotation": 0,
-        "offset": {
-          "x": 0,
-          "y": 0
-        }
-      },
-      "faceTextures": {},
-      "material": {
-        "color": "#ffffff",
-        "roughness": 1,
-        "metalness": 0
-      },
-      "chroma": {
-        "similarity": 0.32,
-        "feather": 0.08
-      },
-      "glbAssetId": null,
-      "prefabId": null,
-      "navArea": "default",
-      "prefabInstanceId": null,
-      "prefabInstanceOrigin": null,
-      "prefabInstanceRotation": null,
-      "prefabInstanceScale": null,
-      "collider": false,
-      "colliderClearance": 0,
-      "castShadow": false,
-      "receiveShadow": false,
-      "deleted": false
     },
     {
       "id": "primitive-mo63iwe3-obcjr",
@@ -5881,7 +5486,7 @@
       "spawnType": null,
       "position": {
         "x": 0,
-        "y": 12.1,
+        "y": 13.75,
         "z": 0
       },
       "rotation": {
@@ -5891,8 +5496,8 @@
       },
       "scale": {
         "x": 52,
-        "y": 41.9478,
-        "z": 42
+        "y": 37.4629,
+        "z": 38
       },
       "texture": {
         "atlas": "textures5",
@@ -6137,6 +5742,859 @@
       "zIndex": -10
     },
     {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-1",
+      "name": "counter Copy-box-part",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": -2,
+        "y": 2,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 8,
+        "y": 4,
+        "z": 4
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 32,
+        "repeat": {
+          "x": 2,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {
+        "front": {
+          "atlas": "textures2",
+          "cell": 14
+        }
+      },
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-2",
+      "name": "counter Copy-box-part",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 4.237,
+        "z": 0.2538
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 12,
+        "y": 0.5,
+        "z": 4.5
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 16,
+        "repeat": {
+          "x": 3,
+          "y": 2
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {
+        "right": {
+          "atlas": "textures",
+          "cell": 16
+        }
+      },
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-3",
+      "name": "counter Copy-box-part",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 6.489,
+        "z": -1.744
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 12,
+        "y": 4,
+        "z": 0.5
+      },
+      "texture": {
+        "atlas": "textures3",
+        "cell": 10,
+        "repeat": {
+          "x": 3,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-4",
+      "name": "counter Copy-open shelf",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 4,
+        "y": 2.0236,
+        "z": 0
+      },
+      "rotation": {
+        "x": -1.5707963267948966,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4,
+        "y": 4,
+        "z": 4
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 38,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-5",
+      "name": "counter Copy-open bottom",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 3.9884,
+        "y": 0.2348,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4,
+        "y": 0.5,
+        "z": 4
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 32,
+        "repeat": {
+          "x": 1,
+          "y": 0.1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-6",
+      "name": "counter Copy-cupboard wall",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 6.006,
+        "y": 2.5,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 4,
+        "y": 4,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 32,
+        "repeat": {
+          "x": 1,
+          "y": 0.8
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-7",
+      "name": "counter Copy-cupboard wall-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 4,
+        "y": 3,
+        "z": -2
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4,
+        "y": 2,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 32,
+        "repeat": {
+          "x": 1,
+          "y": 0.5
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-8",
+      "name": "counter Copy-cupboard wall-copy-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 2.9962,
+        "y": 2,
+        "z": 2.0056
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 4,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 14,
+        "repeat": {
+          "x": 0.5,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0.75,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-9",
+      "name": "counter Copy-cupboard wall-copy-copy-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 6.0116,
+        "y": 2,
+        "z": 2.9788
+      },
+      "rotation": {
+        "x": 0,
+        "y": 1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 4,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 14,
+        "repeat": {
+          "x": 0.5,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0.25,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-10",
+      "name": "counter Copy-box-part-copy",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 2,
+        "y": 10.5,
+        "z": -1
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 8,
+        "y": 4,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 32,
+        "repeat": {
+          "x": 2,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {
+        "front": {
+          "atlas": "textures2",
+          "cell": 14
+        }
+      },
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-11",
+      "name": "counter Copy-wedge-part",
+      "type": "wedge",
+      "spawnType": null,
+      "position": {
+        "x": -3,
+        "y": 10.5,
+        "z": 1
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": -1.5707963267948963
+      },
+      "scale": {
+        "x": 4,
+        "y": 2,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 31,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {
+        "slope": {
+          "atlas": "textures",
+          "cell": 28
+        }
+      },
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-mod8jsrc-9i7v6-part-12",
+      "name": "counter Copy-box-part-copy-copy",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": -4.9756,
+        "y": 10.5,
+        "z": 2.0054
+      },
+      "rotation": {
+        "x": 0,
+        "y": 1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 8,
+        "y": 4,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 32,
+        "repeat": {
+          "x": 2,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {
+        "front": {
+          "atlas": "textures2",
+          "cell": 14
+        }
+      },
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "prefabId": "prefab-moczbgwn-05hse",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-mod8jsrc-9i7v6",
+      "prefabInstanceOrigin": {
+        "x": 16.0801,
+        "y": -0.3112,
+        "z": 20.152
+      },
+      "prefabInstanceRotation": {
+        "x": 3.1416,
+        "y": 0.0126,
+        "z": 3.1416
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false
+    },
+    {
+      "id": "primitive-mod916n4-n92bh",
+      "name": "plane-eeq-a-a-copy-copy-copy",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 26,
+        "y": 13,
+        "z": 0
+      },
+      "rotation": {
+        "x": -1.570796,
+        "y": -1.570796,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 48,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures4",
+        "cell": 38,
+        "repeat": {
+          "x": 0.5,
+          "y": 24
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.84
+      },
+      "glbAssetId": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
       "id": "primitive-house-kitchen-layout-glb",
       "name": "house-baked",
       "type": "glb",
@@ -6312,21 +6770,6 @@
         "cell": 62
       },
       "deleted": false
-    },
-    {
-      "id": "rope-moc5vydy-0q39i",
-      "name": "rope-j30",
-      "anchor": {
-        "x": -2,
-        "y": 11,
-        "z": 8
-      },
-      "length": 4.65,
-      "segmentCount": 12,
-      "segmentRadius": 0.035,
-      "color": "#060505",
-      "texture": null,
-      "deleted": false
     }
   ],
   "fans": [
@@ -6344,10 +6787,11 @@
         "z": 0
       },
       "bladeCount": 5,
-      "bladeLength": 3.15,
-      "hubRadius": 0.68,
-      "rodLength": 1.4,
-      "spinSpeed": 5.05,
+      "bladeLength": 3.4,
+      "bladeWidth": 0.8,
+      "hubRadius": 0.75,
+      "rodLength": 1.5,
+      "spinSpeed": 9,
       "gripRingCount": 5,
       "cheeseAmount": 12,
       "deleted": false
@@ -6410,14 +6854,16 @@
       "taskType": "chew_wires",
       "position": {
         "x": 18,
-        "y": 0,
-        "z": 14
+        "y": 3.5,
+        "z": 10
       },
       "rotation": {
         "x": 0,
         "y": 1.7146,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6434,6 +6880,8 @@
         "y": 3.0229,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6450,6 +6898,8 @@
         "y": 0.852,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6466,6 +6916,8 @@
         "y": 0.35,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6475,13 +6927,15 @@
       "position": {
         "x": 18,
         "y": 0,
-        "z": 16
+        "z": 12
       },
       "rotation": {
         "x": 0,
         "y": -1.2,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6498,22 +6952,8 @@
         "y": 3.14,
         "z": 0
       },
-      "deleted": false
-    },
-    {
-      "id": "raid-task-knife-drawer-01",
-      "name": "Knife Drawer",
-      "taskType": "knife_drawer",
-      "position": {
-        "x": 15,
-        "y": 2.9,
-        "z": 19
-      },
-      "rotation": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6530,6 +6970,8 @@
         "y": 0,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6546,6 +6988,8 @@
         "y": 0.6705,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     },
     {
@@ -6562,6 +7006,8 @@
         "y": -3.1393,
         "z": 0
       },
+      "beforePrefab": null,
+      "afterPrefab": null,
       "deleted": false
     }
   ],

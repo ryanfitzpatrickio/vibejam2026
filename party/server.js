@@ -1,4 +1,4 @@
-import { createPlayerState, simulateTick, respawnPlayer, PHYSICS } from '../shared/physics.js';
+import { applyWallHold, createPlayerState, findNearbyWallContact, simulateTick, respawnPlayer, PHYSICS } from '../shared/physics.js';
 import { constrainAdversaryHumanToNavMesh } from '../shared/adversaryHumanNav.js';
 import { createMouseBotBrain, buildMouseBotInput, resetMouseBotBrain } from '../shared/mouseBot.js';
 import { createPredatorState, simulatePredatorTick, serializePredatorState, PREDATOR_AI } from '../shared/predator.js';
@@ -70,6 +70,10 @@ const GRAB_RANGE = 1.5;
 const GRAB_COOLDOWN = 1.0;
 const GRAB_PULL_STRENGTH = 6.0;
 const GRAB_INITIATOR_ADVANTAGE = 0.65; // initiator controls 65% of direction
+const BOT_THROW_GRAB_HOLD_MIN_SECONDS = 2.1;
+const BOT_THROW_GRAB_HOLD_MAX_SECONDS = 3.4;
+const BOT_THROW_WALL_HANG_SECONDS = 1.8;
+const BOT_THROW_WALL_PROBE_DISTANCE = 0.38;
 const SMACK_RANGE = 2.0;
 const SMACK_COOLDOWN = 1.5;
 const SMACK_STUN_DURATION = 1.0;
@@ -1615,6 +1619,59 @@ export default class GameServer {
     };
   }
 
+  _botThrowCatchDuration() {
+    return BOT_THROW_GRAB_HOLD_MIN_SECONDS
+      + Math.random() * (BOT_THROW_GRAB_HOLD_MAX_SECONDS - BOT_THROW_GRAB_HOLD_MIN_SECONDS);
+  }
+
+  _tryBotThrownRecovery(id, state, brain, now) {
+    if (!brain || !state?.alive || state.grounded || state.spectator || state.extracted) return false;
+    const speed = Math.hypot(state.velocity?.x ?? 0, state.velocity?.y ?? 0, state.velocity?.z ?? 0);
+    if (speed < 2.2) return false;
+
+    if (!state.ropeSwing) {
+      const grabbedRope = this.ropeWorld?.tryGrab?.(id, state);
+      if (grabbedRope) {
+        this.mouseLaunchWorld?.removePlayer?.(id);
+        state.roombaLaunch = null;
+        brain.throwGrabReleaseAt = now + this._botThrowCatchDuration();
+        brain.throwWallHangUntil = 0;
+        this._lastRopeGrab.set(id, true);
+        this._lastRopeJump.set(id, false);
+        state._ropeInput = { moveX: 0, moveZ: 0, scootUp: false, releasePressed: false };
+        return true;
+      }
+
+      const grabbedFan = this.fanWorld?.tryGrab?.(id, state);
+      if (grabbedFan) {
+        this.mouseLaunchWorld?.removePlayer?.(id);
+        state.roombaLaunch = null;
+        brain.throwGrabReleaseAt = now + this._botThrowCatchDuration();
+        brain.throwWallHangUntil = 0;
+        this._lastRopeGrab.set(id, true);
+        this._lastRopeJump.set(id, false);
+        state._ropeInput = { moveX: 0, moveZ: 0, scootUp: false, releasePressed: false };
+        return true;
+      }
+    }
+
+    const contact = findNearbyWallContact(
+      state,
+      this.levelColliders,
+      PHYSICS.playerRadius,
+      PHYSICS.playerHeight,
+      BOT_THROW_WALL_PROBE_DISTANCE,
+    );
+    if (!contact) return false;
+
+    this.mouseLaunchWorld?.removePlayer?.(id);
+    state.roombaLaunch = null;
+    applyWallHold(state, contact);
+    brain.throwWallHangUntil = now + BOT_THROW_WALL_HANG_SECONDS;
+    brain.throwGrabReleaseAt = 0;
+    return true;
+  }
+
   tick() {
     const t0 = (typeof performance !== 'undefined' && performance.now)
       ? performance.now()
@@ -1765,6 +1822,11 @@ export default class GameServer {
             seqs[id] = this._lastSeq?.get(id) ?? 0;
           }
         } else {
+          const brain = this.botBrains.get(id);
+          if (brain && this._tryBotThrownRecovery(id, state, brain, now)) {
+            seqs[id] = 0;
+            continue;
+          }
           seqs[id] = 0;
         }
         continue;
@@ -1817,7 +1879,14 @@ export default class GameServer {
             state._ropeInput = { moveX: 0, moveZ: 0, scootUp: false, releasePressed: false };
           }
         } else {
-          state._ropeInput = { moveX: 0, moveZ: 0, scootUp: false, releasePressed: true };
+          const brain = this.botBrains.get(id);
+          const release = !brain?.throwGrabReleaseAt || now >= brain.throwGrabReleaseAt;
+          state._ropeInput = { moveX: 0, moveZ: 0, scootUp: false, releasePressed: release };
+          if (release && brain) {
+            brain.throwGrabReleaseAt = 0;
+            this._lastRopeGrab.set(id, false);
+            this._lastRopeJump.set(id, false);
+          }
           seqs[id] = 0;
         }
         continue;
@@ -1931,6 +2000,28 @@ export default class GameServer {
       } else {
         const brain = this.botBrains.get(id);
         if (!brain) {
+          seqs[id] = 0;
+          continue;
+        }
+        if (brain.throwWallHangUntil && state.wallHolding) {
+          const hold = now < brain.throwWallHangUntil;
+          const input = {
+            moveX: 0,
+            moveZ: 0,
+            sprint: false,
+            jump: false,
+            jumpPressed: false,
+            jumpHeld: hold,
+            crouch: false,
+            rotation: state.rotation,
+          };
+          const vacuumPull = roombaForVacuum?.phase === 'vacuuming'
+            ? getRoombaVacuumPullAcceleration(roombaForVacuum, state)
+            : null;
+          simulatePlayerTick(state, input, dt, BOUNDS, this.levelColliders, vacuumPull);
+          state.emote = null;
+          state._interactHeld = false;
+          if (!hold) brain.throwWallHangUntil = 0;
           seqs[id] = 0;
           continue;
         }
