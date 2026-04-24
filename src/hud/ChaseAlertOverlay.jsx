@@ -1,6 +1,13 @@
 import { render } from 'solid-js/web';
 import { createStore } from 'solid-js/store';
 import { batch } from 'solid-js';
+import {
+  HUD_PANEL_STYLE,
+  HUD_COLORS,
+  HUD_LABEL_FONT,
+  HUD_VALUE_FONT,
+  HUD_LABEL_SHADOW,
+} from './hudStyle.js';
 
 function ChaseAlertView(props) {
   return (
@@ -11,39 +18,38 @@ function ChaseAlertView(props) {
       style={{
         display: props.state.active ? 'block' : 'none',
         position: 'fixed',
-        top: '64px',
-        left: '50%',
-        transform: 'translateX(-50%)',
+        top: '76px',
+        left: '18px',
         'z-index': '102',
         'pointer-events': 'none',
         'user-select': 'none',
-        'text-align': 'center',
-        'font-family': 'monospace',
-        padding: '10px 22px',
-        'border-radius': '8px',
-        background: 'linear-gradient(180deg, rgba(120,20,20,0.92), rgba(40,8,8,0.88))',
-        border: '1px solid rgba(255,120,80,0.55)',
-        'box-shadow': '0 4px 18px rgba(0,0,0,0.45)',
+        'text-align': 'left',
+        padding: '10px 18px 10px 14px',
+        ...HUD_PANEL_STYLE,
+        border: `2px solid ${HUD_COLORS.coral}`,
+        background: 'linear-gradient(160deg, rgba(255,107,143,0.96) 0%, rgba(91,31,58,0.94) 100%)',
+        'box-shadow': '3px 3px 0 rgba(0,0,0,0.55), 0 0 22px rgba(255,107,143,0.24), inset 0 2px 0 rgba(255,255,255,0.24)',
       }}
     >
       <div
         style={{
-          'font-size': '11px',
-          'font-weight': '800',
-          'letter-spacing': '0.28em',
-          color: 'rgba(255,200,160,0.95)',
-          'text-shadow': '0 0 8px rgba(255,80,40,0.6)',
+          font: HUD_LABEL_FONT,
+          'font-size': '13px',
+          'letter-spacing': '0.18em',
+          'text-transform': 'uppercase',
+          color: '#fff8c7',
+          'text-shadow': HUD_LABEL_SHADOW,
           'margin-bottom': '4px',
         }}
       >
-        CHASED
+        Cat Nearby
       </div>
       <div
         style={{
-          'font-size': '22px',
-          'font-weight': '700',
+          font: HUD_VALUE_FONT,
+          'font-size': '24px',
           color: '#fff',
-          'text-shadow': '0 1px 3px #000, 0 0 12px rgba(255,60,30,0.35)',
+          'text-shadow': HUD_LABEL_SHADOW,
           'line-height': '1.1',
         }}
       >

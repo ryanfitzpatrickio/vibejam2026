@@ -315,6 +315,7 @@ function ScoreboardView(props) {
         'user-select': 'none',
         overflow: 'auto',
         '-webkit-overflow-scrolling': 'touch',
+        'overflow-x': 'hidden',
       }}
     >
       <div
@@ -354,7 +355,13 @@ function ScoreboardView(props) {
         </div>
       </Show>
 
-      <div style={{ display: 'flex', 'flex-direction': 'column', gap: '4px' }}>
+      <div style={{
+        display: 'flex',
+        'flex-direction': 'column',
+        gap: '6px',
+        overflow: 'visible',
+        padding: '2px 0',
+      }}>
         <For each={props.state.rows}>
           {(row, i) => {
             const cs = () => Math.max(0, Number(row.chaseSec) || 0);
@@ -368,12 +375,15 @@ function ScoreboardView(props) {
                   'grid-template-columns': '1fr 72px 72px 56px',
                   'align-items': 'center',
                   gap: '12px',
-                  padding: '4px 6px',
+                  padding: '7px 8px',
+                  'min-height': '38px',
                   'border-radius': '6px',
                   background: bg(),
                   color: '#fff',
                   font: HUD_LABEL_FONT,
+                  'line-height': '1.12',
                   'text-shadow': HUD_LABEL_SHADOW,
+                  overflow: 'visible',
                 }}
               >
                 <span
@@ -384,6 +394,7 @@ function ScoreboardView(props) {
                     overflow: 'hidden',
                     'text-overflow': 'ellipsis',
                     'white-space': 'nowrap',
+                    'min-height': '28px',
                   }}
                 >
                   <MouseHeadTarget size={22} />

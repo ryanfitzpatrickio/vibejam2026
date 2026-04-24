@@ -14,13 +14,13 @@ export function installFanSection(editor) {
     });
   });
 
-  editor.fanBladeLengthInput = createRangeField(section, 'Blade Length', 0.45, 2.4, 0.01, (value) => {
+  editor.fanBladeLengthInput = createRangeField(section, 'Blade Length', 0.45, 3.4, 0.01, (value) => {
     editor._updateSelected((fan) => {
       fan.bladeLength = value;
     });
   });
 
-  editor.fanHubRadiusInput = createRangeField(section, 'Hub Radius', 0.08, 0.55, 0.01, (value) => {
+  editor.fanHubRadiusInput = createRangeField(section, 'Hub Radius', 0.08, 0.75, 0.01, (value) => {
     editor._updateSelected((fan) => {
       fan.hubRadius = value;
     });

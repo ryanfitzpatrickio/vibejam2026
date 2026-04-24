@@ -6,6 +6,50 @@ import { defineConfig } from 'vite';
 import solid from 'vite-plugin-solid';
 
 const execFileAsync = promisify(execFile);
+const DEV_JSON_MAX_BYTES = 2 * 1024 * 1024;
+const DEV_GLB_MAX_BYTES = 32 * 1024 * 1024;
+const LOCAL_REMOTE_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+function sendJson(res, statusCode, payload) {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+}
+
+function isLocalDevRequest(req) {
+  const remoteAddress = req.socket?.remoteAddress ?? '';
+  return LOCAL_REMOTE_ADDRESSES.has(remoteAddress);
+}
+
+function hasDevWriteAccess(req) {
+  if (!isLocalDevRequest(req)) return false;
+  const expected = process.env.VITE_DEV_SERVER_TOKEN ?? process.env.DEV_SERVER_TOKEN ?? '';
+  if (!expected) return true;
+  return req.headers['x-dev-server-token'] === expected;
+}
+
+async function readRequestBuffer(req, maxBytes) {
+  const contentLength = Number(req.headers['content-length'] ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error('Payload too large');
+  }
+
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) {
+      throw new Error('Payload too large');
+    }
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+function isGlbBuffer(buffer) {
+  return buffer.length >= 12 && buffer.toString('utf8', 0, 4) === 'glTF';
+}
 
 function devLevelSavePlugin() {
   const layoutPath = path.resolve(process.cwd(), 'public/levels/kitchen-layout.json');
@@ -28,41 +72,35 @@ function devLevelSavePlugin() {
 
       const handleJsonSave = (targetPath, publicPath, afterSave = null) => async (req, res) => {
         if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, error: 'Method not allowed' }));
+          sendJson(res, 405, { ok: false, error: 'Method not allowed' });
           return;
         }
 
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk;
-        });
+        if (!hasDevWriteAccess(req)) {
+          sendJson(res, 403, { ok: false, error: 'Forbidden' });
+          return;
+        }
 
-        req.on('end', async () => {
-          try {
-            const payload = JSON.parse(body || '{}');
-            await fs.mkdir(path.dirname(targetPath), { recursive: true });
-            await fs.writeFile(targetPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-            if (afterSave) {
-              await afterSave();
-            }
-
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({
-              ok: true,
-              path: publicPath,
-            }));
-          } catch (error) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({
-              ok: false,
-              error: error instanceof Error ? error.message : String(error),
-            }));
+        try {
+          const body = await readRequestBuffer(req, DEV_JSON_MAX_BYTES);
+          const payload = JSON.parse(body.length ? body.toString('utf8') : '{}');
+          await fs.mkdir(path.dirname(targetPath), { recursive: true });
+          await fs.writeFile(targetPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+          if (afterSave) {
+            await afterSave();
           }
-        });
+
+          sendJson(res, 200, {
+            ok: true,
+            path: publicPath,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          sendJson(res, message === 'Payload too large' ? 413 : 500, {
+            ok: false,
+            error: message,
+          });
+        }
       };
 
       server.middlewares.use(
@@ -85,26 +123,37 @@ function devLevelSavePlugin() {
 
       server.middlewares.use('/__dev/upload-glb', async (req, res) => {
         if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, error: 'Method not allowed' }));
+          sendJson(res, 405, { ok: false, error: 'Method not allowed' });
+          return;
+        }
+
+        if (!hasDevWriteAccess(req)) {
+          sendJson(res, 403, { ok: false, error: 'Forbidden' });
           return;
         }
 
         const parsedUrl = new URL(req.url, 'http://localhost');
         const filename = decodeURIComponent(parsedUrl.searchParams.get('name') || 'untitled.glb');
         if (!filename.toLowerCase().endsWith('.glb')) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, error: 'Only .glb files allowed' }));
+          sendJson(res, 400, { ok: false, error: 'Only .glb files allowed' });
           return;
         }
 
-        const chunks = [];
-        for await (const chunk of req) {
-          chunks.push(chunk);
+        let buffer;
+        try {
+          buffer = await readRequestBuffer(req, DEV_GLB_MAX_BYTES);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          sendJson(res, message === 'Payload too large' ? 413 : 500, {
+            ok: false,
+            error: message,
+          });
+          return;
         }
-        const buffer = Buffer.concat(chunks);
+        if (!isGlbBuffer(buffer)) {
+          sendJson(res, 400, { ok: false, error: 'Invalid GLB file' });
+          return;
+        }
 
         await fs.mkdir(customGlbSourceDir, { recursive: true });
         await fs.mkdir(customGlbPublicDir, { recursive: true });
@@ -142,9 +191,7 @@ function devLevelSavePlugin() {
         await fs.mkdir(path.dirname(glbRegistryPath), { recursive: true });
         await fs.writeFile(glbRegistryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
 
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ ok: true, entry }));
+        sendJson(res, 200, { ok: true, entry });
       });
 
       server.middlewares.use(
@@ -185,6 +232,7 @@ export default defineConfig({
     drop: ['console', 'debugger'],
   },
   server: {
+    host: '127.0.0.1',
     open: true,
   },
 });

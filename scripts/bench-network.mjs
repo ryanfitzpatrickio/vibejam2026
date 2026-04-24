@@ -13,9 +13,8 @@
  *
  * NOTE: Benching prod is disabled by default. The prod party rejects WS upgrades
  * with empty Origin headers (scripts don't send one) and requires a Turnstile
- * token that node can't generate. To bench prod you must temporarily set
- * ALLOW_EMPTY_ORIGIN=true AND leave TURNSTILE_SECRET unset in the deployed
- * PartyKit env — do this in a separate staging party, not your live one.
+ * token that node can't generate. Run this against local dev or a separate
+ * staging party with non-production env settings, not your live one.
  *
  * Writes ./bench-results.json (gitignored) for `npm run bench:compare`.
  */

@@ -28,7 +28,7 @@ import {
   LEVEL_ROOM_DEPTH,
   LEVEL_ROOM_WIDTH,
 } from '../../shared/levelWorldBounds.js';
-import { normalizeExtractionPortalEntry, normalizeRaidTaskEntry } from '../../shared/raidLayout.js';
+import { RAID_TASK_TYPES, normalizeExtractionPortalEntry, normalizeRaidTaskEntry } from '../../shared/raidLayout.js';
 import { sortCollidersForPlaneZIndex } from '../../shared/physics.js';
 import { createWedgeLocalColliderBoxes } from '../../shared/wedgeCollision.js';
 
@@ -379,6 +379,13 @@ function createRaidTaskHelperObject(definition) {
   group.userData.editableRaidTask = true;
   group.userData.skipOutline = true;
 
+  const before = new THREE.Group();
+  before.name = 'task-before';
+  const after = new THREE.Group();
+  after.name = 'task-after';
+  after.visible = false;
+  group.add(before, after);
+
   const pole = new THREE.Mesh(
     new THREE.CylinderGeometry(0.06, 0.06, 1.1, 12),
     new THREE.MeshBasicMaterial({
@@ -392,7 +399,7 @@ function createRaidTaskHelperObject(definition) {
   pole.position.y = 0.55;
   pole.userData.raidTaskId = definition.id;
   pole.userData.skipOutline = true;
-  group.add(pole);
+  before.add(pole);
 
   const top = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.26, 0),
@@ -407,7 +414,51 @@ function createRaidTaskHelperObject(definition) {
   top.position.y = 1.22;
   top.userData.raidTaskId = definition.id;
   top.userData.skipOutline = true;
-  group.add(top);
+  before.add(top);
+
+  const addBox = (root, name, colorHex, position, scale, rotation = {}) => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(scale.x, scale.y, scale.z),
+      new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    mesh.name = name;
+    mesh.position.set(position.x, position.y, position.z);
+    mesh.rotation.set(rotation.x ?? 0, rotation.y ?? 0, rotation.z ?? 0);
+    mesh.userData.raidTaskId = definition.id;
+    mesh.userData.skipOutline = true;
+    root.add(mesh);
+    return mesh;
+  };
+
+  if (definition.taskType === RAID_TASK_TYPES.TOPPLE_TOWER) {
+    addBox(before, 'can-stack-1', '#ff9eb8', { x: -0.22, y: 0.2, z: 0 }, { x: 0.22, y: 0.4, z: 0.22 });
+    addBox(before, 'can-stack-2', '#8be9ff', { x: 0, y: 0.62, z: 0 }, { x: 0.24, y: 0.42, z: 0.24 });
+    addBox(before, 'can-stack-3', '#ffe080', { x: 0.22, y: 1.05, z: 0 }, { x: 0.22, y: 0.4, z: 0.22 });
+    addBox(after, 'knocked-can-1', '#ff9eb8', { x: -0.46, y: 0.12, z: -0.14 }, { x: 0.46, y: 0.18, z: 0.22 }, { z: 0.5 });
+    addBox(after, 'knocked-can-2', '#8be9ff', { x: 0.12, y: 0.14, z: 0.28 }, { x: 0.42, y: 0.18, z: 0.24 }, { y: 0.8, z: -0.25 });
+    addBox(after, 'knocked-can-3', '#ffe080', { x: 0.48, y: 0.13, z: -0.22 }, { x: 0.42, y: 0.18, z: 0.22 }, { y: -0.5, z: 0.35 });
+  } else if (definition.taskType === RAID_TASK_TYPES.KNIFE_DRAWER) {
+    addBox(before, 'closed-drawer', '#8b5a2b', { x: 0, y: 0.42, z: 0 }, { x: 0.9, y: 0.34, z: 0.52 });
+    addBox(before, 'drawer-handle', '#facc15', { x: 0, y: 0.42, z: -0.29 }, { x: 0.42, y: 0.06, z: 0.06 });
+    addBox(after, 'open-drawer', '#8b5a2b', { x: 0, y: 0.42, z: -0.3 }, { x: 0.9, y: 0.34, z: 0.52 });
+    addBox(after, 'knife-glint-1', '#e5e7eb', { x: -0.22, y: 0.66, z: -0.58 }, { x: 0.08, y: 0.04, z: 0.58 }, { y: 0.2 });
+    addBox(after, 'knife-glint-2', '#e5e7eb', { x: 0.2, y: 0.64, z: -0.52 }, { x: 0.08, y: 0.04, z: 0.5 }, { y: -0.18 });
+  } else if (definition.taskType === RAID_TASK_TYPES.SABOTAGE_ROOMBA) {
+    addBox(before, 'roomba-mini', '#64748b', { x: 0, y: 0.22, z: 0 }, { x: 0.75, y: 0.22, z: 0.75 });
+    addBox(after, 'roomba-mini-jammed', '#64748b', { x: 0, y: 0.22, z: 0 }, { x: 0.75, y: 0.22, z: 0.75 });
+    addBox(after, 'jammed-crumbs', '#ffe080', { x: 0.18, y: 0.38, z: -0.12 }, { x: 0.28, y: 0.12, z: 0.28 }, { y: 0.4 });
+  }
+
+  group.userData.setRaidTaskCompleted = (completed) => {
+    before.visible = !completed;
+    after.visible = !!completed;
+  };
 
   return group;
 }
@@ -800,7 +851,7 @@ export class Room {
     this.loadedEditableLayout = cloneLayout(DEFAULT_EDITABLE_LAYOUT);
     this.editableGroup = new THREE.Group();
     this.editableGroup.name = 'EditableLayout';
-    this._staticMergeEnabled = false;
+    this._staticMergeEnabled = options.staticMergeEnabled !== false;
     this._staticMergedGroup = new THREE.Group();
     this._staticMergedGroup.name = 'StaticMerged';
     this.editableLayout = cloneLayout(DEFAULT_EDITABLE_LAYOUT);
@@ -2193,6 +2244,7 @@ export class Room {
     entry.group.scale.set(1, 1, 1);
     entry.group.visible = this.raidTaskHelpersVisible && !task.deleted;
     entry.group.userData.raidTaskId = task.id;
+    entry.group.userData.setRaidTaskCompleted?.(false);
     return task;
   }
 

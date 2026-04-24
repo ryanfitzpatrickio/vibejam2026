@@ -210,6 +210,11 @@ export class NetworkClient {
     }));
   }
 
+  sendSqueak() {
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify({ type: 'squeak' }));
+  }
+
   sendUnlockPickup(itemId) {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
     this.ws.send(JSON.stringify({ type: 'unlock-pickup', itemId }));

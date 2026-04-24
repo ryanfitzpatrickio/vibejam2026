@@ -9,13 +9,23 @@ const PUBLIC_ROOM_CAPACITY = 16;
 const DEFAULT_BOT_FILL_TARGET = 8;
 const ROOM_STATE_TTL_SECONDS = 60 * 60 * 24 * 7;
 const ROOM_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-const CONTENT_SECURITY_POLICY = [
+const JSON_CONTENT_TYPE_RE = /^application\/(?:[\w.-]+\+)?json\b/i;
+const MATCHMAKE_JSON_MAX_BYTES = 4096;
+const ROOM_EVENT_JSON_MAX_BYTES = 16 * 1024;
+const STATS_EVENT_JSON_MAX_BYTES = 128 * 1024;
+const STATS_EVENT_MAX_PLAYERS = 128;
+const MATCHMAKE_RATE_WINDOW_MS = 60_000;
+const MATCHMAKE_MAX_REQUESTS_PER_WINDOW = 60;
+const PRIVATE_MATCHMAKE_MAX_REQUESTS_PER_WINDOW = 12;
+const matchmakeBuckets = new Map();
+const jsonTextEncoder = new TextEncoder();
+
+const BASE_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' 'wasm-unsafe-eval' https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com",
   "media-src 'self' blob:",
-  "connect-src 'self' blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com https://*.partykit.dev https://*.partykit.io https://party.ryanfitzpatrick.io wss://*.partykit.dev wss://*.partykit.io wss://party.ryanfitzpatrick.io wss://localhost:* ws://localhost:* http://localhost:*",
   "worker-src 'self' blob:",
   "font-src 'self' data:",
   "frame-src https://vibejam.cc https://vibej.am https://challenges.cloudflare.com",
@@ -25,10 +35,9 @@ const CONTENT_SECURITY_POLICY = [
   "form-action 'none'",
   "manifest-src 'self'",
   'upgrade-insecure-requests',
-].join('; ');
+];
 
 const SECURITY_HEADERS = Object.freeze({
-  'Content-Security-Policy': CONTENT_SECURITY_POLICY,
   'X-Frame-Options': 'DENY',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -59,11 +68,40 @@ function isLocalHostname(hostname) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 }
 
-function withSecurityHeaders(response, request) {
+function getContentSecurityPolicy(request, env) {
+  const url = new URL(request.url);
+  const isLocalRequest = isLocalHostname(url.hostname);
+  const allowDevConnect = isLocalRequest || String(env?.ALLOW_DEV_CSP_CONNECT ?? '').toLowerCase() === 'true';
+  const connectSources = [
+    "'self'",
+    'blob:',
+    'https://vibejam.cc',
+    'https://vibej.am',
+    'https://static.cloudflareinsights.com',
+    'https://cloudflareinsights.com',
+    'https://*.partykit.dev',
+    'https://*.partykit.io',
+    'https://party.ryanfitzpatrick.io',
+    'wss://*.partykit.dev',
+    'wss://*.partykit.io',
+    'wss://party.ryanfitzpatrick.io',
+  ];
+  if (allowDevConnect) {
+    connectSources.push('wss://localhost:*', 'ws://localhost:*', 'http://localhost:*');
+  }
+  return [
+    ...BASE_CONTENT_SECURITY_POLICY.slice(0, 5),
+    `connect-src ${connectSources.join(' ')}`,
+    ...BASE_CONTENT_SECURITY_POLICY.slice(5),
+  ].join('; ');
+}
+
+function withSecurityHeaders(response, request, env) {
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     headers.set(key, value);
   }
+  headers.set('Content-Security-Policy', getContentSecurityPolicy(request, env));
 
   const url = new URL(request.url);
   if (url.protocol === 'https:' && !isLocalHostname(url.hostname)) {
@@ -192,6 +230,54 @@ function getBearerToken(request) {
 
 function authorize(request, expectedToken) {
   return Boolean(expectedToken) && getBearerToken(request) === expectedToken;
+}
+
+async function readLimitedJson(request, maxBytes) {
+  const type = request.headers.get('Content-Type') ?? '';
+  if (type && !JSON_CONTENT_TYPE_RE.test(type)) {
+    return { error: 'Unsupported media type', status: 415 };
+  }
+  const contentLength = Number(request.headers.get('Content-Length') ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    return { error: 'Payload too large', status: 413 };
+  }
+  const text = await request.text();
+  if (jsonTextEncoder.encode(text).length > maxBytes) {
+    return { error: 'Payload too large', status: 413 };
+  }
+  try {
+    return { value: text ? JSON.parse(text) : {} };
+  } catch {
+    return { error: 'Invalid JSON', status: 400 };
+  }
+}
+
+function getClientRateKey(request) {
+  const forwarded = request.headers.get('X-Forwarded-For') ?? '';
+  const ip = request.headers.get('CF-Connecting-IP') ?? forwarded.split(',')[0]?.trim() ?? '';
+  return ip || `unknown:${request.headers.get('User-Agent') ?? ''}`.slice(0, 96);
+}
+
+function consumeMatchmakeRequest(request, { isPrivate = false } = {}, now = Date.now()) {
+  const key = getClientRateKey(request);
+  let bucket = matchmakeBuckets.get(key);
+  if (!bucket || now - bucket.windowStart >= MATCHMAKE_RATE_WINDOW_MS) {
+    bucket = { windowStart: now, total: 0, privateTotal: 0 };
+    matchmakeBuckets.set(key, bucket);
+  }
+  bucket.total += 1;
+  if (isPrivate) bucket.privateTotal += 1;
+
+  if (matchmakeBuckets.size > 5000) {
+    for (const [entryKey, entry] of matchmakeBuckets) {
+      if (now - entry.windowStart >= MATCHMAKE_RATE_WINDOW_MS) {
+        matchmakeBuckets.delete(entryKey);
+      }
+    }
+  }
+
+  return bucket.total <= MATCHMAKE_MAX_REQUESTS_PER_WINDOW
+    && bucket.privateTotal <= PRIVATE_MATCHMAKE_MAX_REQUESTS_PER_WINDOW;
 }
 
 function safePositiveInteger(value) {
@@ -376,22 +462,15 @@ async function handleMatchmake(request, env) {
   if (!env.GAME_STATS) {
     return json({ error: 'GAME_STATS KV binding is not configured' }, 503);
   }
-
-  let payload = {};
-  if (request.method === 'POST') {
-    try {
-      payload = await request.json();
-    } catch {
-      return json({ error: 'Invalid JSON' }, 400);
-    }
-  } else {
-    const url = new URL(request.url);
-    payload = {
-      mode: url.searchParams.get('mode'),
-      roomId: url.searchParams.get('roomId'),
-      excludeRoomId: url.searchParams.get('excludeRoomId'),
-    };
+  if (request.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, 405);
   }
+
+  const parsed = await readLimitedJson(request, MATCHMAKE_JSON_MAX_BYTES);
+  if (parsed.error) {
+    return json({ error: parsed.error }, parsed.status);
+  }
+  const payload = parsed.value ?? {};
 
   const explicitRoomId = sanitizeRoomId(payload?.roomId);
   const excludeRoomId = sanitizeRoomId(payload?.excludeRoomId);
@@ -399,8 +478,12 @@ async function handleMatchmake(request, env) {
     ? 'private'
     : 'public';
 
+  if (!consumeMatchmakeRequest(request, { isPrivate: mode === 'private' })) {
+    return json({ error: 'Too many matchmaking requests' }, 429);
+  }
+
   if (mode === 'private') {
-    const roomId = explicitRoomId || makeRoomId(PRIVATE_ROOM_PREFIX);
+    const roomId = makeRoomId(PRIVATE_ROOM_PREFIX);
     const record = await upsertRoomRecord(env.GAME_STATS, roomId, {
       visibility: 'private',
       humans: 0,
@@ -435,12 +518,11 @@ async function handleRoomEvent(request, env) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return json({ error: 'Invalid JSON' }, 400);
+  const parsed = await readLimitedJson(request, ROOM_EVENT_JSON_MAX_BYTES);
+  if (parsed.error) {
+    return json({ error: parsed.error }, parsed.status);
   }
+  const payload = parsed.value;
 
   if (payload?.type !== 'room-state' || payload?.version !== 1) {
     return json({ error: 'Invalid room event' }, 400);
@@ -508,15 +590,17 @@ async function handleStatsEvent(request, env) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return json({ error: 'Invalid JSON' }, 400);
+  const parsed = await readLimitedJson(request, STATS_EVENT_JSON_MAX_BYTES);
+  if (parsed.error) {
+    return json({ error: parsed.error }, parsed.status);
   }
+  const payload = parsed.value;
 
   if (payload?.type !== 'stats-delta' || payload.version !== 1) {
     return json({ error: 'Invalid stats event' }, 400);
+  }
+  if (Array.isArray(payload.players) && payload.players.length > STATS_EVENT_MAX_PLAYERS) {
+    return json({ error: 'Too many player updates' }, 413);
   }
 
   const kv = env.GAME_STATS;
@@ -572,17 +656,13 @@ async function handleStatsSummary(request, env) {
     return json({ error: 'GAME_STATS KV binding is not configured' }, 503);
   }
 
-  const admin = env.STATS_ADMIN_TOKEN;
-  const collector = env.STATS_COLLECTOR_TOKEN;
-  const expectedToken = (typeof admin === 'string' && admin.trim() !== '')
-    ? admin
-    : (typeof collector === 'string' && collector.trim() !== '' ? collector : '');
+  const admin = typeof env.STATS_ADMIN_TOKEN === 'string' ? env.STATS_ADMIN_TOKEN.trim() : '';
 
-  if (!expectedToken) {
-    return json({ error: 'STATS_ADMIN_TOKEN or STATS_COLLECTOR_TOKEN must be configured' }, 503);
+  if (!admin) {
+    return json({ error: 'STATS_ADMIN_TOKEN must be configured' }, 503);
   }
 
-  if (!authorize(request, expectedToken)) {
+  if (!authorize(request, admin)) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
@@ -625,7 +705,7 @@ export default {
       response = await handleStatsEvent(request, env);
     } else if (url.pathname === '/api/rooms/event' && request.method === 'POST') {
       response = await handleRoomEvent(request, env);
-    } else if (url.pathname === '/api/matchmake' && (request.method === 'POST' || request.method === 'GET')) {
+    } else if (url.pathname === '/api/matchmake') {
       response = await handleMatchmake(request, env);
     } else if (url.pathname === '/api/stats' && request.method === 'GET') {
       response = await handleStatsSummary(request, env);
@@ -639,6 +719,6 @@ export default {
       response = new Response('Not found', { status: 404 });
     }
 
-    return withSecurityHeaders(response, request);
+    return withSecurityHeaders(response, request, env);
   },
 };

@@ -5,21 +5,22 @@ import { actionLabel } from '../input/inputSource.js';
 import { getAvatarPortrait, subscribeAvatarPortrait } from '../data/avatarPortraits.js';
 import {
   HUD_PANEL_STYLE,
+  HUD_COLORS,
   HUD_LABEL_FONT as LABEL_FONT,
   HUD_VALUE_FONT as VALUE_FONT,
   HUD_LABEL_SHADOW as LABEL_SHADOW,
 } from './hudStyle.js';
 
 /**
- * Cartoon HUD: metallic rounded panel with icon + fill bar rows for health/stamina,
- * and a combined lives/cheese/live-mice row below.
+ * Angular raid HUD: compact panel with icon + skewed fill bar rows for
+ * health/stamina, and a combined lives/cheese/live-mice row below.
  */
 
 // --- Layout constants (panel-local px). Tweak here; the panel auto-sizes. ---
 const PANEL_PADDING = 12;
-const PANEL_WIDTH = 460;
-const BAR_HEIGHT = 28;
-const ICON_SIZE = 36;
+const PANEL_WIDTH = 430;
+const BAR_HEIGHT = 22;
+const ICON_SIZE = 34;
 const ROW_GAP = 8;
 
 function Sprite(props) {
@@ -47,11 +48,12 @@ function StatBar(props) {
           position: 'relative',
           flex: '1',
           height: `${BAR_HEIGHT}px`,
-          'border-radius': `${BAR_HEIGHT / 2}px`,
-          background: 'linear-gradient(180deg, #5a6270 0%, #3f4753 100%)',
-          'box-shadow': 'inset 0 2px 3px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.14)',
-          border: '2px solid rgba(20, 26, 36, 0.85)',
+          'border-radius': '0',
+          background: 'rgba(40,30,55,0.82)',
+          'box-shadow': 'inset 0 2px 3px rgba(0,0,0,0.58), 0 1px 0 rgba(255,255,255,0.12)',
+          border: '1.5px solid rgba(255,255,255,0.16)',
           overflow: 'hidden',
+          transform: 'skewX(-8deg)',
         }}
       >
         <div
@@ -62,7 +64,7 @@ function StatBar(props) {
             left: '2px',
             width: `calc(${pct()} - 4px)`,
             'min-width': '0',
-            'border-radius': `${(BAR_HEIGHT - 4) / 2}px`,
+            'border-radius': '0',
             background: props.fillColor,
             'box-shadow': `inset 0 1.5px 0 ${props.fillHighlight}, inset 0 -1.5px 0 rgba(0,0,0,0.25)`,
             transition: 'width 0.12s ease-out',
@@ -80,6 +82,7 @@ function StatBar(props) {
             'letter-spacing': '0.04em',
             'text-shadow': LABEL_SHADOW,
             'pointer-events': 'none',
+            transform: 'skewX(8deg)',
           }}
         >
           {props.label}
@@ -87,10 +90,11 @@ function StatBar(props) {
       </div>
       <div
         style={{
-          'min-width': '72px',
+          'min-width': '56px',
           'text-align': 'right',
           color: '#fff',
           font: VALUE_FONT,
+          'font-size': '15px',
           'text-shadow': LABEL_SHADOW,
         }}
       >
@@ -175,10 +179,11 @@ function StatusDot(props) {
       style={{
         width: '10px',
         height: '10px',
-        'border-radius': '999px',
+        'border-radius': '0',
         background: props.color,
         'box-shadow': `0 0 0 2px rgba(12,18,26,0.45), 0 0 8px ${props.glow ?? props.color}`,
         'flex-shrink': '0',
+        transform: 'skewX(-8deg)',
       }}
     />
   );
@@ -340,6 +345,7 @@ function HumanRoleRow(props) {
 }
 
 function HeroPortrait(props) {
+  const size = () => Math.max(18, Math.floor(Number(props.size) || ICON_SIZE));
   const [version, setVersion] = createSignal(0);
   createEffect(() => {
     const key = props.heroKey;
@@ -356,8 +362,8 @@ function HeroPortrait(props) {
   return (
     <div
       style={{
-        width: `${ICON_SIZE}px`,
-        height: `${ICON_SIZE}px`,
+        width: `${size()}px`,
+        height: `${size()}px`,
         'border-radius': '999px',
         overflow: 'hidden',
         border: '2px solid rgba(210, 220, 236, 0.9)',
@@ -370,7 +376,7 @@ function HeroPortrait(props) {
     >
       <Show
         when={meta()}
-        fallback={<Sprite name={props.fallbackIconName} size={ICON_SIZE - 4} />}
+        fallback={<Sprite name={props.fallbackIconName} size={size() - 4} />}
       >
         {(resolved) => (
           <img
@@ -446,6 +452,64 @@ function HeroStatusRow(props) {
   );
 }
 
+function HeroAvailableBadge(props) {
+  const heroKey = () => props.state.heroAvatarAvailable ?? 'brain';
+  const heroName = () => HERO_NAMES[heroKey()] ?? 'Hero';
+  const heroIconName = () => HERO_ICON_NAMES[heroKey()] ?? 'HERO_BRAIN';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        'align-items': 'center',
+        'justify-content': 'flex-end',
+        gap: '7px',
+        padding: '5px 8px',
+        border: `1.5px solid ${HUD_COLORS.amber}`,
+        background: 'linear-gradient(135deg, rgba(255,224,128,0.22) 0%, rgba(200,176,232,0.16) 100%)',
+        'clip-path': 'polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)',
+        'box-shadow': 'inset 0 1px 0 rgba(255,255,255,0.18), 2px 2px 0 rgba(0,0,0,0.3)',
+        'min-width': '0',
+        'justify-self': 'end',
+      }}
+    >
+      <HeroPortrait heroKey={heroKey()} fallbackIconName={heroIconName()} size={26} />
+      <div
+        style={{
+          display: 'flex',
+          'flex-direction': 'column',
+          'align-items': 'flex-end',
+          'line-height': '1.02',
+          'min-width': '0',
+        }}
+      >
+        <div
+          style={{
+            color: HUD_COLORS.amber,
+            font: LABEL_FONT,
+            'font-size': '12px',
+            'letter-spacing': '0.08em',
+            'text-shadow': LABEL_SHADOW,
+            'white-space': 'nowrap',
+          }}
+        >
+          HERO READY
+        </div>
+        <div
+          style={{
+            color: '#fff',
+            font: VALUE_FONT,
+            'font-size': '11px',
+            'text-shadow': LABEL_SHADOW,
+            'white-space': 'nowrap',
+          }}
+        >
+          {actionLabel('heroActivate')} {heroName()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HudView(props) {
   const healthPct = () => props.state.health;
   const staminaPct = () => props.state.stamina;
@@ -467,6 +531,7 @@ export function HudView(props) {
   });
   const heroTimeActive = () => Math.max(0, Number(props.state.heroTimeRemaining) || 0) > 0;
   const heroStatusActive = () => heroTimeActive() && !!props.state.heroAvatar;
+  const heroAvailableActive = () => !!props.state.heroAvailable && !heroStatusActive() && props.state.alive !== false;
 
   return (
     <>
@@ -475,12 +540,12 @@ export function HudView(props) {
         style={{
           ...HUD_PANEL_STYLE,
           position: 'fixed',
-          bottom: '20px',
+          bottom: 'max(20px, env(safe-area-inset-bottom))',
           left: '20px',
           'pointer-events': 'none',
           'z-index': '100',
           'user-select': 'none',
-          width: `${PANEL_WIDTH}px`,
+          width: `min(${PANEL_WIDTH}px, calc(100vw - 40px))`,
           padding: `${PANEL_PADDING}px`,
           display: 'flex',
           'flex-direction': 'column',
@@ -492,16 +557,16 @@ export function HudView(props) {
           label="HEALTH"
           valueText={healthText}
           value={healthPct}
-          fillColor="linear-gradient(180deg, #ff6a6a 0%, #c9302c 100%)"
-          fillHighlight="rgba(255,190,190,0.6)"
+          fillColor={`linear-gradient(90deg, ${HUD_COLORS.coral} 0%, ${HUD_COLORS.coralHot} 100%)`}
+          fillHighlight="rgba(255,226,236,0.72)"
         />
         <StatBar
           iconName="STAMINA_BOLT"
           label="STAMINA"
           valueText={staminaText}
           value={staminaPct}
-          fillColor="linear-gradient(180deg, #7ee084 0%, #3a8a46 100%)"
-          fillHighlight="rgba(200,245,205,0.6)"
+          fillColor={`linear-gradient(90deg, ${HUD_COLORS.mint} 0%, ${HUD_COLORS.mintHot} 100%)`}
+          fillHighlight="rgba(222,255,242,0.72)"
         />
 
         <div
@@ -509,7 +574,9 @@ export function HudView(props) {
             display: 'flex',
             'justify-content': 'space-between',
             'align-items': 'center',
-            gap: '10px',
+            gap: '8px',
+            'border-top': '1px solid rgba(255,255,255,0.16)',
+            padding: '7px 2px 0',
           }}
         >
           <LivesCell
@@ -528,11 +595,11 @@ export function HudView(props) {
           />
         </div>
 
-        <Show when={humanRoleActive() || heroStatusActive()}>
+        <Show when={humanRoleActive() || heroStatusActive() || heroAvailableActive()}>
           <div
             style={{
               display: 'grid',
-              'grid-template-columns': humanRoleActive() && heroStatusActive() ? '1fr 1fr' : '1fr',
+              'grid-template-columns': humanRoleActive() && (heroStatusActive() || heroAvailableActive()) ? '1fr auto' : '1fr',
               gap: '10px',
               'align-items': 'center',
             }}
@@ -542,6 +609,9 @@ export function HudView(props) {
             </Show>
             <Show when={heroStatusActive()}>
               <HeroStatusRow state={props.state} />
+            </Show>
+            <Show when={heroAvailableActive()}>
+              <HeroAvailableBadge state={props.state} />
             </Show>
           </div>
         </Show>
@@ -566,18 +636,15 @@ export function HudView(props) {
           <For each={hintItems(props.state.hint)}>{(hint) => (
             <div
               style={{
+                ...HUD_PANEL_STYLE,
                 display: 'flex',
                 'align-items': 'center',
                 gap: '8px',
-                padding: '6px 12px',
-                background: 'rgba(16, 20, 28, 0.72)',
-                border: '1px solid rgba(255,255,255,0.18)',
-                'border-radius': '999px',
+                padding: '7px 14px',
                 color: '#fff',
                 font: LABEL_FONT,
                 'letter-spacing': '0.04em',
                 'text-shadow': LABEL_SHADOW,
-                'backdrop-filter': 'blur(4px)',
               }}
             >
               <Show when={hint?.action || hint?.key}>
@@ -586,9 +653,10 @@ export function HudView(props) {
                     display: 'inline-block',
                     'min-width': '22px',
                     padding: '2px 6px',
-                    'border-radius': '6px',
-                    background: 'rgba(255,255,255,0.14)',
-                    border: '1px solid rgba(255,255,255,0.28)',
+                    'border-radius': '0',
+                    background: 'rgba(255,224,128,0.2)',
+                    border: `1px solid ${HUD_COLORS.amber}`,
+                    color: HUD_COLORS.amber,
                     'text-align': 'center',
                     'font-size': '11px',
                   }}
@@ -610,10 +678,10 @@ export function HudView(props) {
             left: '0',
             width: '100%',
             height: '100%',
-            background: 'rgba(0,0,0,0.5)',
+            background: 'radial-gradient(circle at 50% 45%, rgba(34,26,49,0.42) 0%, rgba(0,0,0,0.78) 68%)',
             'z-index': '150',
             'pointer-events': 'none',
-            'font-family': 'monospace',
+            'font-family': '"Fredoka", "Baloo", system-ui, sans-serif',
             'user-select': 'none',
           }}
         >
@@ -625,9 +693,12 @@ export function HudView(props) {
               left: '50%',
               transform: 'translate(-50%, -50%)',
               width: 'max-content',
-              color: '#ff4444',
-              'font-size': '24px',
-              'text-shadow': '2px 2px 4px #000',
+              color: HUD_COLORS.coral,
+              font: LABEL_FONT,
+              'font-size': 'clamp(24px, 5vw, 48px)',
+              'letter-spacing': '0.08em',
+              'text-transform': 'uppercase',
+              'text-shadow': LABEL_SHADOW,
             }}
           >
             RESPAWNING IN {Math.ceil(props.state.respawnCountdown)}

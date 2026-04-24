@@ -2,6 +2,13 @@ import { RAID_TASK_TYPES } from '../../shared/raidLayout.js';
 import { UNLOCK_HERO_DEFS } from '../../shared/heroUnlocks.js';
 import { openChewWiresTask } from './ChewWiresTask.jsx';
 import { openHeroUnlockTask } from './HeroUnlockTask.jsx';
+import {
+  openToppleTowerTask,
+  openFridgeRaidTask,
+  openCutLightsTask,
+  openKnifeDrawerTask,
+  openSabotageRoombaTask,
+} from './KitchenMischiefTasks.jsx';
 import { SmokeSparksEffect } from './SmokeSparksEffect.js';
 
 /**
@@ -17,6 +24,46 @@ export const TASK_RUNTIMES = Object.freeze({
     promptVerb: 'chew wires',
     rewardAmount: 8,
     open: openChewWiresTask,
+    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+  },
+  [RAID_TASK_TYPES.TOPPLE_TOWER]: {
+    id: RAID_TASK_TYPES.TOPPLE_TOWER,
+    label: 'Topple Tower',
+    promptVerb: 'topple the tower',
+    rewardAmount: 16,
+    open: openToppleTowerTask,
+    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+  },
+  [RAID_TASK_TYPES.FRIDGE_RAID]: {
+    id: RAID_TASK_TYPES.FRIDGE_RAID,
+    label: 'Fridge Raid',
+    promptVerb: 'raid the fridge',
+    rewardAmount: 22,
+    open: openFridgeRaidTask,
+    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+  },
+  [RAID_TASK_TYPES.CUT_LIGHTS]: {
+    id: RAID_TASK_TYPES.CUT_LIGHTS,
+    label: 'Cut Lights',
+    promptVerb: 'cut the lights',
+    rewardAmount: 10,
+    open: openCutLightsTask,
+    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+  },
+  [RAID_TASK_TYPES.KNIFE_DRAWER]: {
+    id: RAID_TASK_TYPES.KNIFE_DRAWER,
+    label: 'Knife Drawer',
+    promptVerb: 'raid the knife drawer',
+    rewardAmount: 18,
+    open: openKnifeDrawerTask,
+    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+  },
+  [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: {
+    id: RAID_TASK_TYPES.SABOTAGE_ROOMBA,
+    label: 'Sabotage Roomba',
+    promptVerb: 'sabotage the roomba',
+    rewardAmount: 12,
+    open: openSabotageRoombaTask,
     onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
   },
   [RAID_TASK_TYPES.UNLOCK_GUS]: {

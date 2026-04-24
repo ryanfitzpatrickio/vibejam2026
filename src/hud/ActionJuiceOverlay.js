@@ -17,6 +17,12 @@ const STYLE_PRESETS = Object.freeze({
     background: 'linear-gradient(180deg, rgba(252,104,132,0.96) 0%, rgba(207,45,87,0.96) 100%)',
     shadow: 'rgba(255, 105, 135, 0.44)',
   },
+  grab: {
+    color: '#fff8ee',
+    border: 'rgba(255, 211, 150, 0.95)',
+    background: 'linear-gradient(180deg, rgba(255,153,76,0.96) 0%, rgba(187,93,35,0.96) 100%)',
+    shadow: 'rgba(255, 146, 74, 0.42)',
+  },
   mischief: {
     color: '#f6fffc',
     border: 'rgba(161, 255, 219, 0.95)',
@@ -88,6 +94,13 @@ export class ActionJuiceOverlay {
     }
   }
 
+  setMaxPopups(maxPopups) {
+    this.maxPopups = Math.max(1, Math.floor(maxPopups) || 1);
+    while (this.entries.length > this.maxPopups) {
+      disposeEntry(this.scene, this.entries.shift());
+    }
+  }
+
   spawn({
     text,
     position,
@@ -97,6 +110,7 @@ export class ActionJuiceOverlay {
     yOffset = 0,
   } = {}) {
     if (!this.scene || !position || !text) return;
+    if (!this.enabled) return;
     while (this.entries.length >= this.maxPopups) {
       disposeEntry(this.scene, this.entries.shift());
     }

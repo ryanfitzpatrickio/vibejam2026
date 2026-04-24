@@ -62,8 +62,13 @@ export function createRoundStats() {
   return {
     cheeseCollected: 0,
     maxCarried: 0,
+    mischiefScore: 0,
+    mischiefCombo: 0,
+    mischiefComboEndsAt: 0,
+    mischiefEvents: 0,
     smacksLanded: 0,
     grabsInitiated: 0,
+    throwsLanded: 0,
     maxChaseStreak: 0,
     tasksCompleted: [],
     /** Final computed score at round end (populated by server). */
@@ -76,8 +81,13 @@ export function createRoundStats() {
 export function resetRoundStats(stats) {
   stats.cheeseCollected = 0;
   stats.maxCarried = 0;
+  stats.mischiefScore = 0;
+  stats.mischiefCombo = 0;
+  stats.mischiefComboEndsAt = 0;
+  stats.mischiefEvents = 0;
   stats.smacksLanded = 0;
   stats.grabsInitiated = 0;
+  stats.throwsLanded = 0;
   stats.maxChaseStreak = 0;
   stats.tasksCompleted = [];
   stats.finalScore = 0;
@@ -106,7 +116,10 @@ export function computePlayerRoundScore(playerState) {
       completed.push(task.id);
     }
   }
-  const mischief = rs.smacksLanded * 30 + rs.grabsInitiated * 10;
+  const mischief = Math.max(
+    0,
+    Math.floor(Number(rs.mischiefScore) || ((rs.smacksLanded * 30) + (rs.grabsInitiated * 10))),
+  );
   const survival = Math.round(rs.maxChaseStreak);
   // finalScore = cheese * (1 + (tasks+mischief+survival) / 100), clamped so
   // zero-cheese extractions still award something small for effort.

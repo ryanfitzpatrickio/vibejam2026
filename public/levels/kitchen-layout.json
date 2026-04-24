@@ -6312,6 +6312,21 @@
         "cell": 62
       },
       "deleted": false
+    },
+    {
+      "id": "rope-moc5vydy-0q39i",
+      "name": "rope-j30",
+      "anchor": {
+        "x": -2,
+        "y": 11,
+        "z": 8
+      },
+      "length": 4.65,
+      "segmentCount": 12,
+      "segmentRadius": 0.035,
+      "color": "#060505",
+      "texture": null,
+      "deleted": false
     }
   ],
   "fans": [
@@ -6329,9 +6344,9 @@
         "z": 0
       },
       "bladeCount": 5,
-      "bladeLength": 2.4,
-      "hubRadius": 0.55,
-      "rodLength": 0.95,
+      "bladeLength": 3.15,
+      "hubRadius": 0.68,
+      "rodLength": 1.4,
       "spinSpeed": 5.05,
       "gripRingCount": 5,
       "cheeseAmount": 12,
@@ -6433,6 +6448,86 @@
       "rotation": {
         "x": 0,
         "y": 0.852,
+        "z": 0
+      },
+      "deleted": false
+    },
+    {
+      "id": "raid-task-topple-tower-01",
+      "name": "Topple Tower",
+      "taskType": "topple_tower",
+      "position": {
+        "x": 19,
+        "y": 6.5,
+        "z": 6
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0.35,
+        "z": 0
+      },
+      "deleted": false
+    },
+    {
+      "id": "raid-task-fridge-raid-01",
+      "name": "Fridge Raid",
+      "taskType": "fridge_raid",
+      "position": {
+        "x": 18,
+        "y": 0,
+        "z": 16
+      },
+      "rotation": {
+        "x": 0,
+        "y": -1.2,
+        "z": 0
+      },
+      "deleted": false
+    },
+    {
+      "id": "raid-task-cut-lights-01",
+      "name": "Cut Lights",
+      "taskType": "cut_lights",
+      "position": {
+        "x": -23,
+        "y": 0,
+        "z": 23
+      },
+      "rotation": {
+        "x": 0,
+        "y": 3.14,
+        "z": 0
+      },
+      "deleted": false
+    },
+    {
+      "id": "raid-task-knife-drawer-01",
+      "name": "Knife Drawer",
+      "taskType": "knife_drawer",
+      "position": {
+        "x": 15,
+        "y": 2.9,
+        "z": 19
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "deleted": false
+    },
+    {
+      "id": "raid-task-sabotage-roomba-01",
+      "name": "Sabotage Roomba",
+      "taskType": "sabotage_roomba",
+      "position": {
+        "x": 20,
+        "y": 0,
+        "z": -20
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
         "z": 0
       },
       "deleted": false

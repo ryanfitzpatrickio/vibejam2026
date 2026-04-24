@@ -1,10 +1,11 @@
 import { createPlayerState, simulateTick, respawnPlayer, PHYSICS } from '../shared/physics.js';
 import { constrainAdversaryHumanToNavMesh } from '../shared/adversaryHumanNav.js';
 import { createMouseBotBrain, buildMouseBotInput, resetMouseBotBrain } from '../shared/mouseBot.js';
-import { createPredatorState, simulatePredatorTick, serializePredatorState } from '../shared/predator.js';
+import { createPredatorState, simulatePredatorTick, serializePredatorState, PREDATOR_AI } from '../shared/predator.js';
 import {
   createRoombaState,
   getRoombaVacuumPullAcceleration,
+  ROOMBA_PHASE,
   simulateRoombaTick,
   serializeRoombaState,
 } from '../shared/roomba.js';
@@ -44,7 +45,8 @@ import { RAID_TASK_TYPES } from '../shared/raidLayout.js';
 
 /**
  * PartyKit env (dashboard / project .env for `partykit dev`):
- * - STATS_ADMIN_TOKEN or STATS_COLLECTOR_TOKEN — required; GET …/stats returns 503 if both missing
+ * - ENVIRONMENT — set "production" in deployed environments to fail closed on security-critical config
+ * - STATS_ADMIN_TOKEN — required; GET …/stats returns 503 if missing
  * - GET …/leaderboard returns public aggregate leaderboards
  * - ALLOWED_ORIGINS — comma-separated browser origins allowed to open WebSockets
  * - TURNSTILE_SECRET — Cloudflare Turnstile secret key; when set, every WS
@@ -75,6 +77,7 @@ const SMACK_KNOCKBACK = 8.0;
 const DEFAULT_ENEMY_SPAWNS = Object.freeze([{ x: -5, y: 0, z: -5 }]);
 const DEFAULT_ALLOWED_ORIGINS = Object.freeze(['https://mouse.ryanfitzpatrick.io']);
 const LOCAL_ORIGIN_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
+const LOCAL_HOSTNAME_RE = /^(?:localhost|127\.0\.0\.1|\[?::1\]?)$/;
 const CONNECT_RATE_WINDOW_MS = 60_000;
 const MAX_CONNECT_ATTEMPTS_PER_WINDOW = 30;
 const WS_MESSAGE_RATE_PER_SECOND = 90;
@@ -83,6 +86,33 @@ const MAX_DROPPED_MESSAGES_BEFORE_CLOSE = 180;
 const ADVERSARY_SAFE_RADIUS = 7.5;
 const ADVERSARY_SAFE_RADIUS_SQ = ADVERSARY_SAFE_RADIUS * ADVERSARY_SAFE_RADIUS;
 const ROOM_REGISTRY_PATH = '/api/rooms/event';
+const TASK_COMPLETION_RADIUS = 3;
+const TASK_COMPLETION_RADIUS_SQ = TASK_COMPLETION_RADIUS * TASK_COMPLETION_RADIUS;
+const MISCHIEF_COMBO_WINDOW_SECONDS = 3.4;
+const MISCHIEF_POINTS = Object.freeze({
+  smack: 30,
+  ballSmack: 6,
+  grab: 10,
+  throw: 15,
+  taskComplete: 40,
+  extract: 75,
+});
+const TASK_REWARD_AMOUNTS = Object.freeze({
+  [RAID_TASK_TYPES.CHEW_WIRES]: 8,
+  [RAID_TASK_TYPES.TOPPLE_TOWER]: 16,
+  [RAID_TASK_TYPES.FRIDGE_RAID]: 22,
+  [RAID_TASK_TYPES.CUT_LIGHTS]: 10,
+  [RAID_TASK_TYPES.KNIFE_DRAWER]: 18,
+  [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: 12,
+});
+const TASK_NOISE_RADIUS = Object.freeze({
+  [RAID_TASK_TYPES.CHEW_WIRES]: 10,
+  [RAID_TASK_TYPES.TOPPLE_TOWER]: 22,
+  [RAID_TASK_TYPES.FRIDGE_RAID]: 16,
+  [RAID_TASK_TYPES.CUT_LIGHTS]: 14,
+  [RAID_TASK_TYPES.KNIFE_DRAWER]: 18,
+  [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: 12,
+});
 
 const BOUNDS = LEVEL_WORLD_BOUNDS_XZ;
 function simulatePlayerTick(state, input, dt, bounds, colliders, vacuumPull) {
@@ -103,6 +133,35 @@ function isNearExtractionPortal(px, pz, portals) {
     if (dx * dx + dz * dz <= r * r) return true;
   }
   return false;
+}
+
+function yawDeltaAbs(a, b) {
+  let diff = (Number(a) || 0) - (Number(b) || 0);
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return Math.abs(diff);
+}
+
+function collectHotSurfaceZones(colliders) {
+  if (!Array.isArray(colliders)) return [];
+  return colliders
+    .filter((collider) => {
+      const name = String(collider?.metadata?.primitiveName ?? '').toLowerCase();
+      return collider?.type === 'surface' && (
+        name.includes('stove')
+        || name.includes('toaster')
+        || name.includes('burner')
+        || name.includes('hot')
+      );
+    })
+    .map((collider) => ({
+      minX: collider.aabb.min.x - 0.08,
+      maxX: collider.aabb.max.x + 0.08,
+      minY: collider.aabb.max.y - 0.25,
+      maxY: collider.aabb.max.y + 0.75,
+      minZ: collider.aabb.min.z - 0.08,
+      maxZ: collider.aabb.max.z + 0.08,
+    }));
 }
 
 /** Reject oversized WebSocket frames before JSON.parse (DoS). */
@@ -137,6 +196,12 @@ function normalizeRoomRegistryUrl(value) {
 /** Hero avatar rotation. Add a key here when a new hero model ships. */
 const HERO_AVATAR_KEYS = ['brain', 'jerry'];
 const HERO_MODE_DURATION_SECONDS = 50;
+const HERO_MODE_DURATION_BY_AVATAR = Object.freeze({
+  jerry: 60,
+  brain: 50,
+  speedy: 44,
+  gus: 55,
+});
 function pickHeroAvatar() {
   return HERO_AVATAR_KEYS[Math.floor(Math.random() * HERO_AVATAR_KEYS.length)];
 }
@@ -158,6 +223,19 @@ function normalizeOrigin(value) {
   }
 }
 
+function isProductionEnv(env) {
+  return String(env?.ENVIRONMENT ?? env?.NODE_ENV ?? '').toLowerCase() === 'production';
+}
+
+function isLocalRequestUrl(request) {
+  try {
+    const url = new URL(request.url);
+    return LOCAL_HOSTNAME_RE.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function getAllowedOrigins(env) {
   const origins = new Set(DEFAULT_ALLOWED_ORIGINS);
   for (const key of ['ALLOWED_ORIGINS', 'GAME_ORIGIN', 'PUBLIC_GAME_ORIGIN']) {
@@ -176,23 +254,30 @@ function getAllowedOrigins(env) {
  * (node `ws`, python, curl) typically omit it. We treat empty Origin as
  * untrusted in production — set ALLOW_EMPTY_ORIGIN=true only for debugging.
  */
-function isAllowedOrigin(origin, env) {
+function isAllowedOrigin(origin, env, request = null) {
   if (!origin) {
     const allowEmpty = String(env?.ALLOW_EMPTY_ORIGIN ?? '').toLowerCase();
-    return allowEmpty === 'true' || allowEmpty === '1';
+    return (allowEmpty === 'true' || allowEmpty === '1') && !isProductionEnv(env);
   }
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;
-  if (LOCAL_ORIGIN_RE.test(normalized)) return true;
+  if (LOCAL_ORIGIN_RE.test(normalized)) {
+    return !!request && isLocalRequestUrl(request) && !isProductionEnv(env);
+  }
   return getAllowedOrigins(env).has(normalized);
+}
+
+function shouldRequireTurnstile(request, env) {
+  const secret = String(env?.TURNSTILE_SECRET ?? '').trim();
+  if (secret) return true;
+  return isProductionEnv(env);
 }
 
 /**
  * Verify a Cloudflare Turnstile token against siteverify.
  *
- * Returns true when:
- * - `TURNSTILE_SECRET` is unset (feature disabled, e.g. dev), OR
- * - Cloudflare confirms the token is valid and single-use-not-yet-spent.
+ * Returns true only when Cloudflare confirms the token is valid and
+ * single-use-not-yet-spent. Callers decide whether Turnstile is required.
  *
  * Tokens are single-use and expire after ~300s. The client fetches a fresh
  * one for every (re)connect via the PartySocket `query` hook.
@@ -238,7 +323,7 @@ async function verifyTurnstileToken(token, env) {
 
 function corsHeadersForRequest(request, env) {
   const origin = request.headers.get('Origin') ?? '';
-  if (!origin || !isAllowedOrigin(origin, env)) return {};
+  if (!origin || !isAllowedOrigin(origin, env, request)) return {};
   return {
     'Access-Control-Allow-Origin': normalizeOrigin(origin),
     'Access-Control-Allow-Methods': 'GET,OPTIONS',
@@ -303,7 +388,7 @@ function getDevLayoutSyncToken(room) {
 
 export default class GameServer {
   static async onBeforeConnect(request, lobby) {
-    if (!isAllowedOrigin(request.headers.get('Origin') ?? '', lobby.env)) {
+    if (!isAllowedOrigin(request.headers.get('Origin') ?? '', lobby.env, request)) {
       return new Response('Forbidden origin', { status: 403 });
     }
 
@@ -314,15 +399,13 @@ export default class GameServer {
       });
     }
 
-    // Cloudflare Turnstile: proof-of-humanity on every WS upgrade. Disabled
-    // when TURNSTILE_SECRET is unset (dev default). Token comes from the
-    // client's PartySocket `query` hook as ?cfToken=...
+    // Cloudflare Turnstile: proof-of-humanity on every protected WS upgrade.
+    // Token comes from the client's PartySocket `query` hook as ?cfToken=...
     const secret = String(lobby?.env?.TURNSTILE_SECRET ?? '').trim();
-    // Skip Turnstile for local-dev origins so `partykit dev` + `vite dev`
-    // works without a site key. LOCAL_ORIGIN_RE covers localhost / 127.0.0.1 / ::1.
-    const origin = normalizeOrigin(request.headers.get('Origin') ?? '');
-    const isLocalOrigin = origin && LOCAL_ORIGIN_RE.test(origin);
-    if (secret && !isLocalOrigin) {
+    if (shouldRequireTurnstile(request, lobby.env)) {
+      if (!secret) {
+        return new Response('Turnstile is required but not configured', { status: 503 });
+      }
       const url = new URL(request.url);
       const token = url.searchParams.get('cfToken') ?? '';
       const ok = await verifyTurnstileToken(token, lobby.env);
@@ -338,6 +421,7 @@ export default class GameServer {
   inputQueues = new Map();
   tickInterval = null;
   levelColliders = buildRoomCollidersFromLayout(kitchenLayout, { scaleFactor: 1 });
+  hotSurfaceZones = collectHotSurfaceZones(this.levelColliders);
   levelNavMesh = kitchenNavMesh;
   /** Walk mesh for mice (mouse-only nav polys); cats use levelNavMesh. */
   levelMouseNavMesh = kitchenMouseNavMesh;
@@ -357,6 +441,10 @@ export default class GameServer {
   _messageBuckets = new Map();
   /** @type {Map<string, number>} last task-complete ms by connection id */
   _taskCompleteCooldown = new Map();
+  /** @type {Map<string, Set<string>>} per-player task reward claims for the current round */
+  _taskCompletionClaims = new Map();
+  /** @type {Map<string, number>} last squeak ms by connection id */
+  _squeakCooldown = new Map();
 
   /** Cumulative WebSocket + tick metrics for scripts/bench-network.mjs (reset via HTTP). */
   _benchBytesIn = 0;
@@ -513,6 +601,7 @@ export default class GameServer {
   _applyLayout(layout, { resetPredators = false } = {}) {
     this._layout = layout;
     this.levelColliders = buildRoomCollidersFromLayout(layout, { scaleFactor: 1 });
+    this.hotSurfaceZones = collectHotSurfaceZones(this.levelColliders);
     this.spawnPoints = collectSpawnPointsFromLayout(layout);
     this.portalPlacements = collectVibePortalPlacementsFromLayout(layout);
     this.extractionPortalDefs = collectExtractionPortalsFromLayout(layout, this.spawnPoints);
@@ -914,35 +1003,12 @@ export default class GameServer {
       }
 
       if (data.type === 'task-complete') {
-        const player = this.players.get(sender.id);
-        if (!player?.alive) return;
-        const now = Date.now();
-        const last = this._taskCompleteCooldown.get(sender.id) ?? 0;
-        if (now - last < 600) return;
-        const px = Number(data.position?.x);
-        const py = Number(data.position?.y);
-        const pz = Number(data.position?.z);
-        if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) return;
-        const dx = px - player.position.x;
-        const dz = pz - player.position.z;
-        if (dx * dx + dz * dz > 25) return; // must be within ~5m of the player
-        const amount = Math.max(1, Math.min(24, Math.floor(Number(data.amount) || 6)));
-        this._taskCompleteCooldown.set(sender.id, now);
-        // Scatter a few merged piles around the player so they feel like a reward.
-        const pieces = Math.min(amount, 6);
-        const per = Math.max(1, Math.floor(amount / pieces));
-        let remaining = amount;
-        for (let i = 0; i < pieces && remaining > 0; i += 1) {
-          const theta = (i / pieces) * Math.PI * 2 + Math.random() * 0.4;
-          const radius = 0.45 + Math.random() * 0.6;
-          const give = i === pieces - 1 ? remaining : per;
-          remaining -= give;
-          this.cheeseWorld.mergeOrAddDrop({
-            x: player.position.x + Math.cos(theta) * radius,
-            y: player.position.y,
-            z: player.position.z + Math.sin(theta) * radius,
-          }, give);
-        }
+        this._handleTaskComplete(sender.id, data);
+        return;
+      }
+
+      if (data.type === 'squeak') {
+        this._handleSqueak(sender.id);
         return;
       }
 
@@ -999,6 +1065,8 @@ export default class GameServer {
       this._playerExtraBallSpawnCount.delete(conn.id);
       this._messageBuckets.delete(conn.id);
       this._taskCompleteCooldown.delete(conn.id);
+      this._taskCompletionClaims.delete(conn.id);
+      this._squeakCooldown.delete(conn.id);
       this._claimHeroCooldown.delete(conn.id);
       this._unlockPickupCooldown.delete(conn.id);
       this.portalArrivals.delete(conn.id);
@@ -1115,9 +1183,169 @@ export default class GameServer {
     const tasks = this._layout?.raidTasks;
     if (!Array.isArray(tasks)) return null;
     for (const task of tasks) {
-      if (task?.id === taskId) return task;
+      if (task?.id === taskId && task.deleted !== true) return task;
     }
     return null;
+  }
+
+  _awardMischief(player, amount, nowSeconds = Date.now() / 1000) {
+    if (!player?.roundStats) return;
+    const points = Math.max(0, Math.floor(Number(amount) || 0));
+    if (points <= 0) return;
+    const rs = player.roundStats;
+    const previousComboEndsAt = Number(rs.mischiefComboEndsAt) || 0;
+    const previousCombo = Math.max(0, Math.floor(Number(rs.mischiefCombo) || 0));
+    rs.mischiefScore = Math.max(0, Math.floor(Number(rs.mischiefScore) || 0)) + points;
+    rs.mischiefEvents = Math.max(0, Math.floor(Number(rs.mischiefEvents) || 0)) + 1;
+    rs.mischiefCombo = nowSeconds <= previousComboEndsAt ? previousCombo + 1 : 1;
+    rs.mischiefComboEndsAt = nowSeconds + MISCHIEF_COMBO_WINDOW_SECONDS;
+  }
+
+  _emitNoise(player, radius = 10, threat = 180) {
+    if (!player?.position || player.spectator || player.extracted || player.isAdversary) return;
+    const hearingRadius = Math.max(0, Number(radius) || 0);
+    if (hearingRadius <= 0) return;
+    for (const predator of this.predators) {
+      if (!predator || predator.type !== 'cat' || predator.alive === false) continue;
+      const dx = predator.position.x - player.position.x;
+      const dz = predator.position.z - player.position.z;
+      const distSq = dx * dx + dz * dz;
+      if (distSq > hearingRadius * hearingRadius) continue;
+
+      if (typeof predator._baseAggroRange !== 'number') {
+        predator._baseAggroRange = predator.aggroRange;
+      }
+      predator._noiseAggroTimer = Math.max(Number(predator._noiseAggroTimer) || 0, 4.5);
+      predator.aggroRange = Math.max(predator.aggroRange, hearingRadius);
+      predator.chaseTargetId = player.id;
+      predator.aggroTargetId = player.id;
+      predator.aggroTargetThreat = Math.max(Number(predator.aggroTargetThreat) || 0, threat);
+      if (
+        predator.aiState !== PREDATOR_AI.CHASE
+        && predator.aiState !== PREDATOR_AI.ATTACK
+        && predator.aiState !== PREDATOR_AI.STUNNED
+        && predator.aiState !== PREDATOR_AI.DEATH
+      ) {
+        predator.aiState = PREDATOR_AI.ALERT;
+        predator.aiTimer = Math.max(predator.aiTimer ?? 0, predator.alertDuration ?? 0.5);
+      }
+    }
+  }
+
+  _tickNoiseAggro(dt) {
+    for (const predator of this.predators) {
+      if (!predator || typeof predator._noiseAggroTimer !== 'number') continue;
+      predator._noiseAggroTimer = Math.max(0, predator._noiseAggroTimer - dt);
+      if (predator._noiseAggroTimer <= 0) {
+        if (typeof predator._baseAggroRange === 'number') {
+          predator.aggroRange = predator._baseAggroRange;
+        }
+        delete predator._noiseAggroTimer;
+        delete predator._baseAggroRange;
+      }
+    }
+  }
+
+  _handleSqueak(senderId) {
+    const player = this.players.get(senderId);
+    if (!player?.position) return;
+    const now = Date.now();
+    const last = this._squeakCooldown.get(senderId) ?? 0;
+    if (now - last < 900) return;
+    this._squeakCooldown.set(senderId, now);
+
+    const isGhost = player.spectator || player.alive === false || player.extracted;
+    if (!isGhost) this._emitNoise(player, 8, 80);
+
+    this.broadcast(JSON.stringify({
+      type: isGhost ? 'ghost-squeak' : 'squeak',
+      playerId: senderId,
+      position: {
+        x: player.position.x,
+        y: player.position.y,
+        z: player.position.z,
+      },
+    }));
+  }
+
+  _getTaskCompletionClaims(playerId) {
+    let claims = this._taskCompletionClaims.get(playerId);
+    if (!claims) {
+      claims = new Set();
+      this._taskCompletionClaims.set(playerId, claims);
+    }
+    return claims;
+  }
+
+  _handleTaskComplete(senderId, data) {
+    const player = this.players.get(senderId);
+    if (!player?.alive || player.spectator || player.extracted || player.isAdversary) return;
+    const now = Date.now();
+    const last = this._taskCompleteCooldown.get(senderId) ?? 0;
+    if (now - last < 600) return;
+
+    const taskId = typeof data?.taskId === 'string' ? data.taskId : '';
+    const task = taskId ? this._findRaidTaskById(taskId) : null;
+    if (!task) return;
+    if (typeof data?.taskType === 'string' && data.taskType !== task.taskType) return;
+
+    const amount = TASK_REWARD_AMOUNTS[task.taskType] ?? 0;
+    if (amount <= 0) return;
+
+    const taskX = Number(task.position?.x);
+    const taskY = Number(task.position?.y);
+    const taskZ = Number(task.position?.z);
+    if (!Number.isFinite(taskX) || !Number.isFinite(taskY) || !Number.isFinite(taskZ)) return;
+
+    const dx = taskX - player.position.x;
+    const dz = taskZ - player.position.z;
+    if (dx * dx + dz * dz > TASK_COMPLETION_RADIUS_SQ) return;
+
+    const claims = this._getTaskCompletionClaims('__global__');
+    if (claims.has(taskId)) return;
+    claims.add(taskId);
+    this._taskCompleteCooldown.set(senderId, now);
+    this._awardMischief(player, MISCHIEF_POINTS.taskComplete, now / 1000);
+    this._emitNoise(player, TASK_NOISE_RADIUS[task.taskType] ?? 10, 220);
+    if (task.taskType === RAID_TASK_TYPES.CUT_LIGHTS) {
+      for (const predator of this.predators) {
+        if (predator?.type !== 'cat' || predator.alive === false) continue;
+        predator.aiState = PREDATOR_AI.STUNNED;
+        predator.aiTimer = Math.max(predator.aiTimer ?? 0, 1.15);
+      }
+    }
+    if (task.taskType === RAID_TASK_TYPES.SABOTAGE_ROOMBA) {
+      const roomba = this.predators.find((predator) => predator?.type === 'roomba');
+      if (roomba) {
+        roomba.phase = ROOMBA_PHASE.CHARGING;
+        roomba.phaseTimer = Math.max(Number(roomba.phaseTimer) || 0, 7.5);
+        roomba.vacuumTimer = 0;
+        roomba.velocity.x = 0;
+        roomba.velocity.z = 0;
+      }
+    }
+
+    // The client may show local effects, but reward amount and location are server-owned.
+    const pieces = Math.min(amount, 6);
+    const per = Math.max(1, Math.floor(amount / pieces));
+    let remaining = amount;
+    for (let i = 0; i < pieces && remaining > 0; i += 1) {
+      const theta = (i / pieces) * Math.PI * 2 + Math.random() * 0.4;
+      const radius = 0.45 + Math.random() * 0.6;
+      const give = i === pieces - 1 ? remaining : per;
+      remaining -= give;
+      this.cheeseWorld.mergeOrAddDrop({
+        x: taskX + Math.cos(theta) * radius,
+        y: player.position.y,
+        z: taskZ + Math.sin(theta) * radius,
+      }, give);
+    }
+    this.broadcast(JSON.stringify({
+      type: 'task-completed',
+      taskId,
+      taskType: task.taskType,
+      playerId: senderId,
+    }));
   }
 
   _handleUnlockPickup(senderId, data) {
@@ -1194,11 +1422,11 @@ export default class GameServer {
   _startHeroMode(state, heroAvatar = pickHeroAvatar()) {
     state.isHero = true;
     state.heroAvailable = false;
-    state.health = PHYSICS.maxHealth;
+    state.health = heroAvatar === 'gus' ? PHYSICS.maxHealth + 1 : PHYSICS.maxHealth;
     state.stamina = PHYSICS.maxStamina;
     state.heroAvatar = heroAvatar;
     state.heroAvatarAvailable = null;
-    state.heroTimeRemaining = HERO_MODE_DURATION_SECONDS;
+    state.heroTimeRemaining = HERO_MODE_DURATION_BY_AVATAR[heroAvatar] ?? HERO_MODE_DURATION_SECONDS;
   }
 
   _tickHeroTimers(dt) {
@@ -1228,6 +1456,12 @@ export default class GameServer {
         displayName: state.displayName,
         isBot: !!state.isBot,
         ...br,
+        smacksLanded: Math.max(0, Math.floor(Number(state.roundStats.smacksLanded) || 0)),
+        grabsInitiated: Math.max(0, Math.floor(Number(state.roundStats.grabsInitiated) || 0)),
+        throwsLanded: Math.max(0, Math.floor(Number(state.roundStats.throwsLanded) || 0)),
+        mischiefEvents: Math.max(0, Math.floor(Number(state.roundStats.mischiefEvents) || 0)),
+        maxCombo: Math.max(0, Math.floor(Number(state.roundStats.mischiefCombo) || 0)),
+        tasksCompletedCount: Array.isArray(br.completedTaskIds) ? br.completedTaskIds.length : 0,
         adversarySafeSeconds: Math.round(Math.max(0, Number(state.adversarySafeSeconds) || 0) * 10) / 10,
       });
       if (state.isAdversary || (state.adversarySafeSeconds ?? 0) > 0) {
@@ -1274,6 +1508,8 @@ export default class GameServer {
     this.unlockItems = this._scatterUnlockItems();
     this._claimHeroCooldown.clear();
     this._unlockPickupCooldown.clear();
+    this._taskCompleteCooldown.clear();
+    this._taskCompletionClaims.clear();
     this.broadcast(JSON.stringify({
       type: 'unlock-reset',
       heroClaims: { ...this.heroClaims },
@@ -1393,6 +1629,7 @@ export default class GameServer {
     this._advanceRoundPhase(wallNow);
     this._maybeElectHero(wallNow);
     this._tickHeroTimers(dt);
+    this._tickNoiseAggro(dt);
 
     const seqs = {};
     const now = Date.now() / 1000;
@@ -1623,10 +1860,17 @@ export default class GameServer {
           let latestInput = null;
           for (const input of queue) {
             latestInput = input;
+            const rotBefore = state.rotation ?? 0;
             const vacuumPull = roombaForVacuum?.phase === 'vacuuming'
               ? getRoombaVacuumPullAcceleration(roombaForVacuum, state)
               : null;
             simulatePlayerTick(state, input, dt, BOUNDS, this.levelColliders, vacuumPull);
+            if ((state.grabbedTarget || state.grabbedBallId) && !state.ropeSwing) {
+              const spinGain = Math.max(0, yawDeltaAbs(state.rotation, rotBefore) - 0.035);
+              state._throwSpinCharge = Math.min(1.5, Math.max(0, Number(state._throwSpinCharge) || 0) + spinGain * 2.6);
+            } else {
+              state._throwSpinCharge = Math.max(0, (Number(state._throwSpinCharge) || 0) - dt * 2.2);
+            }
             state.emote = input.emote ?? null;
             seqs[id] = input.seq;
             lastGrab = !!input.grab;
@@ -1757,6 +2001,8 @@ export default class GameServer {
       );
       if (ballsHit > 0) {
         attacker.smackCooldown = SMACK_COOLDOWN;
+        this._awardMischief(attacker, MISCHIEF_POINTS.ballSmack * Math.min(3, ballsHit));
+        this._emitNoise(attacker, 11, 120);
       }
       // Find nearest alive player in range
       let bestId = null;
@@ -1777,8 +2023,11 @@ export default class GameServer {
         if (attacker.roundStats) {
           attacker.roundStats.smacksLanded = (attacker.roundStats.smacksLanded ?? 0) + 1;
         }
+        this._awardMischief(attacker, MISCHIEF_POINTS.smack);
+        this._emitNoise(attacker, 13, 150);
         attacker.smackCooldown = SMACK_COOLDOWN;
-        target.smackStunTimer = SMACK_STUN_DURATION;
+        const gusResist = target.isHero && target.heroAvatar === 'gus';
+        target.smackStunTimer = gusResist ? SMACK_STUN_DURATION * 0.45 : SMACK_STUN_DURATION;
         target.alive = false;
         target.animState = 'death';
         target.deathTime = 0; // prevent respawn timer — smackStunTimer handles recovery
@@ -1787,9 +2036,10 @@ export default class GameServer {
         const dx = target.position.x - attacker.position.x;
         const dz = target.position.z - attacker.position.z;
         const len = Math.sqrt(dx * dx + dz * dz) || 1;
-        target.velocity.x += (dx / len) * SMACK_KNOCKBACK;
-        target.velocity.y += 3; // pop them up
-        target.velocity.z += (dz / len) * SMACK_KNOCKBACK;
+        const knockback = gusResist ? SMACK_KNOCKBACK * 0.45 : SMACK_KNOCKBACK;
+        target.velocity.x += (dx / len) * knockback;
+        target.velocity.y += gusResist ? 1.4 : 3; // pop them up
+        target.velocity.z += (dz / len) * knockback;
         // Break any grab involving this target
         if (target.grabbedBy) {
           const grabber = this.players.get(target.grabbedBy);
@@ -1861,6 +2111,8 @@ export default class GameServer {
         if (grabber.roundStats) {
           grabber.roundStats.grabsInitiated = (grabber.roundStats.grabsInitiated ?? 0) + 1;
         }
+        this._awardMischief(grabber, MISCHIEF_POINTS.grab);
+        this._emitNoise(grabber, 7, 90);
         continue;
       }
       // No mouse in range — try the nearest ball.
@@ -1977,6 +2229,8 @@ export default class GameServer {
       const rot = thrower.rotation ?? 0;
       const fx = Math.sin(rot);
       const fz = Math.cos(rot);
+      const spinBoost = 1 + Math.min(0.9, Math.max(0, Number(thrower._throwSpinCharge) || 0) * 0.45);
+      thrower._throwSpinCharge = 0;
       if (thrower.grabbedTarget) {
         const target = this.players.get(thrower.grabbedTarget);
         if (target) {
@@ -1987,10 +2241,12 @@ export default class GameServer {
           target.position.y = thrower.position.y + 0.9;
           target.grabbedBy = null;
           target.grabCooldown = GRAB_COOLDOWN;
-          this.mouseLaunchWorld.startFlight(target.id ?? thrower.grabbedTarget, target, fx, fz);
+          this.mouseLaunchWorld.startFlight(target.id ?? thrower.grabbedTarget, target, fx, fz, spinBoost);
           if (thrower.roundStats) {
             thrower.roundStats.throwsLanded = (thrower.roundStats.throwsLanded ?? 0) + 1;
           }
+          this._awardMischief(thrower, MISCHIEF_POINTS.throw);
+          this._emitNoise(thrower, 12, 130);
         }
         thrower.grabbedTarget = null;
         thrower.grabCooldown = GRAB_COOLDOWN;
@@ -1998,10 +2254,10 @@ export default class GameServer {
       if (thrower.grabbedBallId) {
         this.pushBallWorld.applyBallImpulse(
           thrower.grabbedBallId,
-          fx * THROW_BALL_SPEED,
-          THROW_BALL_UP,
-          fz * THROW_BALL_SPEED,
-          THROW_BALL_SPIN,
+          fx * THROW_BALL_SPEED * spinBoost,
+          THROW_BALL_UP * Math.sqrt(spinBoost),
+          fz * THROW_BALL_SPEED * spinBoost,
+          THROW_BALL_SPIN * spinBoost,
         );
         thrower.grabbedBallId = null;
         thrower.grabCooldown = GRAB_COOLDOWN;
@@ -2089,6 +2345,36 @@ export default class GameServer {
           state.roundStats.maxChaseStreak ?? 0,
           playerChaseRecordSeconds(state),
         );
+        if ((Number(state.roundStats.mischiefComboEndsAt) || 0) <= now) {
+          state.roundStats.mischiefCombo = 0;
+        }
+      }
+    }
+
+    for (const [pid, state] of this.players) {
+      if (!state?.alive || state.spectator || state.extracted || state.isAdversary) continue;
+      state._hotSurfaceCooldown = Math.max(0, (Number(state._hotSurfaceCooldown) || 0) - dt);
+      if (state._hotSurfaceCooldown > 0) continue;
+      const px = state.position.x;
+      const py = state.position.y;
+      const pz = state.position.z;
+      const onHotSurface = this.hotSurfaceZones.some((zone) => (
+        px >= zone.minX && px <= zone.maxX
+        && py >= zone.minY && py <= zone.maxY
+        && pz >= zone.minZ && pz <= zone.maxZ
+      ));
+      if (!onHotSurface) continue;
+      state._hotSurfaceCooldown = 1.1;
+      state.health = Math.max(0, (state.health ?? PHYSICS.maxHealth) - 1);
+      state.velocity.y = Math.max(state.velocity.y ?? 0, 4.5);
+      if (state.health <= 0) {
+        state.deaths = (state.deaths ?? 0) + 1;
+        state.livesRemaining = Math.max(0, (state.livesRemaining ?? LIVES_PER_ROUND) - 1);
+        state.spectator = state.livesRemaining <= 0;
+        state.alive = false;
+        state.animState = 'death';
+        this.cheeseWorld.onDeathDropCarried(state);
+        this.stats?.recordDeath(pid);
       }
     }
 
@@ -2109,6 +2395,7 @@ export default class GameServer {
             state.emote = null;
             state.velocity.x = 0;
             state.velocity.z = 0;
+            this._awardMischief(state, MISCHIEF_POINTS.extract, now);
           }
         } else {
           state.extractProgress = Math.max(0, (state.extractProgress ?? 0) - dt * 1.15);
@@ -2219,14 +2506,11 @@ export default class GameServer {
       }
 
       const adminTok = getPartyEnv(this.room, 'STATS_ADMIN_TOKEN');
-      const collectorTok = getPartyEnv(this.room, 'STATS_COLLECTOR_TOKEN');
-      const expectedToken = (typeof adminTok === 'string' && adminTok.trim() !== '')
-        ? adminTok
-        : (typeof collectorTok === 'string' && collectorTok.trim() !== '' ? collectorTok : '');
+      const expectedToken = typeof adminTok === 'string' ? adminTok.trim() : '';
 
       if (!expectedToken) {
         return jsonResponse(request, env, {
-          error: 'Set STATS_ADMIN_TOKEN or STATS_COLLECTOR_TOKEN for /stats',
+          error: 'Set STATS_ADMIN_TOKEN for /stats',
         }, 503);
       }
 

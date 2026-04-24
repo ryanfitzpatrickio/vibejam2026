@@ -19,7 +19,7 @@ const CENTER_Y_OFFSET = PHYSICS.playerHeight * 0.42;
 /**
  * @returns {{
  *   setLevelColliders: (colliders: object[] | null) => void,
- *   startFlight: (playerId: string, state: object, outNx: number, outNz: number) => void,
+ *   startFlight: (playerId: string, state: object, outNx: number, outNz: number, speedScale?: number) => void,
  *   step: (dt: number, getPlayerState: (id: string) => object | undefined) => void,
  *   isFlying: (playerId: string) => boolean,
  *   removePlayer: (playerId: string) => void,
@@ -82,7 +82,7 @@ export function createMouseLaunchWorld() {
    * @param {number} outNx
    * @param {number} outNz
    */
-  function startFlight(playerId, state, outNx, outNz) {
+  function startFlight(playerId, state, outNx, outNz, speedScale = 1) {
     stripBody(playerId);
     const hLen = Math.hypot(outNx, outNz);
     const nx = hLen > 0.001 ? outNx / hLen : 0;
@@ -102,8 +102,9 @@ export function createMouseLaunchWorld() {
     const cz = state.position.z;
     body.position.set(cx, cy, cz);
 
-    const hs = LAUNCH_HORIZ_SPEED * (0.9 + Math.random() * 0.22);
-    const up = LAUNCH_UP_SPEED * (0.85 + Math.random() * 0.35);
+    const scale = Math.max(0.75, Math.min(1.9, Number(speedScale) || 1));
+    const hs = LAUNCH_HORIZ_SPEED * scale * (0.9 + Math.random() * 0.22);
+    const up = LAUNCH_UP_SPEED * Math.sqrt(scale) * (0.85 + Math.random() * 0.35);
     body.velocity.set(nx * hs, up, nz * hs);
 
     world.addBody(body);

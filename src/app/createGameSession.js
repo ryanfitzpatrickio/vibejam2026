@@ -20,6 +20,8 @@ import { ScoreboardOverlay } from '../hud/ScoreboardOverlay.jsx';
 import { ChaseAlertOverlay } from '../hud/ChaseAlertOverlay.jsx';
 import { AdversaryStatusOverlay } from '../hud/AdversaryStatusOverlay.jsx';
 import { ActionJuiceOverlay } from '../hud/ActionJuiceOverlay.js';
+import { MischiefMeter } from '../hud/MischiefMeter.jsx';
+import { OnboardingOverlay } from '../hud/OnboardingOverlay.jsx';
 import { WindStreakField } from '../world/WindStreakField.js';
 import { attachEdgeOutlines } from '../materials/index.js';
 import { createOutlinePipeline } from '../postprocessing/OutlinePipeline.js';
@@ -43,7 +45,7 @@ import {
   getClientPreferredDisplayName,
   setClientPreferredDisplayName,
 } from '../utils/playerDisplayName.js';
-import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { simulateTick, createPlayerState } from '../../shared/physics.js';
 import { getRoombaVacuumPullAcceleration } from '../../shared/roomba.js';
 import { readVibePortalArrivalFromSearch } from '../../shared/vibePortal.js';
@@ -269,6 +271,7 @@ function createOfflineNetClient(roomId = 'offline') {
     sendInput() { return 0; },
     sendSpawnExtraBall() {},
     sendTaskComplete() {},
+    sendSqueak() {},
     sendUnlockPickup() {},
     sendClaimHero() {},
     sendDisplayName() {},
@@ -324,12 +327,6 @@ export async function createGameSession({
   // update once the GLB lands.
   mouse.ready.then(() => {
     mouse.position.y = mouse.groundOffset;
-  }).catch(() => {});
-  // Static merge depends on the editable layout being materialized, which
-  // only happens once `room.ready` resolves (atlas + layout JSON + prefabs).
-  // Defer the bake until then so we don't miss any prefab geometry.
-  room.ready.then(() => {
-    room.setStaticMergeEnabled?.(true);
   }).catch(() => {});
   const devLayoutSyncToken = import.meta.env.DEV ? (import.meta.env.VITE_DEV_LAYOUT_SYNC_TOKEN ?? '') : '';
   let devLayoutReady = false;
@@ -405,6 +402,22 @@ export async function createGameSession({
     wind: true,
     ropes: true,
     raidMarkers: true,
+  };
+  const qualityState = {
+    tier: 0,
+    dprCap: 1.5,
+    baseDprCap: 1.5,
+    lowFpsSeconds: 0,
+    highFpsSeconds: 0,
+    lastResizeWidth: 1,
+    lastResizeHeight: 1,
+    lastDevicePixelRatio: 1,
+    lastScoreboardAt: 0,
+    lastCatLocatorAt: 0,
+    lastTaskUpdateAt: 0,
+    actionJuiceAccum: 0,
+    labelsWereEnabled: true,
+    outlinesWereEnabled: true,
   };
 
   const thirdPersonCamera = new ThirdPersonCamera({
@@ -516,6 +529,8 @@ export async function createGameSession({
 
   const hud = new HUD();
   const roundRaid = new RoundRaidOverlay();
+  const mischiefMeter = new MischiefMeter();
+  const onboarding = new OnboardingOverlay();
   const catLocator = new CatLocatorOverlay();
   const actionJuice = new ActionJuiceOverlay({ scene });
 
@@ -527,17 +542,36 @@ export async function createGameSession({
   let _smackFiredThisFrame = false;
   let _wasHero = false;
   let _prevRoundPhase = null;
+  let _prevExtractProgress = 0;
+  let _wasExtracted = false;
 
   const extractionMarkerGroup = new THREE.Group();
   extractionMarkerGroup.name = 'ExtractionPortals';
   scene.add(extractionMarkerGroup);
   const _portalRingGeo = new THREE.RingGeometry(0.55, 0.88, 28);
+  const _portalOuterRingGeo = new THREE.RingGeometry(0.95, 1.08, 36);
+  const _portalBeamGeo = new THREE.CylinderGeometry(0.18, 0.74, 3.4, 28, 1, true);
   const _portalRingMat = new THREE.MeshBasicMaterial({
     color: '#facc15',
     side: THREE.DoubleSide,
     transparent: true,
     opacity: 0.88,
     depthWrite: false,
+  });
+  const _portalOuterRingMat = new THREE.MeshBasicMaterial({
+    color: '#ff7a3d',
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+  });
+  const _portalBeamMat = new THREE.MeshBasicMaterial({
+    color: '#fff176',
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
   });
 
   const audioManager = getAudioManager();
@@ -727,6 +761,24 @@ export async function createGameSession({
     : new NetworkClient(roomId, {
       portalArrival: portalArrival.active ? portalArrival : null,
     });
+  function requestSqueak() {
+    net.sendSqueak?.();
+  }
+  controller.onSqueak = requestSqueak;
+  const onGhostSqueakPointer = (event) => {
+    if (event.button !== 2) return;
+    const ss = net.serverState;
+    if (!(ss?.spectator || ss?.alive === false || ss?.extracted)) return;
+    event.preventDefault();
+    requestSqueak();
+  };
+  const onGhostSqueakContextMenu = (event) => {
+    const ss = net.serverState;
+    if (!(ss?.spectator || ss?.alive === false || ss?.extracted)) return;
+    event.preventDefault();
+  };
+  canvas.addEventListener('pointerdown', onGhostSqueakPointer);
+  canvas.addEventListener('contextmenu', onGhostSqueakContextMenu);
   taskController.net = net;
   const unlockCollectibles = new UnlockCollectibles({
     scene,
@@ -822,6 +874,20 @@ export async function createGameSession({
         clearGroupChildren(entry.group);
         buildDefaultMarkerVisuals(entry.group, entry.definition.id);
       });
+    }
+    if (data?.type === 'task-completed' && typeof data.taskId === 'string') {
+      taskController.markTaskCompleted(data.taskId);
+      const entry = room?.editableRaidTaskObjects?.get(data.taskId);
+      if (entry?.definition && entry.group) {
+        const label = data.taskType === 'topple_tower'
+          ? 'CRASH!'
+          : data.taskType === 'sabotage_roomba'
+            ? 'Roomba jammed!'
+            : data.taskType === 'knife_drawer'
+              ? 'Drawer raided!'
+              : 'Mischief!';
+        spawnActionJuice({ position: entry.group.position, isAdversary: false }, label, 'mischief');
+      }
     }
   });
   const remotePlayerManager = new RemotePlayerManager({ scene });
@@ -920,7 +986,12 @@ export async function createGameSession({
   function resize(width, height, pixelRatio = window.devicePixelRatio || 1) {
     const safeWidth = Math.max(1, Math.floor(width));
     const safeHeight = Math.max(1, Math.floor(height));
-    const clampedPixelRatio = Math.min(2, pixelRatio);
+    qualityState.lastResizeWidth = safeWidth;
+    qualityState.lastResizeHeight = safeHeight;
+    qualityState.lastDevicePixelRatio = Math.max(1, Number(pixelRatio) || 1);
+    // Retina DPR=2 renders 4x the pixels. 1.5 keeps the image crisp enough
+    // while cutting GPU fill cost and laptop heat substantially.
+    const clampedPixelRatio = Math.min(qualityState.dprCap, qualityState.lastDevicePixelRatio);
     renderer.setPixelRatio(clampedPixelRatio);
     renderer.setSize(safeWidth, safeHeight, false);
     labelRenderer.setSize(safeWidth, safeHeight);
@@ -939,6 +1010,70 @@ export async function createGameSession({
   localNameplateAnchor.name = 'LocalNameplateAnchor';
   scene.add(localNameplateAnchor);
   const localNameplate = createPlayerNameplate(localNameplateAnchor, predictionState.displayName);
+  const extractRingRoot = document.createElement('div');
+  Object.assign(extractRingRoot.style, {
+    width: '74px',
+    height: '74px',
+    borderRadius: '999px',
+    display: 'none',
+    position: 'relative',
+    pointerEvents: 'none',
+    filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))',
+  });
+  const extractRingSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  extractRingSvg.setAttribute('viewBox', '0 0 74 74');
+  Object.assign(extractRingSvg.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '74px',
+    height: '74px',
+    overflow: 'visible',
+  });
+  const extractRingTrack = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  extractRingTrack.setAttribute('cx', '37');
+  extractRingTrack.setAttribute('cy', '37');
+  extractRingTrack.setAttribute('r', '30');
+  extractRingTrack.setAttribute('fill', 'rgba(18,13,8,0.54)');
+  extractRingTrack.setAttribute('stroke', 'rgba(255,255,255,0.2)');
+  extractRingTrack.setAttribute('stroke-width', '8');
+  const extractRingFill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  extractRingFill.setAttribute('cx', '37');
+  extractRingFill.setAttribute('cy', '37');
+  extractRingFill.setAttribute('r', '30');
+  extractRingFill.setAttribute('fill', 'none');
+  extractRingFill.setAttribute('stroke', '#fff176');
+  extractRingFill.setAttribute('stroke-width', '8');
+  extractRingFill.setAttribute('stroke-linecap', 'round');
+  extractRingFill.setAttribute('pathLength', '100');
+  extractRingFill.setAttribute('stroke-dasharray', '0 100');
+  extractRingFill.style.transform = 'rotate(-90deg)';
+  extractRingFill.style.transformOrigin = '37px 37px';
+  extractRingSvg.append(extractRingTrack, extractRingFill);
+  const extractRingInner = document.createElement('div');
+  Object.assign(extractRingInner.style, {
+    width: '48px',
+    height: '48px',
+    borderRadius: '999px',
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    background: 'rgba(33,22,12,0.7)',
+    border: '2px solid rgba(255,255,255,0.78)',
+    color: '#fff7c2',
+    font: '900 18px "Fredoka", "Baloo", system-ui, sans-serif',
+    textShadow: '0 2px 0 #25100b',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  });
+  extractRingInner.textContent = 'E';
+  extractRingRoot.appendChild(extractRingSvg);
+  extractRingRoot.appendChild(extractRingInner);
+  const extractRingLabel = new CSS2DObject(extractRingRoot);
+  extractRingLabel.position.set(0, -0.56, 0);
+  extractRingLabel.visible = false;
+  localNameplateAnchor.add(extractRingLabel);
   function setLabelsEnabled(enabled) {
     perfFlags.labels = !!enabled;
     labelRenderer.domElement.style.display = perfFlags.labels ? '' : 'none';
@@ -951,6 +1086,7 @@ export async function createGameSession({
     perfFlags.gameplayUi = !!enabled;
     hud.setVisible(perfFlags.gameplayUi);
     roundRaid.setVisible(perfFlags.gameplayUi);
+    mischiefMeter.setVisible(perfFlags.gameplayUi);
     catLocator.setVisible(perfFlags.gameplayUi);
     scoreboard.setVisible(perfFlags.gameplayUi);
     toolbar.setVisible(perfFlags.gameplayUi);
@@ -1001,6 +1137,61 @@ export async function createGameSession({
     room.setRaidTaskHelpersVisible(perfFlags.raidMarkers);
     extractionMarkerGroup.visible = perfFlags.raidMarkers && extractionMarkerGroup.children.length > 0;
   }
+
+  function applyAdaptiveQualityTier(tier) {
+    const nextTier = Math.max(0, Math.min(3, Math.floor(Number(tier) || 0)));
+    if (nextTier === qualityState.tier) return;
+    const prevTier = qualityState.tier;
+    qualityState.tier = nextTier;
+
+    qualityState.dprCap = [qualityState.baseDprCap, 1.35, 1.15, 1.0][nextTier] ?? 1.0;
+    actionJuice.setMaxPopups?.([18, 12, 8, 4][nextTier] ?? 4);
+
+    if (nextTier >= 2 && prevTier < 2) {
+      qualityState.labelsWereEnabled = perfFlags.labels;
+      setLabelsEnabled(false);
+    } else if (nextTier < 2 && prevTier >= 2 && qualityState.labelsWereEnabled && !perfFlags.labels) {
+      setLabelsEnabled(true);
+    }
+
+    if (nextTier >= 1 && prevTier < 1) {
+      qualityState.outlinesWereEnabled = outlinePipeline.isEnabled();
+      outlinePipeline.setEnabled(false);
+    } else if (nextTier < 1 && prevTier >= 1 && qualityState.outlinesWereEnabled && !outlinePipeline.isEnabled()) {
+      outlinePipeline.setEnabled(true);
+    }
+
+    resize(
+      qualityState.lastResizeWidth,
+      qualityState.lastResizeHeight,
+      qualityState.lastDevicePixelRatio,
+    );
+  }
+
+  function updateAdaptiveQuality(deltaSeconds) {
+    const dt = Math.max(0, Math.min(0.25, Number(deltaSeconds) || 0));
+    if (dt <= 0) return;
+    const fps = 1 / dt;
+    if (fps < 42) {
+      qualityState.lowFpsSeconds += dt;
+      qualityState.highFpsSeconds = 0;
+    } else if (fps > 56) {
+      qualityState.highFpsSeconds += dt;
+      qualityState.lowFpsSeconds = 0;
+    } else {
+      qualityState.lowFpsSeconds = Math.max(0, qualityState.lowFpsSeconds - dt * 0.5);
+      qualityState.highFpsSeconds = Math.max(0, qualityState.highFpsSeconds - dt * 0.35);
+    }
+
+    if (qualityState.lowFpsSeconds > 2.2 && qualityState.tier < 3) {
+      qualityState.lowFpsSeconds = 0;
+      applyAdaptiveQualityTier(qualityState.tier + 1);
+    } else if (qualityState.highFpsSeconds > 8 && qualityState.tier > 0) {
+      qualityState.highFpsSeconds = 0;
+      applyAdaptiveQualityTier(qualityState.tier - 1);
+    }
+  }
+
   let lastReconciledSeq = -2;
   const vibePortalManager = new VibePortalManager({
     scene,
@@ -1065,6 +1256,10 @@ export async function createGameSession({
   function copyPlayerActionJuiceState(playerState) {
     return {
       cheeseCarried: Math.max(0, Math.floor(Number(playerState?.cheeseCarried) || 0)),
+      mischiefScore: Math.max(0, Math.floor(Number(playerState?.roundStats?.mischiefScore) || 0)),
+      mischiefCombo: Math.max(0, Math.floor(Number(playerState?.roundStats?.mischiefCombo) || 0)),
+      grabsInitiated: Math.max(0, Math.floor(Number(playerState?.roundStats?.grabsInitiated) || 0)),
+      throwsLanded: Math.max(0, Math.floor(Number(playerState?.roundStats?.throwsLanded) || 0)),
       smacksLanded: Math.max(0, Math.floor(Number(playerState?.roundStats?.smacksLanded) || 0)),
       smackStunTimer: Math.max(0, Number(playerState?.smackStunTimer) || 0),
     };
@@ -1098,18 +1293,33 @@ export async function createGameSession({
           spawnActionJuice(playerState, `+${cheeseGain} 🧀`, 'cheese');
         }
 
-        const mischiefGain = next.smacksLanded - prev.smacksLanded;
+        const mischiefGain = next.mischiefScore - prev.mischiefScore;
         if (mischiefGain > 0 && playerState.alive !== false) {
           const chain = _mischiefChains.get(playerId) ?? { combo: 0, lastAt: -Infinity };
           chain.combo = (nowSeconds - chain.lastAt) <= MISCHIEF_CHAIN_WINDOW_SECONDS ? chain.combo : 0;
-          chain.combo += mischiefGain;
+          chain.combo = Math.max(chain.combo + 1, next.mischiefCombo);
           chain.lastAt = nowSeconds;
           _mischiefChains.set(playerId, chain);
           spawnActionJuice(
             playerState,
-            chain.combo > 1 ? `Mischief x${chain.combo}` : 'Mischief!',
+            chain.combo > 1 ? `+${mischiefGain} mischief x${chain.combo}` : `+${mischiefGain} mischief`,
             'mischief',
           );
+        }
+
+        const grabGain = next.grabsInitiated - prev.grabsInitiated;
+        if (grabGain > 0 && playerState.alive !== false) {
+          spawnActionJuice(playerState, 'Grabbed!', 'grab');
+        }
+
+        const throwGain = next.throwsLanded - prev.throwsLanded;
+        if (throwGain > 0 && playerState.alive !== false) {
+          spawnActionJuice(playerState, 'Yeet!', 'grab');
+        }
+
+        const smackGain = next.smacksLanded - prev.smacksLanded;
+        if (smackGain > 0 && playerState.alive !== false) {
+          spawnActionJuice(playerState, 'Smack landed!', 'smack');
         }
 
         if (next.smackStunTimer > 0 && prev.smackStunTimer <= 0) {
@@ -1317,7 +1527,7 @@ export async function createGameSession({
     }
 
     if (data.type === 'round-end') {
-      roundRaid.showRoundEnd(data);
+      roundRaid.showRoundEnd(data, net.localId);
       const results = Array.isArray(data.results) ? data.results : [];
       for (const row of results) {
         const expression = row?.extracted ? 'sparklingHappy' : 'dizzy';
@@ -1327,6 +1537,21 @@ export async function createGameSession({
           remotePlayerManager.playEyeOneShot(row.id, expression, { duration: 4.0 });
         }
       }
+    }
+
+    if (data.type === 'squeak' || data.type === 'ghost-squeak') {
+      const pos = data.position ?? {};
+      _spatialEventPos.set(
+        Number(pos.x) || 0,
+        (Number(pos.y) || 0) + 0.45,
+        Number(pos.z) || 0,
+      );
+      audioManager.playSoundAtPosition('squeak', _spatialEventPos);
+      spawnActionJuice(
+        { position: _spatialEventPos, isAdversary: false },
+        data.type === 'ghost-squeak' ? 'ghost squeak' : 'squeak!',
+        data.type === 'ghost-squeak' ? 'mischief' : 'grab',
+      );
     }
   });
 
@@ -1505,6 +1730,7 @@ export async function createGameSession({
     // HUD via the perf panel doesn't have it reappear after the intro ends.
     hud.setVisible(shown && perfFlags.gameplayUi);
     roundRaid.setVisible(shown && perfFlags.gameplayUi);
+    mischiefMeter.setVisible(shown && perfFlags.gameplayUi);
     catLocator.setVisible(shown && perfFlags.gameplayUi);
     scoreboard.setVisible(shown && perfFlags.gameplayUi);
     toolbar.setVisible(shown && perfFlags.gameplayUi);
@@ -1581,6 +1807,7 @@ export async function createGameSession({
 
     const nowSeconds = performance.now() * 0.001;
     occlusionFrameIndex += 1;
+    updateAdaptiveQuality(deltaSeconds);
 
     gamepadManager.update(deltaSeconds);
     if (emoteWheel.isVisible() && getInputSource() === 'gamepad') {
@@ -1916,6 +2143,12 @@ export async function createGameSession({
       heroAvatar: net.connected
         ? (net.serverState?.heroAvatar ?? null)
         : (predictionState.heroAvatar ?? null),
+      heroAvailable: net.connected
+        ? !!(perfFlags.gameplayUi && net.serverState?.heroAvailable && !net.serverState?.isHero && isAlive)
+        : !!(perfFlags.gameplayUi && predictionState.heroAvailable && isAlive),
+      heroAvatarAvailable: net.connected
+        ? (net.serverState?.heroAvatarAvailable ?? null)
+        : (predictionState.heroAvatarAvailable ?? null),
       heroTimeRemaining: net.connected
         ? (net.serverState?.heroTimeRemaining ?? 0)
         : (predictionState.heroTimeRemaining ?? 0),
@@ -1923,10 +2156,7 @@ export async function createGameSession({
       respawnCountdown,
     });
 
-    heroPrompt.setVisible(
-      perfFlags.gameplayUi && !!(net.serverState?.heroAvailable && !net.serverState?.isHero && isAlive),
-      net.serverState?.heroAvatarAvailable ?? null,
-    );
+    heroPrompt.setVisible(false);
     const isAdversaryNow = !!net.serverState?.isAdversary && isAlive;
     const isHeroNow = !!net.serverState?.isHero && isAlive && !isAdversaryNow;
     ensureLocalHeroBrain(isHeroNow, net.serverState?.heroAvatar);
@@ -1953,11 +2183,14 @@ export async function createGameSession({
         ? `Extract ${Math.round((net.serverState?.extractProgress ?? 0) * 100)}%`
         : '',
     });
+    mischiefMeter.update(net.connected ? net.serverState : predictionState, Date.now() / 1000);
 
     const currentPhase = net.connected ? (net.round?.phase ?? null) : null;
     if (currentPhase !== _prevRoundPhase) {
       if (currentPhase === 'extract' && _prevRoundPhase !== null) {
+        roundRaid.showExtractAlert('EXIT OPEN!');
         audioManager.playExtractCountdown?.();
+        audioManager.playSoundAtPosition('crash', predictionState.position);
       }
       if (currentPhase === 'intermission') {
         audioManager.startIntermissionMusic?.();
@@ -1967,25 +2200,97 @@ export async function createGameSession({
       _prevRoundPhase = currentPhase;
     }
 
+    const extractProgress = Math.max(0, Math.min(1, Number(net.serverState?.extractProgress) || 0));
+    if (
+      net.connected
+      && net.round?.phase === 'extract'
+      && !_wasExtracted
+      && !!net.serverState?.extracted
+    ) {
+      spawnActionJuice(net.serverState, 'Escaped!', 'mischief');
+      audioManager.playSoundAtPosition('pickup', predictionState.position);
+    }
+    if (
+      net.connected
+      && net.round?.phase === 'extract'
+      && _prevExtractProgress > 0.18
+      && extractProgress < _prevExtractProgress - 0.08
+      && !net.serverState?.extracted
+    ) {
+      spawnActionJuice(net.serverState, 'Interrupted!', 'smack');
+      audioManager.playSoundAtPosition('beep', predictionState.position);
+    }
+    _prevExtractProgress = extractProgress;
+    _wasExtracted = !!net.serverState?.extracted;
+
+    const showExtractRing = !!(
+      perfFlags.gameplayUi
+      && net.connected
+      && net.round?.phase === 'extract'
+      && extractProgress > 0.02
+      && !net.serverState?.extracted
+    );
+    extractRingLabel.visible = showExtractRing;
+    extractRingRoot.style.display = showExtractRing ? 'flex' : 'none';
+    if (showExtractRing) {
+      const pct = Math.round(extractProgress * 100);
+      extractRingFill.setAttribute('stroke-dasharray', `${pct} 100`);
+      extractRingRoot.style.boxShadow = `0 0 ${12 + extractProgress * 24}px rgba(255,241,118,0.52)`;
+      extractRingInner.textContent = `${pct}%`;
+    }
+
     if (net.connected && Array.isArray(net.extractionPortals) && net.extractionPortals.length > 0) {
       while (extractionMarkerGroup.children.length < net.extractionPortals.length) {
-        const ring = new THREE.Mesh(_portalRingGeo, _portalRingMat);
+        const portal = new THREE.Group();
+        portal.name = 'ExtractionPortalMarker';
+        const ring = new THREE.Mesh(_portalRingGeo, _portalRingMat.clone());
+        const outerRing = new THREE.Mesh(_portalOuterRingGeo, _portalOuterRingMat.clone());
+        const beam = new THREE.Mesh(_portalBeamGeo, _portalBeamMat.clone());
         ring.rotation.x = -Math.PI / 2;
+        outerRing.rotation.x = -Math.PI / 2;
+        beam.position.y = 1.7;
+        beam.renderOrder = 9;
         ring.renderOrder = 10;
-        extractionMarkerGroup.add(ring);
+        outerRing.renderOrder = 9;
+        portal.add(beam, outerRing, ring);
+        portal.userData.parts = { ring, outerRing, beam };
+        extractionMarkerGroup.add(portal);
       }
       extractionMarkerGroup.visible = perfFlags.raidMarkers;
       net.extractionPortals.forEach((p, i) => {
         const m = extractionMarkerGroup.children[i];
         if (!m) return;
+        m.visible = true;
         m.position.set(p.x ?? 0, (p.y ?? 0) + 0.03, p.z ?? 0);
+        const pulse = 0.5 + 0.5 * Math.sin(nowSeconds * 7.5 + i);
+        m.scale.setScalar(1 + pulse * 0.16);
+        const parts = m.userData.parts ?? {};
+        if (parts.ring) {
+          parts.ring.rotation.z = nowSeconds * 1.8;
+          parts.ring.material.opacity = 0.72 + pulse * 0.24;
+        }
+        if (parts.outerRing) {
+          parts.outerRing.rotation.z = -nowSeconds * 1.15;
+          parts.outerRing.material.opacity = 0.22 + pulse * 0.28;
+        }
+        if (parts.beam) {
+          parts.beam.material.opacity = 0.12 + pulse * 0.18;
+        }
       });
+      for (let i = net.extractionPortals.length; i < extractionMarkerGroup.children.length; i += 1) {
+        extractionMarkerGroup.children[i].visible = false;
+      }
     } else {
       extractionMarkerGroup.visible = false;
+      extractRingLabel.visible = false;
+      extractRingRoot.style.display = 'none';
     }
-    const scoreboardRows = buildScoreboardRows();
-    scoreboard.setRows(scoreboardRows);
-    toolbar.setLeaderboardRows(scoreboardRows);
+    if (nowSeconds - qualityState.lastScoreboardAt >= 0.2) {
+      qualityState.lastScoreboardAt = nowSeconds;
+      const scoreboardRows = buildScoreboardRows();
+      scoreboard.setRows(scoreboardRows);
+      toolbar.setLeaderboardRows(scoreboardRows);
+    }
 
     const chaseStreak = net.connected
       ? (net.serverState?.chaseStreakSeconds ?? 0)
@@ -1995,14 +2300,15 @@ export async function createGameSession({
       streakSeconds: chaseStreak,
     });
 
-    if (perfFlags.gameplayUi && cat && ENABLE_CAT_PREDATOR) {
+    if (perfFlags.gameplayUi && cat && ENABLE_CAT_PREDATOR && nowSeconds - qualityState.lastCatLocatorAt >= 0.1) {
+      qualityState.lastCatLocatorAt = nowSeconds;
       catLocator.update({
         camera,
         canvasRect: canvas.getBoundingClientRect(),
         catWorldPos: cat.position,
         catAlive: !!cat.alive,
       });
-    } else {
+    } else if (!perfFlags.gameplayUi || !cat || !ENABLE_CAT_PREDATOR) {
       catLocator.update({});
     }
 
@@ -2185,7 +2491,12 @@ export async function createGameSession({
     }
 
     occlusionFader.update(deltaSeconds);
-    taskController.update(deltaSeconds);
+    if (nowSeconds - qualityState.lastTaskUpdateAt >= 0.08) {
+      qualityState.lastTaskUpdateAt = nowSeconds;
+      taskController.update(Math.min(0.16, deltaSeconds + 0.08));
+    } else {
+      taskController.cheeseBurst?.update?.(deltaSeconds);
+    }
     unlockCollectibles.update(deltaSeconds);
     if (!perfFlags.gameplayUi) {
       taskPromptElement.style.display = 'none';
@@ -2201,9 +2512,11 @@ export async function createGameSession({
         predictionState.isAdversary ? HUMAN_NAMEPLATE_OFFSET_Y : undefined,
       );
       localNameplateAnchor.getWorldPosition(_localNameplateWorld);
-      localNameplate.setOccluded(
-        isNameplateOccluded(scene, camera, _localNameplateWorld, localNameplateTarget, occlusionFrameIndex),
-      );
+      if ((occlusionFrameIndex % 3) === 0) {
+        localNameplate.setOccluded(
+          isNameplateOccluded(scene, camera, _localNameplateWorld, localNameplateTarget, occlusionFrameIndex),
+        );
+      }
     } else {
       localNameplate.setOccluded(true);
     }
@@ -2325,7 +2638,12 @@ export async function createGameSession({
       mouse?.animationManager?.setPlaybackRate?.(animRate);
     }
 
-    actionJuice.update(deltaSeconds);
+    qualityState.actionJuiceAccum += deltaSeconds;
+    const actionJuiceStep = qualityState.tier >= 2 ? 1 / 24 : 1 / 45;
+    if (qualityState.actionJuiceAccum >= actionJuiceStep) {
+      actionJuice.update(Math.min(0.12, qualityState.actionJuiceAccum));
+      qualityState.actionJuiceAccum = 0;
+    }
     render();
     const info = renderer.info;
     return {
@@ -2349,6 +2667,8 @@ export async function createGameSession({
     });
     placementMode?.deactivate();
     gamepadManager.dispose();
+    canvas.removeEventListener('pointerdown', onGhostSqueakPointer);
+    canvas.removeEventListener('contextmenu', onGhostSqueakContextMenu);
     net.disconnect();
     remotePlayerManager.dispose();
     predatorManager?.dispose();
@@ -2372,10 +2692,23 @@ export async function createGameSession({
     cheesePickupMaterial.dispose();
     cheesePickupStates.clear();
     scene.remove(cheesePickupGroup);
+    extractionMarkerGroup.traverse((child) => {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material?.dispose?.());
+      } else {
+        child.material?.dispose?.();
+      }
+    });
     scene.remove(extractionMarkerGroup);
     _portalRingGeo.dispose();
+    _portalOuterRingGeo.dispose();
+    _portalBeamGeo.dispose();
     _portalRingMat.dispose();
+    _portalOuterRingMat.dispose();
+    _portalBeamMat.dispose();
     roundRaid.dispose();
+    mischiefMeter.dispose();
+    onboarding.dispose();
     hud.dispose();
     catLocator.dispose();
     audioManager.stopAmbientBed();

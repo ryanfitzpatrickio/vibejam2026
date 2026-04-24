@@ -77,6 +77,36 @@ function getPlayerCollisionConfig(state) {
   };
 }
 
+function heroSpeedMultiplier(state) {
+  if (!state?.isHero) return 1;
+  switch (state.heroAvatar) {
+    case 'speedy':
+      return 1.8;
+    case 'gus':
+      return 1.22;
+    case 'brain':
+      return 1.35;
+    case 'jerry':
+      return 1.45;
+    default:
+      return 1.45;
+  }
+}
+
+function heroJumpMultiplier(state) {
+  if (!state?.isHero) return 1;
+  switch (state.heroAvatar) {
+    case 'brain':
+      return 1.34;
+    case 'speedy':
+      return 1.18;
+    case 'gus':
+      return 1.08;
+    default:
+      return 1.2;
+  }
+}
+
 /**
  * Create a fresh player physics state.
  */
@@ -660,8 +690,8 @@ export function simulateTick(state, input, dt, bounds, colliders = [], vacuumPul
     state.sprinting = true;
     speed = PHYSICS.sprintSpeed;
   }
-  // Hero movement boost: super-charged locomotion for the round leader.
-  if (state.isHero) speed *= 1.45;
+  // Hero identity: each hero gets a small, readable movement signature.
+  speed *= heroSpeedMultiplier(state);
   if (state.isAdversary && state.adversaryRole === 'human') {
     speed *= PHYSICS.adversaryHumanSpeedMult;
   }
@@ -696,7 +726,7 @@ export function simulateTick(state, input, dt, bounds, colliders = [], vacuumPul
 
   // --- Jump ---
   if (jumpPressed) {
-    const heroJumpMult = state.isHero ? 1.2 : 1;
+    const heroJumpMult = heroJumpMultiplier(state);
     if (state.grounded) {
       vel.y = PHYSICS.jumpForce * heroJumpMult;
       state.grounded = false;

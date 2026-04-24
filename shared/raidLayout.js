@@ -6,6 +6,11 @@
 export const RAID_TASK_TYPES = Object.freeze({
   PLACEHOLDER: 'placeholder',
   CHEW_WIRES: 'chew_wires',
+  TOPPLE_TOWER: 'topple_tower',
+  FRIDGE_RAID: 'fridge_raid',
+  CUT_LIGHTS: 'cut_lights',
+  KNIFE_DRAWER: 'knife_drawer',
+  SABOTAGE_ROOMBA: 'sabotage_roomba',
   UNLOCK_GUS: 'unlock_gus',
   UNLOCK_SPEEDY: 'unlock_speedy',
 });
@@ -13,6 +18,11 @@ export const RAID_TASK_TYPES = Object.freeze({
 export const RAID_TASK_TYPE_LABELS = Object.freeze({
   [RAID_TASK_TYPES.PLACEHOLDER]: 'Placeholder',
   [RAID_TASK_TYPES.CHEW_WIRES]: 'Chew Wires',
+  [RAID_TASK_TYPES.TOPPLE_TOWER]: 'Topple Tower',
+  [RAID_TASK_TYPES.FRIDGE_RAID]: 'Fridge Raid',
+  [RAID_TASK_TYPES.CUT_LIGHTS]: 'Cut Lights',
+  [RAID_TASK_TYPES.KNIFE_DRAWER]: 'Knife Drawer',
+  [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: 'Sabotage Roomba',
   [RAID_TASK_TYPES.UNLOCK_GUS]: 'Unlock Gus',
   [RAID_TASK_TYPES.UNLOCK_SPEEDY]: 'Unlock Speedy',
 });

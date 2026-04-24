@@ -260,6 +260,7 @@ export function buildRoomCollidersFromLayout(layout, {
     const metadata = {
       source: 'layout',
       primitiveId: primitive.id ?? null,
+      primitiveName: primitive.name ?? null,
       prefabId: primitive.prefabId ?? null,
       prefabInstanceId: primitive.prefabInstanceId ?? null,
       glbAssetId: primitive.glbAssetId ?? null,

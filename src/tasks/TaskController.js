@@ -27,6 +27,7 @@ export class TaskController {
     this._tmpVec = new THREE.Vector3();
     /** @type {Map<string, { effect: {update:(dt:number)=>void, dispose:()=>void}, group: THREE.Object3D }>} */
     this._completedEffects = new Map();
+    this._completedTaskIds = new Set();
     this._lastRoundNumber = null;
     this._promptVerb = null;
     this._unsubInputSource = subscribeInputSource(() => {
@@ -74,9 +75,21 @@ export class TaskController {
   _resetCompletedEffects() {
     for (const entry of this._completedEffects.values()) {
       try { entry.effect.dispose(); } catch { /* ignore */ }
-      if (entry.group) entry.group.visible = true;
+      if (entry.group) {
+        entry.group.visible = true;
+        entry.group.userData.setRaidTaskCompleted?.(false);
+      }
     }
     this._completedEffects.clear();
+    this._completedTaskIds.clear();
+  }
+
+  markTaskCompleted(taskId) {
+    if (!taskId) return;
+    this._completedTaskIds.add(taskId);
+    const entry = this.room?.editableRaidTaskObjects?.get(taskId);
+    if (!entry?.group) return;
+    entry.group.userData.setRaidTaskCompleted?.(true);
   }
 
   /** Called when the interact key is pressed. Returns true if a task dialog opened. */
@@ -114,6 +127,7 @@ export class TaskController {
     this._handleClose();
     const player = this.getPlayer?.();
     if (!player?.position) return;
+    this._completedTaskIds.add(definition.id);
     const aim = this._tmpVec.copy(player.position);
     // Aim a little in front of the player so the cheese lands where they can scoop it up.
     const forwardY = player.rotation?.y ?? 0;
@@ -138,7 +152,7 @@ export class TaskController {
       try {
         const effect = runtime.onCompleteEffect(this.scene, taskWorld);
         if (effect) {
-          markerGroup.visible = false;
+          markerGroup.userData.setRaidTaskCompleted?.(true);
           this._completedEffects.set(definition.id, { effect, group: markerGroup });
         }
       } catch (err) {
@@ -161,7 +175,7 @@ export class TaskController {
     for (const entry of entries.values()) {
       if (!entry?.definition || entry.definition.deleted) continue;
       if (!getTaskRuntime(entry.definition.taskType)) continue;
-      if (this._completedEffects.has(entry.definition.id)) continue;
+      if (this._completedTaskIds.has(entry.definition.id)) continue;
       const pos = entry.group.position;
       const dx = pos.x - playerPos.x;
       const dz = pos.z - playerPos.z;

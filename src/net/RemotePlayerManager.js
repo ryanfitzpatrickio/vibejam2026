@@ -120,6 +120,7 @@ export class RemotePlayerManager {
    */
   update(dt, camera, occlusionFrameIndex = 0) {
     const t = Math.min(1, dt * LERP_SPEED);
+    const doOcclusionCheck = (occlusionFrameIndex % 3) === 0;
     for (const entry of this.players.values()) {
       entry.prevPos.copy(entry.mouse.position);
       entry.mouse.position.lerp(entry.targetPos, t);
@@ -192,11 +193,18 @@ export class RemotePlayerManager {
       syncNameplateWorldPosition(entry.nameplateAnchor, entry.mouse);
       if (this.nameplatesVisible) {
         entry.nameplateAnchor.getWorldPosition(_nameplateWorldPos);
-        entry.nameplate.setOccluded(
-          camera
-            ? isNameplateOccluded(this.scene, camera, _nameplateWorldPos, entry.mouse, occlusionFrameIndex)
-            : false,
-        );
+        const farFromCamera = camera
+          ? _nameplateWorldPos.distanceToSquared(camera.position) > 28 * 28
+          : false;
+        if (farFromCamera) {
+          entry.nameplate.setOccluded(true);
+        } else if (doOcclusionCheck) {
+          entry.nameplate.setOccluded(
+            camera
+              ? isNameplateOccluded(this.scene, camera, _nameplateWorldPos, entry.mouse, occlusionFrameIndex)
+              : false,
+          );
+        }
       } else {
         entry.nameplate.setOccluded(true);
       }
