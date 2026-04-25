@@ -55,6 +55,7 @@ export class ThirdPersonCamera {
     this.pointerLocked = false;
 
     this.shoulderOffset = shoulderOffset.clone();
+    this.sideOffset = 0;
 
     this._currentPosition = this.camera.position.clone();
     this._targetPosition = new THREE.Vector3();
@@ -251,6 +252,7 @@ export class ThirdPersonCamera {
     this._smoothedQuaternion.slerp(this._desiredQuaternion, 1 - Math.exp(-this.damping * dt));
 
     this._lookDirection.set(0, 0, 1).applyQuaternion(this._smoothedQuaternion).normalize();
+    this._tempVectorG.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
 
     const unclampedArm = THREE.MathUtils.clamp(this.armLength, this.minArmLength, this.maxArmLength);
     const collisionResult = this._resolveCollisionArmLength(this._smoothedPivot, this._lookDirection, unclampedArm);
@@ -260,6 +262,7 @@ export class ThirdPersonCamera {
 
     this._targetPosition.copy(this._smoothedPivot)
       .addScaledVector(this._lookDirection, collisionResult.armLength)
+      .addScaledVector(this._tempVectorG, this.sideOffset)
       .add(this._collisionCorrection);
 
     if (snap) {

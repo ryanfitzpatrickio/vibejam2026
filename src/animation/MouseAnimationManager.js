@@ -26,6 +26,7 @@ export class MouseAnimationManager {
     this.currentAction = null;
     this.currentState = 'idle';
     this._emoteActive = false;
+    this._scrubAction = null;
   }
 
   get emoteActive() {
@@ -46,6 +47,7 @@ export class MouseAnimationManager {
 
   setState(state, { immediate = false } = {}) {
     this.currentState = state;
+    if (this._scrubAction) this.stopScrubClip();
     const clipName = STATE_TO_CLIP[state] ?? 'Idle';
     this._play(clipName, immediate);
   }
@@ -54,6 +56,45 @@ export class MouseAnimationManager {
     if (this.mixer) {
       this.mixer.update(delta);
     }
+  }
+
+  scrubReverseClip(candidates = [], progress = 0) {
+    if (!this.mixer || this._emoteActive) return false;
+    const clipName = candidates.find((name) => this.actions.has(name));
+    if (!clipName) return false;
+    const action = this.actions.get(clipName);
+    if (!action) return false;
+
+    if (this._scrubAction !== action) {
+      const previous = this.currentAction;
+      this._scrubAction = action;
+      this.currentAction = action;
+      action.enabled = true;
+      action.reset();
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+      action.setEffectiveWeight(1);
+      action.play();
+      if (previous && previous !== action) {
+        previous.fadeOut(0.08);
+        action.crossFadeFrom(previous, 0.08, false);
+      }
+    }
+
+    const pct = Math.max(0, Math.min(1, Number(progress) || 0));
+    action.paused = false;
+    action.timeScale = 0;
+    action.time = Math.max(0, action.getClip().duration * (1 - pct));
+    return true;
+  }
+
+  stopScrubClip() {
+    if (!this._scrubAction) return;
+    this._scrubAction.paused = false;
+    this._scrubAction.fadeOut(0.08);
+    this._scrubAction = null;
+    this.currentAction = null;
+    this.setState(this.currentState, { immediate: true });
   }
 
   /**
@@ -134,6 +175,7 @@ export class MouseAnimationManager {
 
     this.actions.clear();
     this.currentAction = null;
+    this._scrubAction = null;
     this.root = null;
     this.mixer = null;
   }

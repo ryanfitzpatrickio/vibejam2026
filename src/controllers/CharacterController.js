@@ -19,6 +19,16 @@ const DEFAULT_KEY_BINDINGS = Object.freeze({
   adversaryToggle: 'KeyJ',
 });
 
+export const CHARGED_SMACK_MIN_HOLD_MS = 450;
+export const CHARGED_SMACK_FULL_HOLD_MS = 1600;
+export const CHARGED_SMACK_INDICATOR_HOLD_MS = 1000;
+export const CHARGED_JUMP_MIN_HOLD_MS = 450;
+export const CHARGED_JUMP_FULL_HOLD_MS = 1600;
+export const CHARGED_JUMP_INDICATOR_HOLD_MS = 1000;
+export const CHARGED_THROW_MIN_HOLD_MS = 450;
+export const CHARGED_THROW_FULL_HOLD_MS = 1600;
+export const CHARGED_THROW_INDICATOR_HOLD_MS = 1000;
+
 const CONFIG = Object.freeze({
   walkSpeed: 4.0,
   sprintSpeed: 7.5,
@@ -104,6 +114,12 @@ export class CharacterController {
     this.jumpRequested = false;
     /** True while Q is held down */
     this.grabHeld = false;
+    this.chargedJumpHeld = false;
+    this.jumpChargeProgress = 0;
+    this.chargedThrowHeld = false;
+    this.chargedThrowHoldMs = 0;
+    this.chargedThrowProgress = 0;
+    this.chargedThrowReleasePressed = false;
     /** Set true on G / RB keydown edge; cleared after the network reads it. */
     this.throwPressed = false;
     this._prevThrowDown = false;
@@ -111,8 +127,16 @@ export class CharacterController {
     this._heroKeyWasDown = false;
     this.adversaryTogglePressed = false;
     this._adversaryKeyWasDown = false;
-    /** Set to true on E keydown edge, cleared after network reads it */
+    /** Set to true on a quick E release, cleared after network reads it. */
     this.smackPressed = false;
+    /** True while E is being held to wind up a charged smack. */
+    this.smackHeld = false;
+    this.smackHoldMs = 0;
+    this.smackChargeProgress = 0;
+    /** Set on E release after a short hold, cleared after network reads it. */
+    this.chargedSmackReleasePressed = false;
+    this._interactDownAt = 0;
+    this._interactDownWasThrow = false;
     /** True while E is held (extract + UI). */
     this.interactHeld = false;
     this._prevInteractDown = false;
@@ -397,6 +421,37 @@ export class CharacterController {
       return;
     }
 
+    if (this.chargedThrowHeld) {
+      const scrubbed = this.mouse.animationManager?.scrubReverseClip?.(
+        ['Attack', 'Smack', 'Punch', 'Swipe', 'Bite', 'Jump'],
+        this.chargedThrowProgress,
+      );
+      if (scrubbed) {
+        this._prevAnimState = 'chargeThrow';
+        this.mouse.update(dt);
+        return;
+      }
+    } else if (this.smackHeld) {
+      const scrubbed = this.mouse.animationManager?.scrubReverseClip?.(
+        ['Attack', 'Smack', 'Punch', 'Swipe', 'Bite', 'Jump'],
+        this.smackChargeProgress,
+      );
+      if (scrubbed) {
+        this._prevAnimState = 'chargeSmack';
+        this.mouse.update(dt);
+        return;
+      }
+    } else if (this.chargedJumpHeld) {
+      const scrubbed = this.mouse.animationManager?.scrubReverseClip?.(['Jump'], this.jumpChargeProgress);
+      if (scrubbed) {
+        this._prevAnimState = 'chargeJump';
+        this.mouse.update(dt);
+        return;
+      }
+    } else {
+      this.mouse.animationManager?.stopScrubClip?.();
+    }
+
     const kb = this.keyBindings;
     const hasMoveInput = !!this.keys[kb.forward] || !!this.keys[kb.backward]
       || !!this.keys[kb.left] || !!this.keys[kb.right];
@@ -451,16 +506,63 @@ export class CharacterController {
     const interactKey = this.keyBindings.interact;
     const interactNow = !!this.keys[interactKey];
     const grabHeldNow = !!this.keys[this.keyBindings.grab];
-    const useInteractAsThrow = this.throwOnInteractWhileGrabHeld && grabHeldNow;
+    const useInteractAsThrow = this.throwOnInteractWhileGrabHeld;
+    const nowMs = globalThis.performance?.now?.() ?? Date.now();
     if (interactNow && !this._prevInteractDown) {
+      this._interactDownAt = nowMs;
+      this._interactDownWasThrow = useInteractAsThrow;
       if (useInteractAsThrow) {
-        this.throwPressed = true;
+        this.chargedThrowHeld = true;
       } else {
-        this.smackPressed = true;
         this.interact();
       }
     }
+    if (interactNow && this._prevInteractDown && useInteractAsThrow && !this._interactDownWasThrow) {
+      this._interactDownWasThrow = true;
+      this._interactDownAt = nowMs;
+      this.smackHeld = false;
+      this.smackHoldMs = 0;
+      this.smackChargeProgress = 0;
+      this.chargedSmackReleasePressed = false;
+      this.smackPressed = false;
+      this.chargedThrowHeld = true;
+    }
+    let handledThrowRelease = false;
+    if (!interactNow && this._prevInteractDown && this._interactDownWasThrow) {
+      const heldMs = nowMs - (this._interactDownAt || nowMs);
+      if (heldMs >= CHARGED_THROW_FULL_HOLD_MS) {
+        this.chargedThrowReleasePressed = true;
+      } else {
+        this.throwPressed = true;
+      }
+      this._interactDownAt = 0;
+      this._interactDownWasThrow = false;
+      this.chargedThrowHeld = false;
+      this.chargedThrowHoldMs = 0;
+      this.chargedThrowProgress = 0;
+      handledThrowRelease = true;
+    }
+    if (!handledThrowRelease && !interactNow && this._prevInteractDown && !this._interactDownWasThrow) {
+      const heldMs = nowMs - (this._interactDownAt || nowMs);
+      if (heldMs >= CHARGED_SMACK_MIN_HOLD_MS) {
+        this.chargedSmackReleasePressed = true;
+      } else {
+        this.smackPressed = true;
+      }
+      this._interactDownAt = 0;
+      this._interactDownWasThrow = false;
+    }
     this._prevInteractDown = interactNow;
+    this.chargedThrowHeld = useInteractAsThrow && interactNow;
+    this.chargedThrowHoldMs = this.chargedThrowHeld ? Math.max(0, nowMs - (this._interactDownAt || nowMs)) : 0;
+    this.chargedThrowProgress = this.chargedThrowHeld
+      ? Math.max(0, Math.min(1, this.chargedThrowHoldMs / CHARGED_THROW_FULL_HOLD_MS))
+      : 0;
+    this.smackHeld = !useInteractAsThrow && interactNow;
+    this.smackHoldMs = this.smackHeld ? Math.max(0, nowMs - (this._interactDownAt || nowMs)) : 0;
+    this.smackChargeProgress = this.smackHeld
+      ? Math.max(0, Math.min(1, this.smackHoldMs / CHARGED_SMACK_FULL_HOLD_MS))
+      : 0;
     this.interactHeld = useInteractAsThrow ? false : interactNow;
     this.grabHeld = grabHeldNow;
     this.ropeGrabHeld = !!this.keys[this.keyBindings.ropeGrab];

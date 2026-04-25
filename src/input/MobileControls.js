@@ -232,12 +232,9 @@ export class MobileControls {
       WebkitTouchCallout: 'none',
       WebkitTapHighlightColor: 'transparent',
       borderRadius: '50%',
-      background: [
-        'radial-gradient(circle at 50% 50%, rgba(251,191,36,0.18) 0 32%, transparent 33%)',
-        'radial-gradient(circle at 35% 28%, rgba(255,255,255,0.22), rgba(255,255,255,0.07) 46%, rgba(0,0,0,0.22))',
-      ].join(', '),
-      border: '2px solid rgba(255,247,194,0.42)',
-      boxShadow: '0 16px 34px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 0 24px rgba(251,191,36,0.12)',
+      background: 'rgba(15,18,18,0.32)',
+      border: '1px solid rgba(255,255,255,0.22)',
+      boxShadow: '0 12px 26px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.18)',
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
     });
@@ -248,9 +245,11 @@ export class MobileControls {
       width: '60px',
       height: '60px',
       borderRadius: '50%',
-      background: 'radial-gradient(circle at 35% 28%, #fff7c2, #fbbf24 45%, #d97706 100%)',
-      border: '2px solid rgba(255,247,194,0.92)',
-      boxShadow: '0 10px 22px rgba(0,0,0,0.34), inset 0 2px 0 rgba(255,255,255,0.42), inset 0 -8px 16px rgba(17,24,39,0.18)',
+      background: 'linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.08)), rgba(15,18,18,0.48)',
+      border: '1px solid rgba(255,255,255,0.32)',
+      boxShadow: '0 8px 18px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.28)',
+      backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)',
       left: '50%',
       top: '50%',
       transform: 'translate(-50%, -50%)',
@@ -305,7 +304,8 @@ export class MobileControls {
     Object.assign(this.actionPad.style, {
       position: 'absolute',
       right: 'calc(12px + env(safe-area-inset-right))',
-      bottom: 'calc(16px + env(safe-area-inset-bottom))',
+      top: '50%',
+      transform: 'translateY(-50%)',
       zIndex: '3',
       display: 'grid',
       gridTemplateColumns: 'repeat(2, 68px)',
@@ -321,8 +321,8 @@ export class MobileControls {
     this.throwDock = document.createElement('div');
     Object.assign(this.throwDock.style, {
       position: 'absolute',
-      left: 'calc(28px + env(safe-area-inset-left))',
-      bottom: 'calc(180px + env(safe-area-inset-bottom))',
+      left: 'calc(16px + 150px + 18px + env(safe-area-inset-left))',
+      bottom: 'calc(20px + env(safe-area-inset-bottom))',
       zIndex: '3',
       pointerEvents: 'none',
       touchAction: 'none',
@@ -443,9 +443,9 @@ export class MobileControls {
     });
     Object.assign(this.throwDock.style, m ? {
       left: 'auto',
-      right: 'calc(28px + env(safe-area-inset-right))',
+      right: 'calc(16px + 150px + 18px + env(safe-area-inset-right))',
     } : {
-      left: 'calc(28px + env(safe-area-inset-left))',
+      left: 'calc(16px + 150px + 18px + env(safe-area-inset-left))',
       right: 'auto',
     });
     Object.assign(this.topBar.style, m ? {

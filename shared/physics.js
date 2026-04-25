@@ -15,6 +15,9 @@ export const PHYSICS = Object.freeze({
   slideCooldown: 1.0,
   jumpForce: 6.2,
   doubleJumpForce: 5.3,
+  chargedJumpFullHoldSeconds: 1.6,
+  chargedJumpMaxMultiplier: 3.65,
+  chargedJumpGroundedGraceSeconds: 0.16,
   wallJumpForce: 7.6,
   wallJumpAwayForce: 5.6,
   gravity: -20.0,
@@ -119,6 +122,7 @@ export function createPlayerState(id) {
     velocity: { x: 0, y: 0, z: 0 },
     rotation: 0,
     grounded: true,
+    groundedGraceTimer: PHYSICS.chargedJumpGroundedGraceSeconds,
     stamina: PHYSICS.maxStamina,
     staminaRegenTimer: 0,
     health: PHYSICS.maxHealth,
@@ -595,6 +599,7 @@ export function respawnPlayer(state, spawnX, spawnZ, spawnY = 0) {
   state.velocity.z = 0;
   state.rotation = 0;
   state.grounded = spawnY <= 0.001;
+  state.groundedGraceTimer = state.grounded ? PHYSICS.chargedJumpGroundedGraceSeconds : 0;
   state.stamina = PHYSICS.maxStamina;
   state.staminaRegenTimer = 0;
   state.health = PHYSICS.maxHealth;
@@ -666,6 +671,7 @@ export function simulateTick(state, input, dt, bounds, colliders = [], vacuumPul
   const collisionConfig = getPlayerCollisionConfig(state);
   const jumpHeld = !!(input.jumpHeld ?? input.jump);
   const jumpPressed = !!(input.jumpPressed ?? input.jump);
+  const jumpCharge = Math.max(0, Math.min(1, Number(input.jumpCharge) || 0));
   const previousPosition = {
     x: pos.x,
     y: pos.y,
@@ -674,6 +680,9 @@ export function simulateTick(state, input, dt, bounds, colliders = [], vacuumPul
 
   state.wallJumpWindowTimer = Math.max(0, state.wallJumpWindowTimer - dt);
   state.wallAttachCooldownTimer = Math.max(0, state.wallAttachCooldownTimer - dt);
+  state.groundedGraceTimer = state.grounded
+    ? PHYSICS.chargedJumpGroundedGraceSeconds
+    : Math.max(0, (Number(state.groundedGraceTimer) || 0) - dt);
   if (state.grounded) {
     state.wallHolding = false;
   } else if (state.wallHolding && !jumpHeld) {
@@ -727,9 +736,12 @@ export function simulateTick(state, input, dt, bounds, colliders = [], vacuumPul
   // --- Jump ---
   if (jumpPressed) {
     const heroJumpMult = heroJumpMultiplier(state);
-    if (state.grounded) {
-      vel.y = PHYSICS.jumpForce * heroJumpMult;
+    const chargedGroundGrace = jumpCharge > 0 && state.groundedGraceTimer > 0;
+    if (state.grounded || chargedGroundGrace) {
+      const chargeMult = 1 + jumpCharge * (PHYSICS.chargedJumpMaxMultiplier - 1);
+      vel.y = PHYSICS.jumpForce * heroJumpMult * chargeMult;
       state.grounded = false;
+      state.groundedGraceTimer = 0;
       state.canDoubleJump = true;
       state.hasDoubleJumped = false;
       state.wallHolding = false;

@@ -1,4 +1,4 @@
-import { For, Show } from 'solid-js';
+import { For, Show, createMemo } from 'solid-js';
 import { render } from 'solid-js/web';
 import { createStore } from 'solid-js/store';
 import { batch } from 'solid-js';
@@ -11,8 +11,37 @@ import {
   HUD_COLORS,
   HUD_SLANTED,
 } from './hudStyle.js';
-import { MouseHeadTarget, CheeseItem, StaminaBolt } from './hudSprites.jsx';
+import { MouseHeadTarget, CheeseItem, StaminaBolt, HeartLifeFull, HeartLifeLost } from './hudSprites.jsx';
 import { actionLabel } from '../input/inputSource.js';
+
+const IS_MOBILE = typeof window !== 'undefined'
+  && ((window.matchMedia?.('(pointer: coarse)')?.matches ?? false)
+    || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
+
+/** Lighter + smaller type for touch / small viewports. */
+function isTopCompact() {
+  if (typeof window === 'undefined') return false;
+  return (typeof window.innerWidth === 'number' && window.innerWidth <= 900)
+    || (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0);
+}
+
+function BarStatusDot(props) {
+  const glow = () => props.glow ?? props.color;
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: '9px',
+        height: '9px',
+        'border-radius': '0',
+        background: props.color,
+        'box-shadow': `0 0 0 2px rgba(12,18,26,0.45), 0 0 6px ${glow()}`,
+        'flex-shrink': '0',
+        transform: 'skewX(-8deg)',
+      }}
+    />
+  );
+}
 
 function formatClock(seconds) {
   const s = Math.max(0, Math.floor(seconds));
@@ -140,6 +169,200 @@ function buildRoundShareText({ title, grade, awards }) {
   return lines.join('\n');
 }
 
+/** Lighter, smaller top strip on mobile so the kitchen view stays readable. */
+const MOBILE_TOP_GLASS = {
+  background: 'linear-gradient(160deg, rgba(72,66,82,0.38) 0%, rgba(40,36,50,0.5) 100%)',
+  border: '1px solid rgba(210,195,230,0.38)',
+  'box-shadow': 'inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.2)',
+  'backdrop-filter': 'blur(5px)',
+  WebkitBackdropFilter: 'blur(5px)',
+};
+
+function RoundPhaseTopRow(props) {
+  const compact = isTopCompact();
+  const iconSize = compact ? 20 : 26;
+  const fontSize = compact ? '12px' : '14px';
+  const phaseFontSize = compact ? 'clamp(10px, 2.6vw, 12px)' : null;
+  const mobilePhaseHalfWidthPx = 56;
+  const lifeSlots = createMemo(() => {
+    const max = Math.max(1, Math.min(3, Math.floor(Number(props.state.barMaxLives ?? 2))));
+    const cur = Math.max(0, Math.min(max, Math.floor(Number(props.state.barLives ?? 0))));
+    return Array.from({ length: max }, (_, i) => i < cur);
+  });
+  const cheeseText = createMemo(() => {
+    const maxC = Math.max(1, Math.floor(Number(props.state.barCheeseMax ?? 50)));
+    const n = Math.max(0, Math.floor(Number(props.state.barCheese) || 0));
+    return `${n}/${maxC}`;
+  });
+  const sidePanel = {
+    ...HUD_PANEL_STYLE,
+    ...(compact ? MOBILE_TOP_GLASS : {}),
+    'flex-shrink': 0,
+    'pointer-events': 'none',
+    'user-select': 'none',
+    display: 'flex',
+    'align-items': 'center',
+    gap: compact ? '5px' : '8px',
+    color: '#fff',
+    'font-size': fontSize,
+    'letter-spacing': '0.04em',
+    'text-shadow': HUD_LABEL_SHADOW,
+    font: compact ? `700 ${fontSize} "Fredoka", "Baloo", system-ui, sans-serif` : HUD_LABEL_FONT,
+    padding: compact ? '4px 7px' : '6px 10px',
+    'min-height': compact ? '30px' : '36px',
+    'box-sizing': 'border-box',
+  };
+
+  // Desktop uses equal side columns; mobile keeps the whole cluster beside the
+  // viewport-centered timer instead of drifting into the touch-control corners.
+  return (
+    <div
+      id="round-phase-top"
+      style={{
+        position: 'fixed',
+        top: compact ? 'calc(6px + env(safe-area-inset-top))' : 'calc(12px + env(safe-area-inset-top))',
+        left: '0',
+        right: '0',
+        width: '100%',
+        'box-sizing': 'border-box',
+        'padding-left': 'max(6px, env(safe-area-inset-left))',
+        'padding-right': 'max(6px, env(safe-area-inset-right))',
+        'z-index': '120',
+        'pointer-events': 'none',
+        display: 'flex',
+        'flex-direction': 'row',
+        'align-items': 'center',
+        'justify-content': compact ? 'center' : undefined,
+        gap: '6px',
+      }}
+    >
+      <div
+        style={{
+          'flex': compact ? '0 0 auto' : '1 1 0',
+          'min-width': '0',
+          display: 'flex',
+          'align-items': 'center',
+          'justify-content': 'flex-end',
+          position: compact ? 'absolute' : undefined,
+          right: compact ? `calc(50% + ${mobilePhaseHalfWidthPx + 6}px)` : undefined,
+        }}
+      >
+        <div
+          style={{
+            ...sidePanel,
+            'clip-path': HUD_SLANTED,
+          }}
+        >
+          <div style={{ display: 'flex', gap: '2px' }}>
+            <For each={lifeSlots()}>{(full) => (full
+              ? <HeartLifeFull size={iconSize} />
+              : <HeartLifeLost size={iconSize} />)}
+            </For>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="round-phase"
+        style={{
+          ...HUD_PANEL_STYLE,
+          ...(compact ? MOBILE_TOP_GLASS : {}),
+          'flex': '0 0 auto',
+          position: compact ? 'absolute' : undefined,
+          left: compact ? '50%' : undefined,
+          transform: compact ? 'translateX(-50%)' : undefined,
+          width: compact ? `${mobilePhaseHalfWidthPx * 2}px` : 'auto',
+          'max-width': 'min(62vw, 400px)',
+          'min-width': 0,
+          padding: compact ? '4px 12px 5px' : '7px 20px 8px',
+          'border-radius': '0',
+          'clip-path': HUD_SLANTED,
+          'text-align': 'center',
+          'white-space': 'pre-line',
+          'font': phaseFontSize
+            ? `700 ${phaseFontSize} "Fredoka", "Baloo", system-ui, sans-serif`
+            : HUD_LABEL_FONT,
+          'font-size': phaseFontSize ?? undefined,
+          color: props.state.phaseColor,
+          'text-shadow': HUD_LABEL_SHADOW,
+          'letter-spacing': '0.04em',
+          'line-height': '1.2',
+          display: props.state.phaseVisible ? 'block' : 'none',
+        }}
+      >
+        {props.state.phaseText}
+      </div>
+
+      <div
+        style={{
+          'flex': compact ? '0 0 auto' : '1 1 0',
+          'min-width': '0',
+          display: 'flex',
+          'align-items': 'center',
+          'justify-content': 'flex-start',
+          position: compact ? 'absolute' : undefined,
+          left: compact ? `calc(50% + ${mobilePhaseHalfWidthPx + 6}px)` : undefined,
+        }}
+      >
+        <div
+          style={{
+            ...sidePanel,
+            'clip-path': HUD_SLANTED,
+          }}
+        >
+          <div style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+            <CheeseItem size={iconSize} />
+            <span
+              style={{
+                color: '#fff',
+                font: HUD_VALUE_FONT,
+                'font-size': fontSize,
+                'min-width': '0',
+              }}
+            >
+              {cheeseText()}
+            </span>
+          </div>
+          <div
+            style={{
+              width: '1px',
+              height: compact ? '14px' : '18px',
+              background: 'rgba(255,255,255,0.2)',
+              'align-self': 'center',
+            }}
+          />
+          <div style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+            <BarStatusDot color="#62df7c" glow="rgba(98,223,124,0.7)" />
+            <span
+              style={{
+                color: '#fff',
+                font: HUD_VALUE_FONT,
+                'font-size': fontSize,
+              }}
+            >
+              {Math.max(0, Math.floor(Number(props.state.barConnected) || 0))}
+            </span>
+          </div>
+          <Show when={Math.max(0, Math.floor(Number(props.state.barBots) || 0)) > 0}>
+            <div style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+              <BarStatusDot color="#8e98a8" glow="rgba(142,152,168,0.45)" />
+              <span
+                style={{
+                  color: '#d8dee8',
+                  font: HUD_VALUE_FONT,
+                  'font-size': fontSize,
+                }}
+              >
+                {Math.max(0, Math.floor(Number(props.state.barBots) || 0))}
+              </span>
+            </div>
+          </Show>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RoundRaidView(props) {
   return (
     <>
@@ -194,32 +417,7 @@ function RoundRaidView(props) {
         </div>
       </div>
 
-      <div
-        id="round-phase"
-        style={{
-          ...HUD_PANEL_STYLE,
-          position: 'fixed',
-          top: '14px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          'z-index': '120',
-          'pointer-events': 'none',
-          padding: '7px 24px 8px',
-          'border-radius': '0',
-          'clip-path': HUD_SLANTED,
-          'max-width': 'min(92vw, 560px)',
-          'text-align': 'center',
-          'white-space': 'pre-line',
-          font: HUD_LABEL_FONT,
-          color: props.state.phaseColor,
-          'text-shadow': HUD_LABEL_SHADOW,
-          'letter-spacing': '0.04em',
-          'line-height': '1.25',
-          display: props.state.phaseVisible ? 'block' : 'none',
-        }}
-      >
-        {props.state.phaseText}
-      </div>
+      <RoundPhaseTopRow state={props.state} />
 
       <div
         style={{
@@ -598,6 +796,12 @@ export class RoundRaidOverlay {
     this._mount = document.createElement('div');
     container.appendChild(this._mount);
     const [state, setState] = createStore({
+      barLives: 2,
+      barMaxLives: 2,
+      barCheese: 0,
+      barCheeseMax: 50,
+      barConnected: 1,
+      barBots: 0,
       phaseVisible: false,
       phaseText: '',
       phaseColor: '#fff',
@@ -682,6 +886,26 @@ export class RoundRaidOverlay {
     this._extractAlertTimeout = 0;
     this._extractAlertPulseTimeout = 0;
     this._shareCopiedTimeout = 0;
+  }
+
+  updateTopBarStats({
+    lives,
+    maxLives,
+    cheese,
+    cheeseMax,
+    connectedCount,
+    botCount,
+  } = {}) {
+    batch(() => {
+      this._setState({
+        barLives: lives ?? 0,
+        barMaxLives: maxLives ?? 2,
+        barCheese: cheese ?? 0,
+        barCheeseMax: cheeseMax ?? 50,
+        barConnected: connectedCount ?? 1,
+        barBots: botCount ?? 0,
+      });
+    });
   }
 
   updatePhaseBanner(round, nowSeconds = Date.now() / 1000, hints = {}) {

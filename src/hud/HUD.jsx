@@ -22,6 +22,7 @@ const PATCH_KEYS = [
   'alive',
   'respawnCountdown',
   'hint',
+  'mischiefScore',
 ];
 
 /**
@@ -52,6 +53,7 @@ export class HUD {
       alive: true,
       respawnCountdown: 0,
       hint: null,
+      mischiefScore: 0,
       humanRole: {
         mode: 'off',
         displayName: '',

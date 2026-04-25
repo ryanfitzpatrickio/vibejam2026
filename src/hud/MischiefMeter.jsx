@@ -13,6 +13,10 @@ import {
 
 const METER_TARGET = 300;
 
+const IS_MOBILE = typeof window !== 'undefined'
+  && ((window.matchMedia?.('(pointer: coarse)')?.matches ?? false)
+    || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
+
 function clamp01(value) {
   return Math.max(0, Math.min(1, Number(value) || 0));
 }
@@ -45,7 +49,7 @@ function MischiefMeterView(props) {
         padding: '10px 12px 12px',
         'z-index': '118',
         'pointer-events': 'none',
-        display: props.state.visible ? 'block' : 'none',
+        display: 'none',
         transform: props.state.pulse > 0 ? `scale(${1 + props.state.pulse * 0.035})` : 'scale(1)',
         transition: 'transform 90ms ease-out',
       }}

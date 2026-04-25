@@ -49,11 +49,22 @@ export function sanitizePlayerInputMessage(data) {
     jump: !!(data.jumpPressed ?? data.jump),
     jumpPressed: !!(data.jumpPressed ?? data.jump),
     jumpHeld: !!(data.jumpHeld ?? data.jumpPressed ?? data.jump),
+    jumpCharge: Math.max(0, Math.min(1, Number(data.jumpCharge) || 0)),
     crouch: !!data.crouch,
     rotation: clampRotation(data.rotation),
     emote: sanitizeEmote(data.emote),
     grab: !!data.grab,
     smack: !!data.smack,
+    /** Held while E winds up a proximity charged smack. */
+    smackHeld: !!data.smackHeld,
+    /** One-shot E release after windup. */
+    chargedSmackRelease: !!data.chargedSmackRelease,
+    /** Held while E winds up a super throw on a grabbed mouse/object. */
+    chargedThrowHeld: !!data.chargedThrowHeld,
+    /** One-shot E release after full super-throw charge. */
+    chargedThrowRelease: !!data.chargedThrowRelease,
+    chargedThrowAimX: clampUnit(data.chargedThrowAimX),
+    chargedThrowAimZ: clampUnit(data.chargedThrowAimZ),
     /** One-shot RB / G press to throw a held mouse or ball with physics. */
     throw: !!data.throw,
     ropeGrab: !!data.ropeGrab,

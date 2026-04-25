@@ -23,6 +23,10 @@ const BAR_HEIGHT = 22;
 const ICON_SIZE = 34;
 const ROW_GAP = 8;
 
+const IS_MOBILE = typeof window !== 'undefined'
+  && ((window.matchMedia?.('(pointer: coarse)')?.matches ?? false)
+    || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
+
 function Sprite(props) {
   return (
     <Dynamic
@@ -510,6 +514,103 @@ function HeroAvailableBadge(props) {
   );
 }
 
+const MOBILE_BOTTOM_HUD_GLASS = {
+  background: 'linear-gradient(160deg, rgba(72,66,82,0.4) 0%, rgba(40,36,50,0.5) 100%)',
+  border: '1px solid rgba(210,195,230,0.35)',
+  'box-shadow': 'inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.2)',
+  'backdrop-filter': 'blur(5px)',
+  'WebkitBackdropFilter': 'blur(5px)',
+};
+
+function MobileStatBar(props) {
+  const pct = () => `${Math.max(0, Math.min(1, props.value())) * 100}%`;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        'align-items': 'center',
+        gap: '6px',
+      }}
+    >
+      <Sprite name={props.iconName} size={19} />
+      <div
+        style={{
+          position: 'relative',
+          flex: '1',
+          height: '10px',
+          background: 'rgba(32,24,45,0.45)',
+          'box-shadow': 'inset 0 1px 1px rgba(0,0,0,0.4)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          overflow: 'hidden',
+          transform: 'skewX(-8deg)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '1px',
+            bottom: '1px',
+            left: '1px',
+            width: `calc(${pct()} - 2px)`,
+            'min-width': '0',
+            background: props.fillColor,
+            'box-shadow': `inset 0 1px 0 ${props.fillHighlight}`,
+            transition: 'width 0.12s ease-out',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+const MISCHIEF_METER_TARGET = 300;
+
+function MobileHud(props) {
+  const healthPct = () => props.state.health;
+  const staminaPct = () => props.state.stamina;
+  const mischiefPct = () => Math.max(0, Math.min(1, (Number(props.state.mischiefScore) || 0) / MISCHIEF_METER_TARGET));
+  return (
+    <div
+      id="hud"
+      style={{
+        ...HUD_PANEL_STYLE,
+        ...MOBILE_BOTTOM_HUD_GLASS,
+        position: 'fixed',
+        bottom: 'max(4px, env(safe-area-inset-bottom))',
+        left: '54%',
+        transform: 'translateX(-50%)',
+        'pointer-events': 'none',
+        'z-index': '100',
+        'user-select': 'none',
+        width: 'min(270px, calc(100vw - 180px))',
+        padding: '7px 9px',
+        display: 'flex',
+        'flex-direction': 'column',
+        gap: '5px',
+      }}
+    >
+      <MobileStatBar
+        iconName="HEART_HEALTH_HAPPY"
+        value={healthPct}
+        fillColor={`linear-gradient(90deg, ${HUD_COLORS.coral} 0%, ${HUD_COLORS.coralHot} 100%)`}
+        fillHighlight="rgba(255,226,236,0.72)"
+      />
+      <MobileStatBar
+        iconName="STAMINA_BOLT"
+        value={staminaPct}
+        fillColor={`linear-gradient(90deg, ${HUD_COLORS.mint} 0%, ${HUD_COLORS.mintHot} 100%)`}
+        fillHighlight="rgba(222,255,242,0.72)"
+      />
+      <MobileStatBar
+        iconName="CHEESE_ITEM"
+        value={mischiefPct}
+        fillColor={`linear-gradient(90deg, ${HUD_COLORS.coral} 0%, ${HUD_COLORS.lavender} 50%, ${HUD_COLORS.cyan} 100%)`}
+        fillHighlight="rgba(255,236,255,0.72)"
+      />
+    </div>
+  );
+}
+
 export function HudView(props) {
   const healthPct = () => props.state.health;
   const staminaPct = () => props.state.stamina;
@@ -524,14 +625,111 @@ export function HudView(props) {
     return `${v}/100`;
   });
 
-  const cheeseMax = createMemo(() => Math.max(1, Math.floor(Number(props.state.cheeseMax ?? 50))));
-  const cheeseText = createMemo(() => {
-    const n = Math.max(0, Math.floor(Number(props.state.cheese) || 0));
-    return `${n} / ${cheeseMax()}`;
-  });
   const heroTimeActive = () => Math.max(0, Number(props.state.heroTimeRemaining) || 0) > 0;
   const heroStatusActive = () => heroTimeActive() && !!props.state.heroAvatar;
   const heroAvailableActive = () => !!props.state.heroAvailable && !heroStatusActive() && props.state.alive !== false;
+
+  if (IS_MOBILE) {
+    return (
+      <>
+        <MobileHud state={props.state} />
+
+        <Show when={props.state.hint}>
+          <div
+            style={{
+              position: 'fixed',
+              top: '14%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              'pointer-events': 'none',
+              'z-index': '120',
+              'user-select': 'none',
+              display: 'flex',
+              'flex-direction': 'column',
+              'align-items': 'center',
+              gap: '6px',
+            }}
+          >
+            <For each={hintItems(props.state.hint)}>{(hint) => (
+              <div
+                style={{
+                  ...HUD_PANEL_STYLE,
+                  display: 'flex',
+                  'align-items': 'center',
+                  gap: '6px',
+                  padding: '5px 10px',
+                  color: '#fff',
+                  font: LABEL_FONT,
+                  'font-size': '11px',
+                  'letter-spacing': '0.04em',
+                  'text-shadow': LABEL_SHADOW,
+                }}
+              >
+                <Show when={hint?.action || hint?.key}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      'min-width': '18px',
+                      padding: '1px 5px',
+                      background: 'rgba(255,224,128,0.2)',
+                      border: `1px solid ${HUD_COLORS.amber}`,
+                      color: HUD_COLORS.amber,
+                      'text-align': 'center',
+                      'font-size': '10px',
+                    }}
+                  >
+                    {hint?.action ? actionLabel(hint.action) : hint?.key}
+                  </span>
+                </Show>
+                <span>{hint?.text}</span>
+              </div>
+            )}</For>
+          </div>
+        </Show>
+
+        <Show when={!props.state.alive && props.state.respawnCountdown > 0}>
+          <div
+            style={{
+              position: 'fixed',
+              top: '0',
+              left: '0',
+              width: '100%',
+              height: '100%',
+              background: 'radial-gradient(circle at 50% 45%, rgba(34,26,49,0.42) 0%, rgba(0,0,0,0.78) 68%)',
+              'z-index': '150',
+              'pointer-events': 'none',
+              'font-family': '"Fredoka", "Baloo", system-ui, sans-serif',
+              'user-select': 'none',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 'max-content',
+                color: HUD_COLORS.coral,
+                font: LABEL_FONT,
+                'font-size': 'clamp(20px, 5vw, 36px)',
+                'letter-spacing': '0.08em',
+                'text-transform': 'uppercase',
+                'text-shadow': LABEL_SHADOW,
+              }}
+            >
+              RESPAWNING IN {Math.ceil(props.state.respawnCountdown)}
+            </div>
+          </div>
+        </Show>
+      </>
+    );
+  }
+
+  const mischiefPct = () => Math.max(0, Math.min(1, (Number(props.state.mischiefScore) || 0) / MISCHIEF_METER_TARGET));
+  const mischiefText = () => {
+    const n = Math.max(0, Math.floor(Number(props.state.mischiefScore) || 0));
+    return `${n}/${MISCHIEF_METER_TARGET}`;
+  };
 
   return (
     <>
@@ -569,31 +767,14 @@ export function HudView(props) {
           fillHighlight="rgba(222,255,242,0.72)"
         />
 
-        <div
-          style={{
-            display: 'flex',
-            'justify-content': 'space-between',
-            'align-items': 'center',
-            gap: '8px',
-            'border-top': '1px solid rgba(255,255,255,0.16)',
-            padding: '7px 2px 0',
-          }}
-        >
-          <LivesCell
-            lives={() => props.state.lives}
-            maxLives={() => props.state.maxLives ?? 2}
-          />
-          <Counter
-            iconName="CHEESE_ITEM"
-            label="CHEESE:"
-            labelColor="#f6d98a"
-            valueText={cheeseText}
-          />
-          <LiveCountsRow
-            connectedCount={props.state.connectedCount}
-            botCount={props.state.botCount}
-          />
-        </div>
+        <StatBar
+          iconName="CHEESE_ITEM"
+          label="MISCHIEF"
+          valueText={mischiefText}
+          value={mischiefPct}
+          fillColor={`linear-gradient(90deg, ${HUD_COLORS.coral} 0%, ${HUD_COLORS.lavender} 50%, ${HUD_COLORS.cyan} 100%)`}
+          fillHighlight="rgba(255,236,255,0.72)"
+        />
 
         <Show when={humanRoleActive() || heroStatusActive() || heroAvailableActive()}>
           <div

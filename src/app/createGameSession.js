@@ -9,7 +9,14 @@ import { Room } from '../world/Room.js';
 import { RopeSystem } from '../world/RopeSystem.js';
 import { VibePortalManager } from '../world/VibePortalManager.js';
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera.js';
-import { CharacterController } from '../controllers/CharacterController.js';
+import {
+  CharacterController,
+  CHARGED_JUMP_FULL_HOLD_MS,
+  CHARGED_JUMP_INDICATOR_HOLD_MS,
+  CHARGED_JUMP_MIN_HOLD_MS,
+  CHARGED_SMACK_INDICATOR_HOLD_MS,
+  CHARGED_THROW_INDICATOR_HOLD_MS,
+} from '../controllers/CharacterController.js';
 import { GamepadManager } from '../input/GamepadManager.js';
 import { installInputSourceTracking, getInputSource, actionLabel } from '../input/inputSource.js';
 import { HUD } from '../hud/HUD.jsx';
@@ -20,6 +27,7 @@ import { ScoreboardOverlay } from '../hud/ScoreboardOverlay.jsx';
 import { ChaseAlertOverlay } from '../hud/ChaseAlertOverlay.jsx';
 import { AdversaryStatusOverlay } from '../hud/AdversaryStatusOverlay.jsx';
 import { ActionJuiceOverlay } from '../hud/ActionJuiceOverlay.js';
+import { createHoldActionReticle } from '../hud/HoldActionReticle.js';
 import { MischiefMeter } from '../hud/MischiefMeter.jsx';
 import { OnboardingOverlay } from '../hud/OnboardingOverlay.jsx';
 import { WindStreakField } from '../world/WindStreakField.js';
@@ -80,6 +88,14 @@ function dampValue(current, target, smoothing, dt) {
 function shortestAngleDelta(target, current) {
   return THREE.MathUtils.euclideanModulo((target - current) + Math.PI, Math.PI * 2) - Math.PI;
 }
+
+const LOCAL_CHARGED_THROW_ORBIT_SPEED = 25.5;
+const CHARGED_THROW_TRACER_POINTS = 30;
+const CHARGED_THROW_TRACER_HORIZ_SPEED = 7.2 * 4.6;
+const CHARGED_THROW_TRACER_UP_SPEED = 9.4 * Math.sqrt(4.6) * 1.35;
+const CHARGED_THROW_TRACER_GRAVITY = 22;
+const CHARGED_THROW_TRACER_STEP_SECONDS = 0.075;
+const CHARGED_THROW_CAMERA_SIDE_OFFSET = 1.15;
 
 function directionBucketFromLateral(current, lateral, enter = 0.34, exit = 0.16) {
   if (current === 'right') return lateral < exit ? 'straight' : 'right';
@@ -291,6 +307,8 @@ export async function createGameSession({
   applyAtmosphere(scene);
 
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+  const _chargedThrowAimDir = new THREE.Vector3();
+  const _chargedThrowArcStart = new THREE.Vector3();
 
   const mouse = new Mouse({
     furColor: '#f5a962',
@@ -1010,6 +1028,49 @@ export async function createGameSession({
   localNameplateAnchor.name = 'LocalNameplateAnchor';
   scene.add(localNameplateAnchor);
   const localNameplate = createPlayerNameplate(localNameplateAnchor, predictionState.displayName);
+  const chargedSmackReticle = createHoldActionReticle({
+    keyLabel: actionLabel('smack'),
+    actionLabel: 'SMACK',
+    color: '#ff7a90',
+    glow: 'rgba(255,122,144,0.56)',
+    position: { x: 0, y: -0.78, z: 0 },
+  });
+  localNameplateAnchor.add(chargedSmackReticle.label);
+  const chargedJumpReticle = createHoldActionReticle({
+    keyLabel: actionLabel('jump'),
+    actionLabel: 'JUMP',
+    color: '#7dd3fc',
+    glow: 'rgba(125,211,252,0.56)',
+    position: { x: 0, y: -0.98, z: 0 },
+  });
+  localNameplateAnchor.add(chargedJumpReticle.label);
+  const chargedThrowReticle = createHoldActionReticle({
+    keyLabel: actionLabel('smack'),
+    actionLabel: 'THROW',
+    color: '#fde68a',
+    glow: 'rgba(253,230,138,0.58)',
+    position: { x: 0, y: -1.18, z: 0 },
+  });
+  localNameplateAnchor.add(chargedThrowReticle.label);
+  const chargedThrowTracerPositions = new Float32Array(CHARGED_THROW_TRACER_POINTS * 3);
+  const chargedThrowTracerGeometry = new THREE.BufferGeometry();
+  chargedThrowTracerGeometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(chargedThrowTracerPositions, 3),
+  );
+  const chargedThrowTracerMaterial = new THREE.LineBasicMaterial({
+    color: '#63ff7a',
+    transparent: true,
+    opacity: 0.92,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const chargedThrowTracer = new THREE.Line(chargedThrowTracerGeometry, chargedThrowTracerMaterial);
+  chargedThrowTracer.name = 'ChargedThrowTracer';
+  chargedThrowTracer.frustumCulled = false;
+  chargedThrowTracer.renderOrder = 3000;
+  chargedThrowTracer.visible = false;
+  scene.add(chargedThrowTracer);
   const extractRingRoot = document.createElement('div');
   Object.assign(extractRingRoot.style, {
     width: '74px',
@@ -1395,6 +1456,12 @@ export async function createGameSession({
   const MAX_PHYSICS_STEPS = 4;
   let physicsAccum = 0;
   let previousJumpHeld = false;
+  let jumpHoldMs = 0;
+  let jumpChargeProgress = 0;
+  let jumpAutoFiredForHold = false;
+  let chargedThrowSfxAt = 0;
+  let localChargedThrowSpinAngle = 0;
+  let localChargedThrowWasSpinning = false;
   let ropePoseGraceUntil = 0;
   let localGrabAnimTimer = 0;
   let prevLocalGrabbedTarget = null;
@@ -1503,6 +1570,9 @@ export async function createGameSession({
     prevLocalGrabbedBallId = ss?.grabbedBallId ?? null;
     mouse.setYaw(predictionState.rotation);
     previousJumpHeld = false;
+    jumpHoldMs = 0;
+    jumpChargeProgress = 0;
+    jumpAutoFiredForHold = false;
     physicsAccum = 0;
     net.pendingInputs.length = 0;
     // Snap render position to spawn/teleport
@@ -1512,6 +1582,44 @@ export async function createGameSession({
       predictionState.position.z,
     );
     renderPosInitialized = true;
+  }
+
+  function getChargedThrowAimDirection(out = _chargedThrowAimDir) {
+    // Use camera yaw, not camera.getWorldDirection(). During over-the-shoulder
+    // aiming the camera looks inward at the mouse, which would put the tracer
+    // directly down-screen and make the ballistic arc look like a straight line.
+    out.set(-Math.sin(thirdPersonCamera.yaw), 0, -Math.cos(thirdPersonCamera.yaw));
+    if (out.lengthSq() <= 0.0001) out.set(0, 0, 1);
+    else out.normalize();
+    return out;
+  }
+
+  function updateChargedThrowTracer(visible) {
+    chargedThrowTracer.visible = !!visible;
+    if (!visible) return;
+    const aim = getChargedThrowAimDirection(_chargedThrowAimDir);
+    _chargedThrowArcStart.set(
+      predictionState.position.x + aim.x * 0.72,
+      predictionState.position.y + mouse.groundOffset + 0.68,
+      predictionState.position.z + aim.z * 0.72,
+    );
+    for (let i = 0; i < CHARGED_THROW_TRACER_POINTS; i += 1) {
+      const t = i * CHARGED_THROW_TRACER_STEP_SECONDS;
+      const px = _chargedThrowArcStart.x + aim.x * CHARGED_THROW_TRACER_HORIZ_SPEED * t;
+      const py = Math.max(
+        0.04,
+        _chargedThrowArcStart.y
+          + CHARGED_THROW_TRACER_UP_SPEED * t
+          - 0.5 * CHARGED_THROW_TRACER_GRAVITY * t * t,
+      );
+      const pz = _chargedThrowArcStart.z + aim.z * CHARGED_THROW_TRACER_HORIZ_SPEED * t;
+      const base = i * 3;
+      chargedThrowTracerPositions[base] = px;
+      chargedThrowTracerPositions[base + 1] = py;
+      chargedThrowTracerPositions[base + 2] = pz;
+    }
+    chargedThrowTracerGeometry.attributes.position.needsUpdate = true;
+    chargedThrowTracerGeometry.computeBoundingSphere();
   }
 
   net.on((data) => {
@@ -1846,7 +1954,36 @@ export async function createGameSession({
       const kb = controller.keyBindings;
 
       const jumpHeld = !!keys[kb.jump];
-      const jumpPressed = jumpHeld && !previousJumpHeld;
+      const jumpReleased = !jumpHeld && previousJumpHeld;
+      if (jumpHeld && !previousJumpHeld) {
+        jumpHoldMs = 0;
+        jumpChargeProgress = 0;
+        jumpAutoFiredForHold = false;
+      }
+      const canGroundedChargedJump = predictionState.grounded
+        || (Number(predictionState.groundedGraceTimer) || 0) > 0;
+      let jumpPressed = false;
+      let jumpCharge = 0;
+      if (jumpHeld && !jumpAutoFiredForHold) {
+        jumpHoldMs += PHYSICS_STEP * 1000;
+        jumpChargeProgress = Math.max(0, Math.min(1, jumpHoldMs / CHARGED_JUMP_FULL_HOLD_MS));
+        if (jumpHoldMs >= CHARGED_JUMP_FULL_HOLD_MS && canGroundedChargedJump) {
+          jumpPressed = true;
+          jumpCharge = 1;
+          jumpAutoFiredForHold = true;
+          jumpHoldMs = 0;
+          jumpChargeProgress = 0;
+        }
+      }
+      if (jumpReleased) {
+        if (!jumpAutoFiredForHold) {
+          jumpPressed = true;
+          jumpCharge = jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS ? jumpChargeProgress : 0;
+        }
+        jumpHoldMs = 0;
+        jumpChargeProgress = 0;
+        jumpAutoFiredForHold = false;
+      }
       previousJumpHeld = jumpHeld;
 
       let inputDir;
@@ -1890,6 +2027,7 @@ export async function createGameSession({
         jump: jumpPressed,
         jumpPressed,
         jumpHeld,
+        jumpCharge,
         crouch: !!keys[kb.crouch],
         rotation: mouse.getYaw(),
       };
@@ -1974,6 +2112,11 @@ export async function createGameSession({
       controller.stamina = predictionState.stamina;
       controller.health = predictionState.health;
       controller.alive = predictionState.alive;
+      controller.chargedJumpHeld = !jumpAutoFiredForHold && jumpHoldMs > 0 && (
+        predictionState.grounded
+        || (Number(predictionState.groundedGraceTimer) || 0) > 0
+      );
+      controller.jumpChargeProgress = jumpChargeProgress;
       controller.forcedAnimationState = predictionState.extracted ? 'win' : null;
       if (controller.forcedAnimationState) {
         emoteManager.cancel();
@@ -1981,6 +2124,8 @@ export async function createGameSession({
       const localGrabbedTarget = net.serverState?.grabbedTarget ?? null;
       const localGrabbedBy = net.serverState?.grabbedBy ?? null;
       const localGrabbedBallId = net.serverState?.grabbedBallId ?? null;
+      const localHeldTarget = !!(localGrabbedTarget || localGrabbedBallId);
+      controller.throwOnInteractWhileGrabHeld = localHeldTarget;
       const startedGrabAnim = (
         (!!localGrabbedTarget && !prevLocalGrabbedTarget)
         || (!!localGrabbedBy && !prevLocalGrabbedBy)
@@ -2011,6 +2156,26 @@ export async function createGameSession({
 
       if (net.connected) {
         const inputWithEmote = { ...input };
+        const localHeldForChargedThrow = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
+        const localChargingThrow = localHeldForChargedThrow
+          && (controller.chargedThrowHeld || controller.chargedThrowReleasePressed);
+        if (localChargingThrow) {
+          const aim = getChargedThrowAimDirection(_chargedThrowAimDir);
+          const serverAngle = Number(net.serverState?._chargedThrowOrbitAngle);
+          if (!localChargedThrowWasSpinning) {
+            localChargedThrowSpinAngle = Number.isFinite(serverAngle) ? serverAngle : mouse.getYaw();
+          }
+          localChargedThrowWasSpinning = true;
+          localChargedThrowSpinAngle += LOCAL_CHARGED_THROW_ORBIT_SPEED * PHYSICS_STEP;
+          const spinYaw = Math.atan2(Math.sin(localChargedThrowSpinAngle), Math.cos(localChargedThrowSpinAngle));
+          mouse.setYaw(spinYaw);
+          predictionState.rotation = spinYaw;
+          inputWithEmote.rotation = spinYaw;
+          inputWithEmote.chargedThrowAimX = aim.x;
+          inputWithEmote.chargedThrowAimZ = aim.z;
+        } else {
+          localChargedThrowWasSpinning = false;
+        }
         if (emoteManager.isPlaying && emoteManager.activeEmote) {
           inputWithEmote.emote = emoteManager.activeEmote.id;
         }
@@ -2025,9 +2190,20 @@ export async function createGameSession({
           controller.smackPressed = false;
           _smackFiredThisFrame = true;
         }
+        inputWithEmote.smackHeld = !!controller.smackHeld;
+        if (controller.chargedSmackReleasePressed) {
+          inputWithEmote.chargedSmackRelease = true;
+          controller.chargedSmackReleasePressed = false;
+          _smackFiredThisFrame = true;
+        }
         if (controller.throwPressed) {
           inputWithEmote.throw = true;
           controller.throwPressed = false;
+        }
+        inputWithEmote.chargedThrowHeld = !!controller.chargedThrowHeld;
+        if (controller.chargedThrowReleasePressed) {
+          inputWithEmote.chargedThrowRelease = true;
+          controller.chargedThrowReleasePressed = false;
         }
         if (controller.heroActivatePressed) {
           inputWithEmote.heroActivate = true;
@@ -2046,6 +2222,35 @@ export async function createGameSession({
     if (steps >= MAX_PHYSICS_STEPS) {
       physicsAccum = 0;
     }
+
+    const frameKeys = controller.keys;
+    const frameKb = controller.keyBindings;
+    const frameCameraHumanMode = !!predictionState.isAdversary;
+    const frameLocalHeldTarget = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
+    const throwAimCameraActive = !!(
+      !frameCameraHumanMode
+      && frameLocalHeldTarget
+      && (frameKeys[frameKb.interact] || controller.chargedThrowHeld)
+      && predictionState.alive !== false
+      && !predictionState.extracted
+      && !predictionState.spectator
+    );
+    const frameCameraArm = frameCameraHumanMode ? HUMAN_CAMERA_ARM_LENGTH : MOUSE_CAMERA_ARM_LENGTH;
+    const frameCameraShoulderY = frameCameraHumanMode ? HUMAN_CAMERA_SHOULDER_Y : MOUSE_CAMERA_SHOULDER_Y;
+    thirdPersonCamera.setArmLength(dampValue(thirdPersonCamera.armLength, frameCameraArm, 7, deltaSeconds));
+    thirdPersonCamera.sideOffset = dampValue(
+      thirdPersonCamera.sideOffset ?? 0,
+      throwAimCameraActive ? CHARGED_THROW_CAMERA_SIDE_OFFSET : 0,
+      14,
+      deltaSeconds,
+    );
+    thirdPersonCamera.shoulderOffset.y = dampValue(
+      thirdPersonCamera.shoulderOffset.y,
+      frameCameraShoulderY,
+      9,
+      deltaSeconds,
+    );
+    thirdPersonCamera.update(deltaSeconds, mouse.position);
 
     if (perfFlags.predators) predatorManager?.update(deltaSeconds);
 
@@ -2127,6 +2332,13 @@ export async function createGameSession({
     const botCount = remotePlayers.filter((id) => typeof id === 'string' && id.startsWith('bot-')).length;
     const connectedCount = net.connected ? 1 + (remotePlayers.length - botCount) : 1;
     const playerCount = connectedCount + botCount;
+    const cheeseForHud = net.connected
+      ? (net.serverState?.cheeseCarried ?? 0)
+      : Math.max(0, Math.floor(predictionState.cheeseCarried ?? 0));
+    const livesForHud = net.connected
+      ? (net.serverState?.livesRemaining ?? 2)
+      : (predictionState.livesRemaining ?? 2);
+
     hud.update({
       stamina: controller.staminaPercent,
       health: controller.healthPercent,
@@ -2134,12 +2346,8 @@ export async function createGameSession({
       playerCount,
       connectedCount,
       botCount,
-      cheese: net.connected
-        ? (net.serverState?.cheeseCarried ?? 0)
-        : Math.max(0, Math.floor(predictionState.cheeseCarried ?? 0)),
-      lives: net.connected
-        ? (net.serverState?.livesRemaining ?? 2)
-        : (predictionState.livesRemaining ?? 2),
+      cheese: cheeseForHud,
+      lives: livesForHud,
       heroAvatar: net.connected
         ? (net.serverState?.heroAvatar ?? null)
         : (predictionState.heroAvatar ?? null),
@@ -2154,6 +2362,18 @@ export async function createGameSession({
         : (predictionState.heroTimeRemaining ?? 0),
       alive: isAlive,
       respawnCountdown,
+      mischiefScore: Math.max(0, Math.floor(Number(
+        (net.connected ? net.serverState : predictionState)?.roundStats?.mischiefScore,
+      ) || 0)),
+    });
+
+    roundRaid.updateTopBarStats({
+      lives: livesForHud,
+      maxLives: 2,
+      cheese: cheeseForHud,
+      cheeseMax: 50,
+      connectedCount,
+      botCount,
     });
 
     heroPrompt.setVisible(false);
@@ -2239,6 +2459,71 @@ export async function createGameSession({
       extractRingInner.textContent = `${pct}%`;
     }
 
+    const showChargedSmackReticle = !!(
+      perfFlags.gameplayUi
+      && controller.smackHeld
+      && !(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId)
+      && controller.smackHoldMs >= CHARGED_SMACK_INDICATOR_HOLD_MS
+      && predictionState.alive !== false
+      && !predictionState.extracted
+      && !predictionState.spectator
+    );
+    chargedSmackReticle.update({
+      visible: showChargedSmackReticle,
+      progress: controller.smackChargeProgress,
+      keyLabel: actionLabel('smack'),
+      actionLabel: 'SMACK',
+    });
+    const showChargedJumpReticle = !!(
+      perfFlags.gameplayUi
+      && !jumpAutoFiredForHold
+      && jumpHoldMs >= CHARGED_JUMP_INDICATOR_HOLD_MS
+      && (
+        predictionState.grounded
+        || (Number(predictionState.groundedGraceTimer) || 0) > 0
+      )
+      && predictionState.alive !== false
+      && !predictionState.extracted
+      && !predictionState.spectator
+    );
+    chargedJumpReticle.update({
+      visible: showChargedJumpReticle,
+      progress: jumpChargeProgress,
+      keyLabel: actionLabel('jump'),
+      actionLabel: 'JUMP',
+    });
+    const localHeldForThrowHud = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
+    const showChargedThrowReticle = !!(
+      perfFlags.gameplayUi
+      && localHeldForThrowHud
+      && controller.chargedThrowHeld
+      && controller.chargedThrowHoldMs >= CHARGED_THROW_INDICATOR_HOLD_MS
+      && predictionState.alive !== false
+      && !predictionState.extracted
+      && !predictionState.spectator
+    );
+    chargedThrowReticle.update({
+      visible: showChargedThrowReticle,
+      progress: controller.chargedThrowProgress,
+      keyLabel: actionLabel('smack'),
+      actionLabel: 'THROW',
+    });
+    const showChargedThrowTracer = !!(
+      perfFlags.gameplayUi
+      && localHeldForThrowHud
+      && controller.chargedThrowHeld
+      && predictionState.alive !== false
+      && !predictionState.extracted
+      && !predictionState.spectator
+    );
+    updateChargedThrowTracer(showChargedThrowTracer);
+    if (showChargedThrowReticle && timeMs >= chargedThrowSfxAt) {
+      audioManager.playSoundAtPosition('beep', predictionState.position);
+      chargedThrowSfxAt = timeMs + 260;
+    } else if (!showChargedThrowReticle) {
+      chargedThrowSfxAt = 0;
+    }
+
     if (net.connected && Array.isArray(net.extractionPortals) && net.extractionPortals.length > 0) {
       while (extractionMarkerGroup.children.length < net.extractionPortals.length) {
         const portal = new THREE.Group();
@@ -2313,8 +2598,6 @@ export async function createGameSession({
     }
 
     const balls = net.pushBalls;
-    const localHeldTarget = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
-    controller.throwOnInteractWhileGrabHeld = localHeldTarget;
     const ropeDistanceSq = nearestRopeDistanceSq(net.ropes, predictionState.position);
     const ropeGrabAssistActive = !!(
       controller.ropeGrabHeld
@@ -2371,7 +2654,7 @@ export async function createGameSession({
 
     // Context-aware hints for held objects, ropes, and ball handling.
     let nextHint = null;
-    if (localHeldTarget && controller.alive) {
+    if ((net.serverState?.grabbedTarget || net.serverState?.grabbedBallId) && controller.alive) {
       nextHint = isCoarsePointer
         ? { id: 'throwHeldBall', key: 'SMACK', text: 'Throw what you are holding' }
         : { id: 'throwHeldBall', action: 'smack', text: 'Throw what you are holding' };
@@ -2713,6 +2996,12 @@ export async function createGameSession({
     catLocator.dispose();
     audioManager.stopAmbientBed();
     audioManager.stopMovementLoop();
+    chargedSmackReticle.dispose();
+    chargedJumpReticle.dispose();
+    chargedThrowReticle.dispose();
+    scene.remove(chargedThrowTracer);
+    chargedThrowTracerGeometry.dispose();
+    chargedThrowTracerMaterial.dispose();
     localNameplate.dispose();
     adversaryStatus.dispose();
     if (_humanWasPlayerControlled) human?.setPlayerControlled(false);

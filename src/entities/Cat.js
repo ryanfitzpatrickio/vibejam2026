@@ -31,6 +31,8 @@ const HARD_SNAP_DIST = 2.0;
 const STALE_SNAPSHOT_SEC = 0.6;
 /** Floor for the dt fed into the lerp so background-throttled frames still pull aggressively. */
 const MIN_LERP_DT = 1 / 30;
+/** The cat's Fall clip floats above the floor; lower only the rendered model while stunned. */
+const STUNNED_FALL_MODEL_Y_OFFSET = -0.8;
 
 export class Cat extends Predator {
   constructor(options = {}) {
@@ -71,6 +73,7 @@ export class Cat extends Predator {
     this._initialized = false;
     /** Wall-clock time of the most recent applyServerState (ms). */
     this._lastServerAt = 0;
+    this._baseModelY = 0;
 
     this.ready = this._load();
   }
@@ -80,6 +83,7 @@ export class Cat extends Predator {
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.loadAsync(assetUrl('models/cat.glb'));
     this._attachModel(gltf, { height: 1.6, groundOffset: -0.1 });
+    this._baseModelY = this.model?.position?.y ?? 0;
     this.playAnimation('Idle', { fadeIn: 0, loop: true });
 
     try {
@@ -138,6 +142,10 @@ export class Cat extends Predator {
 
   _animateForAiState(aiState) {
     this.eyeAnimator?.setState(aiState);
+    if (this.model) {
+      this.model.position.y = this._baseModelY
+        + (aiState === 'stunned' ? STUNNED_FALL_MODEL_Y_OFFSET : 0);
+    }
 
     switch (aiState) {
       case 'idle':
@@ -169,7 +177,7 @@ export class Cat extends Predator {
         this.playAnimation('Idle');
         break;
       case 'stunned':
-        this.playAnimation('Jump', { loop: false, clampWhenFinished: true });
+        this.playAnimation('Fall', { loop: false, clampWhenFinished: true });
         break;
       case 'death':
         this.playAnimation('Death', { loop: false, clampWhenFinished: true });
