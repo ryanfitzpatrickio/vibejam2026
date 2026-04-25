@@ -65,6 +65,12 @@ export function sanitizePlayerInputMessage(data) {
     chargedThrowRelease: !!data.chargedThrowRelease,
     chargedThrowAimX: clampUnit(data.chargedThrowAimX),
     chargedThrowAimZ: clampUnit(data.chargedThrowAimZ),
+    /** Left-click arcade toss: hold to auto-grab a nearby mouse and charge a launch. */
+    quickTossHeld: !!data.quickTossHeld,
+    /** One-shot left-click release to sling the quick-toss target. */
+    quickTossRelease: !!data.quickTossRelease,
+    quickTossAimX: clampUnit(data.quickTossAimX),
+    quickTossAimZ: clampUnit(data.quickTossAimZ),
     /** One-shot RB / G press to throw a held mouse or ball with physics. */
     throw: !!data.throw,
     ropeGrab: !!data.ropeGrab,

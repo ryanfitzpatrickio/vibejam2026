@@ -2,18 +2,21 @@
 
 Snapshot of JS/JSX/MJS source files under `src/`, `shared/`, `party/`, `worker/`, `scripts/`. Generated `*.generated.js` files (navmesh / layout bakes) are excluded — they are huge by design and not hand-authored.
 
-- Total files scanned: **161**
-- Total SLOC (non-blank, non-comment): **48,633**
+**Last regenerated:** 2026-04-25 (`node scripts/code-report-scan.mjs`)
+
+- Total files scanned: **162**
+- Total SLOC (non-blank, non-comment): **51,584**
 
 ### Metric notes
 
 - **LOC** — raw line count.
-- **SLOC** — non-blank, non-comment source lines.
-- **Cyclomatic** — approximate McCabe complexity: `1 + (if + else-if + for + while + case + catch + && + || + ternary + ??)`, counted after stripping comments and string literals.
+- **SLOC** — non-blank, non-comment source lines (after stripping block/line comments and string/template contents).
+- **Cyclomatic** — approximate McCabe-style complexity: `1 + (if + for + while + case + catch + && + || + ternary + ??)`, counted on comment/string-stripped text. Ternaries exclude optional-chaining `?.`.
 - **Density** — `cyclomatic / SLOC`. High values ≈ tangled branching per line; low values ≈ mostly declarative code.
-- **Fns** — rough function count (`function` keyword + arrow `=>`), for context only.
+- **Fns** — rough function count (`function` keyword + `=>` arrows), for context only.
 
-Thresholds I treated as "too much":
+Thresholds treated as "too much":
+
 - SLOC > ~800 per module (splitting becomes cheap wins)
 - Cyclomatic > ~200 per module (hard to reason about in one head)
 - Density > ~0.30 with SLOC ≥ 80 (branch-per-line soup)
@@ -26,75 +29,76 @@ Top 25 hand-written files by source lines.
 
 | Rank | File | LOC | SLOC | Fns |
 | ---: | :--- | ---: | ---: | ---: |
-| 1 | `src/world/Room.js` | 4219 | **3701** | 176 |
-| 2 | `src/dev/installBuildMode.js` | 2952 | **2691** | 46 |
-| 3 | `src/app/createGameSession.js` | 2796 | **2509** | 168 |
-| 4 | `party/server.js` | 2531 | 2249 | 14 |
-| 5 | `shared/predator.js` | 2135 | 1894 | 73 |
+| 1 | `src/world/Room.js` | 4525 | **3990** | 194 |
+| 2 | `src/app/createGameSession.js` | 3223 | **2918** | 172 |
+| 3 | `party/server.js` | 3173 | **2871** | 54 |
+| 4 | `src/dev/installBuildMode.js` | 3076 | **2812** | 103 |
+| 5 | `shared/predator.js` | 2135 | 1895 | 73 |
 | 6 | `shared/roomba.js` | 1847 | 1619 | 71 |
 | 7 | `src/audio/AudioManager.js` | 1851 | 1460 | 33 |
-| 8 | `src/dev/VegetationEditorDialog.js` | 1457 | 1353 | 150 |
-| 9 | `src/dev/PrefabEditorDialog.js` | 1365 | 1221 | 38 |
-| 10 | `src/hud/GameToolbar.jsx` | 992 | 939 | 70 |
-| 11 | `src/dev/DressingRoomDialog.js` | 1063 | 926 | 42 |
-| 12 | `shared/mouseBot.js` | 1013 | 902 | 35 |
-| 13 | `src/hud/RoundRaidOverlay.jsx` | 771 | 740 | 28 |
-| 14 | `src/input/MobileControls.js` | 808 | 736 | 43 |
-| 15 | `scripts/bake-house-glb.mjs` | 770 | 697 | 51 |
-| 16 | `shared/physics.js` | 903 | 695 | 25 |
-| 17 | `src/hud/HudView.jsx` | 711 | 677 | 51 |
+| 8 | `src/dev/PrefabEditorDialog.js` | 1551 | 1392 | 71 |
+| 9 | `src/dev/VegetationEditorDialog.js` | 1457 | 1353 | 162 |
+| 10 | `src/hud/RoundRaidOverlay.jsx` | 995 | 951 | 57 |
+| 11 | `src/hud/GameToolbar.jsx` | 992 | 939 | 70 |
+| 12 | `src/dev/DressingRoomDialog.js` | 1063 | 926 | 42 |
+| 13 | `shared/mouseBot.js` | 1017 | 908 | 35 |
+| 14 | `src/hud/HudView.jsx` | 892 | 849 | 56 |
+| 15 | `src/input/MobileControls.js` | 808 | 736 | 43 |
+| 16 | `shared/physics.js` | 915 | 707 | 25 |
+| 17 | `scripts/bake-house-glb.mjs` | 770 | 694 | 51 |
 | 18 | `src/entities/Human.js` | 749 | 649 | 4 |
 | 19 | `party/stats.js` | 723 | 642 | 34 |
 | 20 | `worker/index.js` | 725 | 638 | 51 |
-| 21 | `src/world/VegetationSystem.js` | 695 | 625 | 40 |
-| 22 | `src/entities/Mouse.js` | 806 | 579 | 17 |
-| 23 | `src/tasks/ChewWiresTask.jsx` | 586 | 544 | 52 |
-| 24 | `scripts/live-bots.mjs` | 565 | 499 | 28 |
-| 25 | `src/animation/MouseEyeAtlasAnimator.js` | 551 | 484 | 7 |
+| 21 | `src/controllers/CharacterController.js` | 690 | 604 | 6 |
+| 22 | `src/world/VegetationSystem.js` | 695 | 591 | 40 |
+| 23 | `src/entities/Mouse.js` | 806 | 579 | 17 |
+| 24 | `src/tasks/ChewWiresTask.jsx` | 586 | 535 | 52 |
+| 25 | `scripts/live-bots.mjs` | 565 | 499 | 46 |
 
 ### Notable offenders
 
-- **`src/world/Room.js` (3.7k SLOC)** — single file holding the entire scene graph. 4× bigger than the next gameplay file. Prime split candidate — likely clusters into `furniture/`, `lighting/`, `props/`, `triggers/`.
-- **`src/dev/installBuildMode.js` (2.7k)** — dev-only but still the #2 file in the repo. Can be carved per subsystem (already has `subsystems/` neighbors).
-- **`src/app/createGameSession.js` (2.5k, 168 fns)** — the god-function of boot. Action-juice handlers, portal FX, HUD wiring, net wiring, input wiring all co-located.
-- **`party/server.js` (2.2k)** — authoritative room + raid + tasks + rate limits + turnstile + origin checks in one file. Logic modules (raid, mischief scoring, origin/auth, rate limits) would extract cleanly.
-- **`shared/predator.js` (1.9k)** and **`shared/roomba.js` (1.6k)** — AI state machines; readable but long.
-- **`src/audio/AudioManager.js` (1.5k)** — could split into loader / mixer / ducking.
-- Dev dialogs (`VegetationEditorDialog`, `PrefabEditorDialog`, `DressingRoomDialog`) together are ~3.5k SLOC — they share UI patterns that could be extracted into a small dialog kit.
+- **`src/world/Room.js` (~4k SLOC)** — still the single largest gameplay module: scene graph, props, interactions. Prime split candidate by area or concern (furniture, lighting, triggers, ropes/portals).
+- **`src/app/createGameSession.js` (~2.9k)** — session bootstrap: wiring for net, HUD, input, FX, tasks. Natural seams are “network/session”, “HUD/overlays”, “juice/FX”, “input/controllers”.
+- **`party/server.js` (~2.9k SLOC, highest cyclomatic in repo)** — authoritative multiplayer + raid + tasks + limits in one surface. Strong candidate to peel `raid`, scoring/mischief, rate limits, and origin/auth into focused modules with a thin PartyKit entry.
+- **`src/dev/installBuildMode.js` (~2.8k)** — dev-only but still top-tier size; already neighbored by `dev/sections/` and subsystems — more carving along editor concerns would help.
+- **`shared/predator.js` / `shared/roomba.js`** — long shared AI state machines; same extraction story as before (states / tables / pure update steps).
+- **`src/audio/AudioManager.js`** — loader vs mixer vs ducking vs spatial split still applies.
+- **Dev dialogs** (`PrefabEditorDialog`, `VegetationEditorDialog`, `DressingRoomDialog`) — shared UI primitives (forms, lists, modals) would amortize a lot of repetition.
+- **`src/controllers/CharacterController.js`** — now in the same size band as `Mouse.js` / `VegetationSystem.js`; worth watching if it keeps absorbing modes.
 
 ---
 
 ## 2. Too Much Complexity — ranked by cyclomatic
 
-Top 25 by approximate McCabe complexity.
+Top 25 by approximate McCabe-style complexity.
 
 | Rank | File | Cyclomatic | SLOC | Density |
 | ---: | :--- | ---: | ---: | ---: |
-| 1 | `src/world/Room.js` | **825** | 3701 | 0.22 |
-| 2 | `shared/predator.js` | **614** | 1894 | 0.32 |
-| 3 | `src/app/createGameSession.js` | **547** | 2509 | 0.22 |
-| 4 | `shared/roomba.js` | **437** | 1619 | 0.27 |
-| 5 | `shared/physics.js` | 236 | 695 | 0.34 |
-| 6 | `shared/mouseBot.js` | 224 | 902 | 0.25 |
-| 7 | `src/dev/VegetationEditorDialog.js` | 211 | 1353 | 0.16 |
-| 8 | `worker/index.js` | 197 | 638 | 0.31 |
-| 9 | `src/dev/installBuildMode.js` | 188 | 2691 | 0.07 |
-| 10 | `party/stats.js` | 174 | 642 | 0.27 |
-| 11 | `src/audio/AudioManager.js` | 166 | 1460 | 0.11 |
-| 12 | `src/entities/Human.js` | 160 | 649 | 0.25 |
-| 13 | `scripts/bake-house-glb.mjs` | 153 | 697 | 0.22 |
-| 14 | `src/world/VegetationSystem.js` | 116 | 625 | 0.19 |
-| 15 | `src/net/RemotePlayerManager.js` | 113 | 294 | **0.38** |
-| 16 | `src/animation/MouseEyeAtlasAnimator.js` | 112 | 484 | 0.23 |
-| 17 | `src/controllers/CharacterController.js` | 112 | 477 | 0.23 |
-| 18 | `src/entities/Predator.js` | 101 | 359 | 0.28 |
-| 19 | `src/dev/DressingRoomDialog.js` | 92 | 926 | 0.10 |
-| 20 | `src/entities/Mouse.js` | 90 | 579 | 0.16 |
-| 21 | `shared/devLayoutValidation.js` | 89 | 75 | **1.19** |
-| 22 | `scripts/generate-kitchen-navmesh-module.mjs` | 89 | 371 | 0.24 |
-| 23 | `shared/roomCollision.js` | 88 | 252 | 0.35 |
-| 24 | `src/input/MobileControls.js` | 86 | 736 | 0.12 |
-| 25 | `src/dev/vegetationRegistry.js` | 86 | 262 | 0.33 |
+| 1 | `party/server.js` | **919** | 2871 | 0.32 |
+| 2 | `src/world/Room.js` | **885** | 3990 | 0.22 |
+| 3 | `src/app/createGameSession.js` | **789** | 2918 | 0.27 |
+| 4 | `src/dev/installBuildMode.js` | 608 | 2812 | 0.22 |
+| 5 | `shared/predator.js` | 563 | 1895 | 0.30 |
+| 6 | `shared/roomba.js` | 423 | 1619 | 0.26 |
+| 7 | `shared/physics.js` | 238 | 707 | 0.34 |
+| 8 | `src/dev/VegetationEditorDialog.js` | 235 | 1353 | 0.17 |
+| 9 | `shared/mouseBot.js` | 226 | 908 | 0.25 |
+| 10 | `src/audio/AudioManager.js` | 219 | 1460 | 0.15 |
+| 11 | `worker/index.js` | 187 | 638 | 0.29 |
+| 12 | `party/stats.js` | 163 | 642 | 0.25 |
+| 13 | `src/dev/PrefabEditorDialog.js` | 162 | 1392 | 0.12 |
+| 14 | `src/entities/Human.js` | 160 | 649 | 0.25 |
+| 15 | `src/controllers/CharacterController.js` | 153 | 604 | 0.25 |
+| 16 | `scripts/bake-house-glb.mjs` | 148 | 694 | 0.21 |
+| 17 | `scripts/live-bots.mjs` | 146 | 499 | 0.29 |
+| 18 | `src/hud/RoundRaidOverlay.jsx` | 142 | 951 | 0.15 |
+| 19 | `src/world/VegetationSystem.js` | 115 | 591 | 0.19 |
+| 20 | `src/entities/Mouse.js` | 102 | 579 | 0.18 |
+| 21 | `src/animation/MouseEyeAtlasAnimator.js` | 99 | 484 | 0.20 |
+| 22 | `src/dev/DressingRoomDialog.js` | 98 | 926 | 0.11 |
+| 23 | `shared/roomCollision.js` | 97 | 358 | 0.27 |
+| 24 | `src/net/RemotePlayerManager.js` | 96 | 302 | **0.32** |
+| 25 | `src/dev/subsystems/probeVisuals.js` | 90 | 225 | **0.40** |
 
 ---
 
@@ -104,39 +108,39 @@ Files where the ratio of decisions to lines is unusually high. Good candidates f
 
 | Rank | File | Density | Cyclomatic | SLOC |
 | ---: | :--- | ---: | ---: | ---: |
-| 1 | `shared/devLayoutValidation.js` | **1.19** | 89 | 75 |
-| 2 | `src/physics/UprightCapsuleCollider.js` | 0.40 | 48 | 121 |
-| 3 | `src/net/RemotePlayerManager.js` | 0.38 | 113 | 294 |
-| 4 | `src/tasks/HeroUnlockTask.jsx` | 0.37 | 81 | 221 |
-| 5 | `shared/roomCollision.js` | 0.35 | 88 | 252 |
-| 6 | `shared/physics.js` | 0.34 | 236 | 695 |
-| 7 | `src/utils/nameplateOcclusion.js` | 0.33 | 27 | 81 |
-| 8 | `src/dev/vegetationRegistry.js` | 0.33 | 86 | 262 |
-| 9 | `shared/predator.js` | 0.32 | 614 | 1894 |
-| 10 | `src/dev/prefabRegistry.js` | 0.32 | 48 | 150 |
-| 11 | `src/dev/subsystems/probeVisuals.js` | 0.32 | 72 | 225 |
-| 12 | `worker/index.js` | 0.31 | 197 | 638 |
-| 13 | `src/input/GamepadManager.js` | 0.30 | 42 | 142 |
-| 14 | `scripts/bench-network.mjs` | 0.29 | 64 | 222 |
-| 15 | `src/entities/Predator.js` | 0.28 | 101 | 359 |
+| 1 | `src/physics/UprightCapsuleCollider.js` | **0.41** | 50 | 121 |
+| 2 | `src/dev/subsystems/probeVisuals.js` | **0.40** | 90 | 225 |
+| 3 | `src/tasks/HeroUnlockTask.jsx` | 0.38 | 85 | 221 |
+| 4 | `src/utils/nameplateOcclusion.js` | 0.38 | 31 | 81 |
+| 5 | `shared/raidLayout.js` | 0.35 | 68 | 192 |
+| 6 | `shared/physics.js` | 0.34 | 238 | 707 |
+| 7 | `party/server.js` | 0.32 | 919 | 2871 |
+| 8 | `src/net/RemotePlayerManager.js` | 0.32 | 96 | 302 |
+| 9 | `src/input/GamepadManager.js` | 0.32 | 45 | 142 |
+| 10 | `shared/predator.js` | 0.30 | 563 | 1895 |
+| 11 | `shared/ropes.js` | 0.30 | 31 | 105 |
+| 12 | `worker/index.js` | 0.29 | 187 | 638 |
+| 13 | `scripts/live-bots.mjs` | 0.29 | 146 | 499 |
+| 14 | `src/dev/prefabRegistry.js` | 0.29 | 43 | 150 |
+| 15 | `src/world/RopeSystem.js` | 0.28 | 62 | 218 |
 
-`devLayoutValidation.js` at density 1.19 is essentially a wall of guard clauses — probably fine as validation code, but worth glancing at.
+`shared/devLayoutValidation.js` is intentionally guard-heavy validation (small file); it can spike density in some counting styles but is below the SLOC ≥ 80 cutoff here — still worth a skim when changing dev sync payloads.
 
 ---
 
 ## Suggested refactor order
 
-Best ROI first (biggest files that are also branch-heavy):
+Best ROI first (largest files that are also hard to navigate or branch-heavy):
 
-1. **`src/world/Room.js`** — split by room/area or by concern (lighting, props, triggers). Single biggest lever in the repo.
-2. **`shared/predator.js`** — extract AI states (idle / chase / grab / throw) into per-state modules; the big switch/case is what's driving the 614.
-3. **`src/app/createGameSession.js`** — pull action-juice, portal FX, HUD wiring, and net hookup into their own setup modules.
-4. **`shared/roomba.js`** — same pattern as predator; state table + pure updates.
-5. **`party/server.js`** — extract `auth/origin/rateLimit`, `raid`, `mischiefScore`, `taskRewards` into sibling files; `server.js` becomes a thin PartyKit entry.
-6. **`worker/index.js`** — high density for its size. Split `security/csp`, `matchmake`, `roomEvent`, `stats` handlers.
+1. **`party/server.js`** — highest cyclomatic and very large; extract raid/scoring/tasks/rate-limit/auth into modules and keep the PartyKit entry thin.
+2. **`src/world/Room.js`** — largest SLOC; split by subsystem or physical zone.
+3. **`src/app/createGameSession.js`** — pull HUD wiring, net wiring, juice/FX, and portal/session setup into named setup modules.
+4. **`shared/predator.js` / `shared/roomba.js`** — state-centric extraction (same pattern for both).
+5. **`worker/index.js`** — high density at moderate size; split security/CSP, routing, and room/match handlers.
+6. **`shared/physics.js` + `shared/roomCollision.js`** — collision/response paths are dense; consider tables or shared helpers for repeated branches.
 7. **`src/audio/AudioManager.js`** — loader / mixer / spatial / ducking.
-8. Dev dialogs (`VegetationEditorDialog`, `PrefabEditorDialog`, `DressingRoomDialog`) — share a dialog kit.
+8. **Dev stack** (`installBuildMode.js`, editor dialogs) — shared dialog/field kit.
 
 ---
 
-_Methodology: regex-based counts after stripping comments and string literals. Ternaries exclude optional-chaining `?.`. Numbers are directional, not exact — use as a map, not a verdict._
+_Methodology: character scanner strips comments and string/template literal bodies, then applies token counts. Numbers are directional, not exact — use as a map, not a verdict. The scan script excludes itself (`scripts/code-report-scan.mjs`) from totals._

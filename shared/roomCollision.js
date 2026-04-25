@@ -71,6 +71,12 @@ function getPlaneWorldNormal(primitive) {
   return rotateEulerXYZ(primitiveNormal, primitive.prefabInstanceRotation);
 }
 
+function getTaskPrefabPlaneWorldNormal(part, task, prefab) {
+  const partNormal = rotateEulerXYZ({ x: 0, y: 0, z: 1 }, part.rotation);
+  const prefabNormal = rotateEulerXYZ(partNormal, prefab?.rotation);
+  return rotateEulerXYZ(prefabNormal, task?.rotation);
+}
+
 function applyTransform(point, {
   position = { x: 0, y: 0, z: 0 },
   rotation = { x: 0, y: 0, z: 0 },
@@ -95,6 +101,14 @@ function colliderTypeForPrimitive(primitive) {
   }
 
   const normal = getPlaneWorldNormal(primitive);
+  return normal.y >= 0.75 ? 'surface' : 'wall';
+}
+
+function colliderTypeForTaskPrefabPart(part, task, prefab) {
+  if (part.type !== 'plane') {
+    return 'furniture';
+  }
+  const normal = getTaskPrefabPlaneWorldNormal(part, task, prefab);
   return normal.y >= 0.75 ? 'surface' : 'wall';
 }
 
@@ -215,6 +229,24 @@ function transformPrimitivePoint(point, primitive, scaleFactor = 1) {
   });
 }
 
+function transformTaskPrefabPoint(point, part, task, prefab, scaleFactor = 1) {
+  const localPoint = applyTransform(point, {
+    position: scaleVec3(part.position, scaleFactor),
+    rotation: part.rotation,
+    scale: scaleVec3(defaultScale(part.scale), scaleFactor),
+  });
+  const prefabPoint = applyTransform(localPoint, {
+    position: scaleVec3(prefab?.position, scaleFactor),
+    rotation: prefab?.rotation,
+    scale: defaultScale(prefab?.scale),
+  });
+  return applyTransform(prefabPoint, {
+    position: scaleVec3(task?.position, scaleFactor),
+    rotation: task?.rotation,
+    scale: { x: 1, y: 1, z: 1 },
+  });
+}
+
 function buildPrimitiveAabb(primitive, scaleFactor = 1) {
   const points = getPrimitiveLocalPoints(primitive);
   const aabb = createEmptyAabb();
@@ -226,6 +258,33 @@ function buildPrimitiveAabb(primitive, scaleFactor = 1) {
   const clearance = primitive.colliderClearance ?? 0;
   if (clearance > 0) {
     aabb.min.y += clearance * scaleFactor;
+  }
+
+  return aabb;
+}
+
+function buildTaskPrefabPartAabb(part, task, prefab, scaleFactor = 1) {
+  const points = getPrimitiveLocalPoints(part);
+  const aabb = createEmptyAabb();
+
+  for (const point of points) {
+    expandAabb(aabb, transformTaskPrefabPoint(point, part, task, prefab, scaleFactor));
+  }
+
+  const clearance = part.colliderClearance ?? 0;
+  if (clearance > 0) {
+    aabb.min.y += clearance * scaleFactor;
+  }
+
+  return aabb;
+}
+
+function buildTaskPrefabLocalBoundsAabb(bounds, part, task, prefab, scaleFactor = 1) {
+  const points = createBoxCornerPoints(bounds);
+  const aabb = createEmptyAabb();
+
+  for (const point of points) {
+    expandAabb(aabb, transformTaskPrefabPoint(point, part, task, prefab, scaleFactor));
   }
 
   return aabb;
@@ -244,8 +303,13 @@ function buildLocalBoundsAabb(bounds, primitive, scaleFactor = 1) {
 
 export function buildRoomCollidersFromLayout(layout, {
   scaleFactor = ROOM_COLLISION_CONFIG.scaleFactor,
+  completedTaskIds = null,
 } = {}) {
   const primitives = Array.isArray(layout?.primitives) ? layout.primitives : [];
+  const raidTasks = Array.isArray(layout?.raidTasks) ? layout.raidTasks : [];
+  const completedTasks = completedTaskIds instanceof Set
+    ? completedTaskIds
+    : new Set(Array.isArray(completedTaskIds) ? completedTaskIds : []);
   const colliders = [];
 
   for (const primitive of primitives) {
@@ -293,6 +357,63 @@ export function buildRoomCollidersFromLayout(layout, {
       metadata,
       aabb: buildPrimitiveAabb(primitive, scaleFactor),
     });
+  }
+
+  for (const task of raidTasks) {
+    if (!task || task.deleted === true) continue;
+    const completed = completedTasks.has(task.id);
+    const preferredPrefab = completed ? task.afterPrefab : task.beforePrefab;
+    const fallbackPrefab = completed ? task.beforePrefab : task.afterPrefab;
+    const prefab = preferredPrefab?.enabled !== false && Array.isArray(preferredPrefab?.primitives)
+      ? preferredPrefab
+      : fallbackPrefab;
+    if (!prefab?.primitives?.length) continue;
+
+    for (const part of prefab.primitives) {
+      if (!part || part.deleted === true) continue;
+      if (part.type === 'prop') continue;
+      if (part.collider === false) continue;
+
+      const colliderType = colliderTypeForTaskPrefabPart(part, task, prefab);
+      const metadata = {
+        source: 'layout',
+        raidTaskId: task.id ?? null,
+        raidTaskType: task.taskType ?? null,
+        raidTaskPrefabSlot: completed ? 'after' : 'before',
+        primitiveId: part.id ?? null,
+        primitiveName: part.name ?? null,
+        prefabId: prefab.prefabId ?? null,
+        colliderClearance: part.colliderClearance ?? 0,
+        runnable: colliderType === 'surface',
+        taskPrefab: true,
+      };
+      if (part.type === 'plane' && colliderType === 'surface') {
+        metadata.plane = true;
+        metadata.zIndex = Number.isFinite(part.zIndex) ? Math.trunc(part.zIndex) : 0;
+      }
+
+      if (part.type === 'wedge') {
+        const boxes = createWedgeLocalColliderBoxes();
+        boxes.forEach((localBox, index) => {
+          colliders.push({
+            type: colliderType,
+            metadata: {
+              ...metadata,
+              wedgeProxy: true,
+              wedgeProxyIndex: index,
+            },
+            aabb: buildTaskPrefabLocalBoundsAabb(localBox, part, task, prefab, scaleFactor),
+          });
+        });
+        continue;
+      }
+
+      colliders.push({
+        type: colliderType,
+        metadata,
+        aabb: buildTaskPrefabPartAabb(part, task, prefab, scaleFactor),
+      });
+    }
   }
 
   return sortCollidersForPlaneZIndex(colliders);

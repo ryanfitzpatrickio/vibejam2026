@@ -16,6 +16,7 @@ import {
   CHARGED_JUMP_MIN_HOLD_MS,
   CHARGED_SMACK_INDICATOR_HOLD_MS,
   CHARGED_THROW_INDICATOR_HOLD_MS,
+  QUICK_TOSS_INDICATOR_HOLD_MS,
 } from '../controllers/CharacterController.js';
 import { GamepadManager } from '../input/GamepadManager.js';
 import { installInputSourceTracking, getInputSource, actionLabel } from '../input/inputSource.js';
@@ -903,7 +904,9 @@ export async function createGameSession({
             ? 'Roomba jammed!'
             : data.taskType === 'knife_drawer'
               ? 'Drawer raided!'
-              : 'Mischief!';
+              : data.taskType === 'window'
+                ? 'Window opened!'
+                : 'Mischief!';
         spawnActionJuice({ position: entry.group.position, isAdversary: false }, label, 'mischief');
       }
     }
@@ -2152,6 +2155,20 @@ export async function createGameSession({
       controller._updateAnimation(PHYSICS_STEP);
       controller._updateCamera(PHYSICS_STEP);
       controller._handleAbilities();
+      const localExtractHoldActive = !!(
+        net.round?.phase === 'extract'
+        && controller.interactHeld
+        && !controller.chargedThrowHeld
+        && !predictionState.extracted
+        && !predictionState.spectator
+      );
+      if (localExtractHoldActive) {
+        controller.smackHeld = false;
+        controller.smackHoldMs = 0;
+        controller.smackChargeProgress = 0;
+        controller.smackPressed = false;
+        controller.chargedSmackReleasePressed = false;
+      }
       emoteManager.update(PHYSICS_STEP);
 
       if (net.connected) {
@@ -2159,7 +2176,9 @@ export async function createGameSession({
         const localHeldForChargedThrow = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
         const localChargingThrow = localHeldForChargedThrow
           && (controller.chargedThrowHeld || controller.chargedThrowReleasePressed);
-        if (localChargingThrow) {
+        const localQuickTossActive = !!(controller.quickTossHeld || controller.quickTossReleasePressed);
+        const localSpinningThrow = localChargingThrow || (localHeldForChargedThrow && localQuickTossActive);
+        if (localSpinningThrow) {
           const aim = getChargedThrowAimDirection(_chargedThrowAimDir);
           const serverAngle = Number(net.serverState?._chargedThrowOrbitAngle);
           if (!localChargedThrowWasSpinning) {
@@ -2171,10 +2190,21 @@ export async function createGameSession({
           mouse.setYaw(spinYaw);
           predictionState.rotation = spinYaw;
           inputWithEmote.rotation = spinYaw;
-          inputWithEmote.chargedThrowAimX = aim.x;
-          inputWithEmote.chargedThrowAimZ = aim.z;
+          if (localChargingThrow) {
+            inputWithEmote.chargedThrowAimX = aim.x;
+            inputWithEmote.chargedThrowAimZ = aim.z;
+          }
+          if (localQuickTossActive) {
+            inputWithEmote.quickTossAimX = aim.x;
+            inputWithEmote.quickTossAimZ = aim.z;
+          }
         } else {
           localChargedThrowWasSpinning = false;
+        }
+        if (localQuickTossActive && !localSpinningThrow) {
+          const aim = getChargedThrowAimDirection(_chargedThrowAimDir);
+          inputWithEmote.quickTossAimX = aim.x;
+          inputWithEmote.quickTossAimZ = aim.z;
         }
         if (emoteManager.isPlaying && emoteManager.activeEmote) {
           inputWithEmote.emote = emoteManager.activeEmote.id;
@@ -2185,13 +2215,13 @@ export async function createGameSession({
           inputWithEmote.grab = true;
           inputWithEmote.ropeGrab = true;
         }
-        if (controller.smackPressed) {
+        if (!localExtractHoldActive && controller.smackPressed) {
           inputWithEmote.smack = true;
           controller.smackPressed = false;
           _smackFiredThisFrame = true;
         }
-        inputWithEmote.smackHeld = !!controller.smackHeld;
-        if (controller.chargedSmackReleasePressed) {
+        inputWithEmote.smackHeld = !localExtractHoldActive && !!controller.smackHeld;
+        if (!localExtractHoldActive && controller.chargedSmackReleasePressed) {
           inputWithEmote.chargedSmackRelease = true;
           controller.chargedSmackReleasePressed = false;
           _smackFiredThisFrame = true;
@@ -2204,6 +2234,11 @@ export async function createGameSession({
         if (controller.chargedThrowReleasePressed) {
           inputWithEmote.chargedThrowRelease = true;
           controller.chargedThrowReleasePressed = false;
+        }
+        inputWithEmote.quickTossHeld = !!controller.quickTossHeld;
+        if (controller.quickTossReleasePressed) {
+          inputWithEmote.quickTossRelease = true;
+          controller.quickTossReleasePressed = false;
         }
         if (controller.heroActivatePressed) {
           inputWithEmote.heroActivate = true;
@@ -2230,7 +2265,7 @@ export async function createGameSession({
     const throwAimCameraActive = !!(
       !frameCameraHumanMode
       && frameLocalHeldTarget
-      && (frameKeys[frameKb.interact] || controller.chargedThrowHeld)
+      && (frameKeys[frameKb.interact] || controller.chargedThrowHeld || controller.quickTossHeld)
       && predictionState.alive !== false
       && !predictionState.extracted
       && !predictionState.spectator
@@ -2463,6 +2498,7 @@ export async function createGameSession({
       perfFlags.gameplayUi
       && controller.smackHeld
       && !(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId)
+      && !(net.round?.phase === 'extract' && controller.interactHeld)
       && controller.smackHoldMs >= CHARGED_SMACK_INDICATOR_HOLD_MS
       && predictionState.alive !== false
       && !predictionState.extracted
@@ -2493,25 +2529,30 @@ export async function createGameSession({
       actionLabel: 'JUMP',
     });
     const localHeldForThrowHud = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
+    const throwHudIsQuickToss = !!(controller.quickTossHeld && !controller.chargedThrowHeld);
     const showChargedThrowReticle = !!(
       perfFlags.gameplayUi
       && localHeldForThrowHud
-      && controller.chargedThrowHeld
-      && controller.chargedThrowHoldMs >= CHARGED_THROW_INDICATOR_HOLD_MS
+      && (controller.chargedThrowHeld || controller.quickTossHeld)
+      && (
+        controller.chargedThrowHeld
+          ? controller.chargedThrowHoldMs >= CHARGED_THROW_INDICATOR_HOLD_MS
+          : controller.quickTossHoldMs >= QUICK_TOSS_INDICATOR_HOLD_MS
+      )
       && predictionState.alive !== false
       && !predictionState.extracted
       && !predictionState.spectator
     );
     chargedThrowReticle.update({
       visible: showChargedThrowReticle,
-      progress: controller.chargedThrowProgress,
-      keyLabel: actionLabel('smack'),
-      actionLabel: 'THROW',
+      progress: throwHudIsQuickToss ? controller.quickTossProgress : controller.chargedThrowProgress,
+      keyLabel: throwHudIsQuickToss ? 'LMB' : actionLabel('smack'),
+      actionLabel: throwHudIsQuickToss ? 'TOSS' : 'THROW',
     });
     const showChargedThrowTracer = !!(
       perfFlags.gameplayUi
       && localHeldForThrowHud
-      && controller.chargedThrowHeld
+      && (controller.chargedThrowHeld || controller.quickTossHeld)
       && predictionState.alive !== false
       && !predictionState.extracted
       && !predictionState.spectator
@@ -2725,7 +2766,13 @@ export async function createGameSession({
     const ropeStyleById = new Map(
       ropeLayout.map((r) => {
         const n = normalizeRope(r);
-        return [n.id, { segmentRadius: n.segmentRadius, color: n.color, texture: n.texture }];
+        return [n.id, {
+          segmentRadius: n.segmentRadius,
+          color: n.color,
+          texture: n.texture,
+          visualMode: n.visualMode,
+          cards: n.cards,
+        }];
       }),
     );
     if (perfFlags.ropes) {

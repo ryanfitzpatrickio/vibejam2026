@@ -1,10 +1,15 @@
 import {
+  DEFAULT_ROPE_CARD_OPACITY,
+  DEFAULT_ROPE_CARD_WIDTH,
+  MAX_ROPE_CARD_WIDTH,
   MAX_ROPE_LENGTH,
   MAX_ROPE_SEGMENTS,
   MAX_SEGMENT_RADIUS,
+  MIN_ROPE_CARD_WIDTH,
   MIN_ROPE_LENGTH,
   MIN_ROPE_SEGMENTS,
   MIN_SEGMENT_RADIUS,
+  ROPE_VISUAL_MODES,
 } from '../../../shared/ropes.js';
 import { createSection, createRangeField, createNumberField, styleField, addInlineButton } from '../ui/fields.js';
 
@@ -69,8 +74,70 @@ export function installRopeSection(editor) {
   colorWrap.appendChild(editor.ropeColorInput);
   section.appendChild(colorWrap);
 
+  const visualModeWrap = document.createElement('label');
+  visualModeWrap.textContent = 'Visual';
+  Object.assign(visualModeWrap.style, {
+    display: 'grid',
+    gap: '4px',
+    color: '#d7c5a7',
+    marginTop: '8px',
+  });
+  editor.ropeVisualModeSelect = document.createElement('select');
+  styleField(editor.ropeVisualModeSelect);
+  [
+    ['rope', 'Rope strand only'],
+    ['rope-cards', 'Rope + hanging cards'],
+    ['cards', 'Cards only'],
+  ].forEach(([value, label]) => {
+    if (!ROPE_VISUAL_MODES.includes(value)) return;
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    editor.ropeVisualModeSelect.appendChild(option);
+  });
+  editor.ropeVisualModeSelect.addEventListener('change', () => {
+    editor._updateSelected((rope) => {
+      rope.visualMode = editor.ropeVisualModeSelect.value;
+      rope.cards = {
+        ...(rope.cards ?? {}),
+        enabled: rope.visualMode !== 'rope',
+      };
+    }, { snapPosition: false, snapScale: false });
+  });
+  visualModeWrap.appendChild(editor.ropeVisualModeSelect);
+  section.appendChild(visualModeWrap);
+
+  editor.ropeCardWidthInput = createRangeField(
+    section,
+    'Card width',
+    MIN_ROPE_CARD_WIDTH,
+    MAX_ROPE_CARD_WIDTH,
+    0.02,
+    (value) => {
+      editor._updateSelected((rope) => {
+        rope.cards = {
+          ...(rope.cards ?? {}),
+          width: value,
+        };
+      }, { snapPosition: false, snapScale: false });
+    },
+  );
+  editor.ropeCardWidthInput.value = DEFAULT_ROPE_CARD_WIDTH;
+  editor.ropeCardWidthInput._output.textContent = DEFAULT_ROPE_CARD_WIDTH.toFixed(2);
+
+  editor.ropeCardOpacityInput = createRangeField(section, 'Card opacity', 0.05, 1, 0.01, (value) => {
+    editor._updateSelected((rope) => {
+      rope.cards = {
+        ...(rope.cards ?? {}),
+        opacity: value,
+      };
+    }, { snapPosition: false, snapScale: false });
+  });
+  editor.ropeCardOpacityInput.value = DEFAULT_ROPE_CARD_OPACITY;
+  editor.ropeCardOpacityInput._output.textContent = DEFAULT_ROPE_CARD_OPACITY.toFixed(2);
+
   const texWrap = document.createElement('div');
-  texWrap.textContent = 'Strand texture (optional)';
+  texWrap.textContent = 'Texture (strand/cards optional)';
   Object.assign(texWrap.style, {
     color: '#d7c5a7',
     marginTop: '8px',

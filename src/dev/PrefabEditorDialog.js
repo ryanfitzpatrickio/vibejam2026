@@ -566,6 +566,13 @@ export class PrefabEditorDialog {
       this._rebuildScene();
     });
 
+    this.textureRotationInput = this._createNumberField(section, 'Texture Rotation', { step: 1 }, (value) => {
+      const part = this._selectedPart();
+      if (!part) return;
+      part.texture.rotation = (Number.isFinite(value) ? value : 0) * DEG_TO_RAD;
+      this._rebuildScene();
+    });
+
     this.offsetInputs = this._createVector2Inputs(section, 'Texture Offset', { step: 0.01 }, (axis, value) => {
       const part = this._selectedPart();
       if (!part) return;
@@ -1017,6 +1024,7 @@ export class PrefabEditorDialog {
       this.textureCellInput,
       this.colorInput,
       ...Object.values(this.repeatInputs),
+      this.textureRotationInput,
       ...Object.values(this.offsetInputs),
       this.roughnessInput,
       this.metalnessInput,
@@ -1046,6 +1054,7 @@ export class PrefabEditorDialog {
     this.colorInput.value = part.material.color;
     this.repeatInputs.x.value = part.texture.repeat.x;
     this.repeatInputs.y.value = part.texture.repeat.y;
+    this.textureRotationInput.value = ((part.texture.rotation ?? 0) * RAD_TO_DEG).toFixed(1);
     this.offsetInputs.x.value = part.texture.offset?.x ?? 0;
     this.offsetInputs.y.value = part.texture.offset?.y ?? 0;
     this.roughnessInput.value = part.material.roughness;

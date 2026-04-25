@@ -1,4 +1,9 @@
-import { RAID_TASK_TYPES, RAID_TASK_TYPE_LABELS } from '../../../shared/raidLayout.js';
+import {
+  RAID_TASK_COMPLETE_EFFECTS,
+  RAID_TASK_COMPLETE_EFFECT_LABELS,
+  RAID_TASK_TYPES,
+  RAID_TASK_TYPE_LABELS,
+} from '../../../shared/raidLayout.js';
 import { addActionButton, createCheckbox, createSection, styleField } from '../ui/fields.js';
 
 function deepClone(value) {
@@ -61,6 +66,19 @@ export function installRaidTaskSection(editor) {
   });
   typeWrap.appendChild(editor.raidTaskTypeSelect);
   section.appendChild(typeWrap);
+
+  editor.raidTaskCompleteEffectSelect = createSelectField(section, 'Post-complete effect');
+  Object.values(RAID_TASK_COMPLETE_EFFECTS).forEach((value) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = RAID_TASK_COMPLETE_EFFECT_LABELS[value] ?? value;
+    editor.raidTaskCompleteEffectSelect.appendChild(option);
+  });
+  editor.raidTaskCompleteEffectSelect.addEventListener('change', () => {
+    editor._updateSelected((task) => {
+      task.completeEffect = editor.raidTaskCompleteEffectSelect.value;
+    }, { snapPosition: false, snapScale: false });
+  });
 
   editor.raidTaskVisualTargetSelect = createSelectField(section, 'Transform target');
   [

@@ -20,7 +20,13 @@ import {
 import { normalizeSpawnType } from '../../shared/spawnPoints.js';
 import { normalizeNavArea } from '../../shared/navConfig.js';
 import { VIBE_PORTAL_TYPES, collectVibePortalPlacementsFromLayout, normalizeVibePortal } from '../../shared/vibePortal.js';
-import { normalizeRope, ROPE_SEGMENT_RADIUS, DEFAULT_ROPE_COLOR } from '../../shared/ropes.js';
+import {
+  DEFAULT_ROPE_CARD_OPACITY,
+  DEFAULT_ROPE_CARD_WIDTH,
+  normalizeRope,
+  ROPE_SEGMENT_RADIUS,
+  DEFAULT_ROPE_COLOR,
+} from '../../shared/ropes.js';
 import { normalizeCeilingFan } from '../../shared/ceilingFans.js';
 import {
   LEVEL_BUILD_GRID_COLUMNS,
@@ -371,7 +377,9 @@ function createExtractionPortalHelperObject(definition) {
   return group;
 }
 
-function createRaidTaskHelperObject(definition) {
+function createRaidTaskHelperObject(definition, {
+  createPrefabObject = null,
+} = {}) {
   const color = '#e8b84a';
   const group = new THREE.Group();
   group.name = `${definition.name || 'task'}-helper`;
@@ -416,6 +424,14 @@ function createRaidTaskHelperObject(definition) {
   };
 
   const addPrefabPrimitive = (root, part, slot) => {
+    if (typeof createPrefabObject === 'function') {
+      const object = createPrefabObject(part, slot, definition.id);
+      if (object) {
+        markTaskVisual(object, slot);
+        root.add(object);
+        return object;
+      }
+    }
     const mesh = new THREE.Mesh(
       createPrimitiveGeometry(part.type),
       new THREE.MeshStandardMaterial({
@@ -428,8 +444,10 @@ function createRaidTaskHelperObject(definition) {
     mesh.position.set(part.position?.x ?? 0, part.position?.y ?? 0, part.position?.z ?? 0);
     mesh.rotation.set(part.rotation?.x ?? 0, part.rotation?.y ?? 0, part.rotation?.z ?? 0);
     mesh.scale.set(part.scale?.x ?? 1, part.scale?.y ?? 1, part.scale?.z ?? 1);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow = part.castShadow !== false;
+    mesh.receiveShadow = part.receiveShadow !== false;
+    mesh.userData.colliderEnabled = part.collider !== false;
+    mesh.userData.colliderClearance = part.colliderClearance ?? 0;
     markTaskVisual(mesh, slot);
     root.add(mesh);
     return mesh;
@@ -718,6 +736,31 @@ function createRopeHelperObject(definition, textureMap = null) {
   strand.scale.y = definition.length;
   group.add(strand);
 
+  const cardWidth = definition.cards?.width ?? DEFAULT_ROPE_CARD_WIDTH;
+  const cardOpacity = definition.cards?.opacity ?? DEFAULT_ROPE_CARD_OPACITY;
+  const cardMat = new THREE.MeshBasicMaterial({
+    map: textureMap ?? undefined,
+    color: textureMap ? 0xffffff : new THREE.Color(tint),
+    transparent: true,
+    opacity: cardOpacity * 0.68,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const card = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    cardMat,
+  );
+  card.name = 'rope-preview-card';
+  card.userData.skipOutline = true;
+  card.userData.ropePreviewCard = true;
+  card.userData.editorHelper = true;
+  card.raycast = () => {};
+  card.position.y = -definition.length * 0.5;
+  card.scale.set(cardWidth, definition.length, 1);
+  card.visible = definition.visualMode === 'cards' || definition.visualMode === 'rope-cards';
+  group.add(card);
+
   const tip = new THREE.Mesh(
     new THREE.SphereGeometry(r * 1.6, 12, 8),
     new THREE.MeshBasicMaterial({
@@ -774,6 +817,15 @@ function roundVectorLike(source, fallback) {
     y: Number((source?.y ?? fallback.y).toFixed(4)),
     z: Number((source?.z ?? fallback.z).toFixed(4)),
   };
+}
+
+function isObjectVisibleInHierarchy(object) {
+  let current = object;
+  while (current) {
+    if (current.visible === false) return false;
+    current = current.parent;
+  }
+  return true;
 }
 
 function worldToLocalPrefabPosition(position, origin, rotation, scale) {
@@ -1793,6 +1845,17 @@ export class Room {
         child.material.map = textureMap ?? null;
         child.material.color.set(textureMap ? 0xffffff : tint);
         child.material.needsUpdate = true;
+        child.visible = rope.visualMode !== 'cards';
+      } else if (child.userData?.ropePreviewCard && child.isMesh) {
+        const cardWidth = rope.cards?.width ?? DEFAULT_ROPE_CARD_WIDTH;
+        const cardOpacity = rope.cards?.opacity ?? DEFAULT_ROPE_CARD_OPACITY;
+        child.position.y = -rope.length * 0.5;
+        child.scale.set(cardWidth, rope.length, 1);
+        child.material.map = textureMap ?? null;
+        child.material.color.set(textureMap ? 0xffffff : tint);
+        child.material.opacity = cardOpacity * 0.68;
+        child.material.needsUpdate = true;
+        child.visible = rope.visualMode === 'cards' || rope.visualMode === 'rope-cards' || rope.cards?.enabled === true;
       } else if (child.userData?.ropePreviewTip && child.isMesh) {
         child.position.y = -rope.length;
         child.material.color.copy(tint);
@@ -2331,15 +2394,65 @@ export class Room {
 
   _createEditableRaidTaskObject(definition) {
     const task = this._normalizeRaidTask(definition);
-    const group = createRaidTaskHelperObject(task);
+    const group = createRaidTaskHelperObject(task, {
+      createPrefabObject: (part, slot, taskId) => this._createRaidTaskPrefabObject(part, slot, taskId),
+    });
     group.position.set(task.position.x, task.position.y, task.position.z);
     group.rotation.set(task.rotation.x, task.rotation.y, task.rotation.z);
     group.visible = this.raidTaskHelpersVisible && !task.deleted;
     return { definition: task, group };
   }
 
+  _createRaidTaskPrefabObject(part, slot, taskId) {
+    const primitive = this._normalizePrimitive({
+      ...part,
+      id: part.id ?? `task-prefab-part-${Math.random().toString(36).slice(2, 8)}`,
+      collider: part.type === 'prop' ? part.collider === true : part.collider !== false,
+    });
+
+    if (primitive.type === 'prop') {
+      const sprite = new THREE.Sprite(this._createEditablePrimitiveMaterial(primitive));
+      sprite.name = primitive.name;
+      sprite.position.set(primitive.position.x, primitive.position.y, primitive.position.z);
+      sprite.rotation.set(primitive.rotation.x, primitive.rotation.y, primitive.rotation.z);
+      sprite.scale.set(primitive.scale.x, primitive.scale.y, 1);
+      sprite.castShadow = false;
+      sprite.receiveShadow = false;
+      sprite.userData.colliderEnabled = false;
+      sprite.userData.raidTaskPrimitive = primitive;
+      sprite.userData.raidTaskId = taskId;
+      sprite.userData.raidTaskPrefabSlot = slot;
+      sprite.userData.editableRaidTaskPrefab = true;
+      sprite.userData.skipOutline = true;
+      return sprite;
+    }
+
+    const mesh = new THREE.Mesh(
+      this._getEditableGeometry(primitive),
+      this._createEditablePrimitiveMaterial(primitive),
+    );
+    mesh.name = primitive.name;
+    mesh.position.set(primitive.position.x, primitive.position.y, primitive.position.z);
+    mesh.rotation.set(primitive.rotation.x, primitive.rotation.y, primitive.rotation.z);
+    mesh.scale.set(primitive.scale.x, primitive.scale.y, primitive.scale.z);
+    mesh.castShadow = primitive.castShadow;
+    mesh.receiveShadow = primitive.receiveShadow;
+    mesh.userData.colliderEnabled = primitive.collider;
+    mesh.userData.colliderClearance = primitive.colliderClearance ?? 0;
+    mesh.userData.raidTaskPrimitive = primitive;
+    mesh.userData.raidTaskId = taskId;
+    mesh.userData.raidTaskPrefabSlot = slot;
+    mesh.userData.editableRaidTaskPrefab = true;
+    mesh.userData.skipOutline = true;
+    if (primitive.type === 'plane') {
+      mesh.renderOrder = Number.isFinite(primitive.zIndex) ? Math.trunc(primitive.zIndex) : 0;
+    }
+    return mesh;
+  }
+
   _applyRaidTaskToObject(definition, entry) {
     const task = this._normalizeRaidTask(definition);
+    this._removeRaidTaskColliders(task.id);
     entry.definition = task;
     entry.group.name = `${task.name || 'task'}-helper`;
     entry.group.position.set(task.position.x, task.position.y, task.position.z);
@@ -2348,7 +2461,14 @@ export class Room {
     entry.group.visible = this.raidTaskHelpersVisible && !task.deleted;
     entry.group.userData.raidTaskId = task.id;
     entry.group.userData.rebuildRaidTaskVisuals?.(task);
-    entry.group.userData.setRaidTaskCompleted?.(false);
+    const editTarget = this.raidTaskPrefabEditTargets.get(task.id);
+    if (editTarget === 'before' || editTarget === 'after') {
+      entry.group.userData.setRaidTaskEditorPreview?.(editTarget, false);
+    } else {
+      entry.group.userData.setRaidTaskCompleted?.(false);
+    }
+    this._registerRaidTaskPrefabColliders(entry);
+    this._applyTextureAtlas();
     return task;
   }
 
@@ -2388,6 +2508,35 @@ export class Room {
     this.colliders = this.colliders.filter((entry) => entry.metadata?.source !== 'editable');
     this.runnables = this.runnables.filter((mesh) => mesh.userData?.editablePrimitive !== true);
     this.climbables = this.climbables.filter((mesh) => mesh.userData?.editablePrimitive !== true);
+  }
+
+  _removeRaidTaskColliders(taskId) {
+    if (!taskId) return;
+    this.colliders = this.colliders.filter((entry) => entry.metadata?.raidTaskId !== taskId);
+  }
+
+  _registerRaidTaskPrefabColliders(entry) {
+    const taskId = entry?.definition?.id;
+    if (!taskId || !entry?.group) return;
+    this._removeRaidTaskColliders(taskId);
+    entry.group.updateMatrixWorld(true);
+    entry.group.traverse((child) => {
+      const primitive = child.userData?.raidTaskPrimitive;
+      if (!child.isMesh || !primitive?.collider || child.userData?.colliderEnabled === false) return;
+      child.updateWorldMatrix(true, false);
+      const isPlane = primitive.type === 'plane';
+      this._registerPrimitiveCollider(child, primitive, {
+        type: isPlane ? 'surface' : 'furniture',
+        metadata: {
+          source: 'editable',
+          raidTaskId: taskId,
+          raidTaskPrefabSlot: child.userData?.raidTaskPrefabSlot,
+          primitiveId: primitive.id,
+          collisionMode: 'task-prefab',
+          ...(isPlane ? { plane: true, zIndex: primitive.zIndex ?? 0 } : {}),
+        },
+      });
+    });
   }
 
   _getEditableGlbCollisionMode(primitive) {
@@ -2670,6 +2819,7 @@ export class Room {
       const entry = this._createEditableRaidTaskObject(definition);
       this.editableGroup.add(entry.group);
       this.editableRaidTaskObjects.set(entry.definition.id, entry);
+      this._registerRaidTaskPrefabColliders(entry);
     }
 
     this._applyTextureAtlas();
@@ -3782,7 +3932,8 @@ export class Room {
       const mesh = collider.mesh;
       const mergedHidden = mesh?.userData?.mergedIntoStatic === true;
       const alwaysActive = mesh?.userData?.colliderAlwaysActive === true;
-      if ((!mesh?.visible && !mergedHidden && !alwaysActive) || mesh?.userData?.colliderEnabled === false) {
+      const visible = mesh && (mergedHidden || isObjectVisibleInHierarchy(mesh));
+      if ((!visible && !alwaysActive) || mesh?.userData?.colliderEnabled === false) {
         return;
       }
       if (collider.metadata?.localBox) {

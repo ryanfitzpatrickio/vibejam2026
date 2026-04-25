@@ -1,4 +1,4 @@
-import { RAID_TASK_TYPES } from '../../shared/raidLayout.js';
+import { RAID_TASK_COMPLETE_EFFECTS, RAID_TASK_TYPES } from '../../shared/raidLayout.js';
 import { UNLOCK_HERO_DEFS } from '../../shared/heroUnlocks.js';
 import { openChewWiresTask } from './ChewWiresTask.jsx';
 import { openHeroUnlockTask } from './HeroUnlockTask.jsx';
@@ -8,8 +8,8 @@ import {
   openCutLightsTask,
   openKnifeDrawerTask,
   openSabotageRoombaTask,
+  openWindowTask,
 } from './KitchenMischiefTasks.jsx';
-import { SmokeSparksEffect } from './SmokeSparksEffect.js';
 
 /**
  * Map a raid-task type to a runtime handler that opens a minigame dialog.
@@ -24,7 +24,7 @@ export const TASK_RUNTIMES = Object.freeze({
     promptVerb: 'chew wires',
     rewardAmount: 8,
     open: openChewWiresTask,
-    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+    completeEffect: RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS,
   },
   [RAID_TASK_TYPES.TOPPLE_TOWER]: {
     id: RAID_TASK_TYPES.TOPPLE_TOWER,
@@ -32,7 +32,7 @@ export const TASK_RUNTIMES = Object.freeze({
     promptVerb: 'topple the tower',
     rewardAmount: 16,
     open: openToppleTowerTask,
-    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+    completeEffect: RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS,
   },
   [RAID_TASK_TYPES.FRIDGE_RAID]: {
     id: RAID_TASK_TYPES.FRIDGE_RAID,
@@ -40,7 +40,7 @@ export const TASK_RUNTIMES = Object.freeze({
     promptVerb: 'raid the fridge',
     rewardAmount: 22,
     open: openFridgeRaidTask,
-    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+    completeEffect: RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS,
   },
   [RAID_TASK_TYPES.CUT_LIGHTS]: {
     id: RAID_TASK_TYPES.CUT_LIGHTS,
@@ -48,7 +48,7 @@ export const TASK_RUNTIMES = Object.freeze({
     promptVerb: 'cut the lights',
     rewardAmount: 10,
     open: openCutLightsTask,
-    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+    completeEffect: RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS,
   },
   [RAID_TASK_TYPES.KNIFE_DRAWER]: {
     id: RAID_TASK_TYPES.KNIFE_DRAWER,
@@ -56,7 +56,7 @@ export const TASK_RUNTIMES = Object.freeze({
     promptVerb: 'raid the knife drawer',
     rewardAmount: 18,
     open: openKnifeDrawerTask,
-    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+    completeEffect: RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS,
   },
   [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: {
     id: RAID_TASK_TYPES.SABOTAGE_ROOMBA,
@@ -64,7 +64,15 @@ export const TASK_RUNTIMES = Object.freeze({
     promptVerb: 'sabotage the roomba',
     rewardAmount: 12,
     open: openSabotageRoombaTask,
-    onCompleteEffect: (scene, worldPos) => new SmokeSparksEffect(scene, worldPos),
+    completeEffect: RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS,
+  },
+  [RAID_TASK_TYPES.WINDOW]: {
+    id: RAID_TASK_TYPES.WINDOW,
+    label: 'Window',
+    promptVerb: 'open the window',
+    rewardAmount: 14,
+    open: openWindowTask,
+    completeEffect: RAID_TASK_COMPLETE_EFFECTS.NONE,
   },
   [RAID_TASK_TYPES.UNLOCK_GUS]: {
     id: RAID_TASK_TYPES.UNLOCK_GUS,

@@ -64,7 +64,7 @@ import { DEFAULT_TEXTURE_ATLAS, loadTextureAtlases, TEXTURE_ATLASES } from './te
 import { assetUrl } from '../utils/assetUrl.js';
 import { SPAWN_TYPES, normalizeSpawnType } from '../../shared/spawnPoints.js';
 import { NAV_AREA_TYPES, normalizeNavArea } from '../../shared/navConfig.js';
-import { DEFAULT_ROPE_COLOR } from '../../shared/ropes.js';
+import { DEFAULT_ROPE_CARD_OPACITY, DEFAULT_ROPE_CARD_WIDTH, DEFAULT_ROPE_COLOR } from '../../shared/ropes.js';
 import { VIBE_PORTAL_TYPES, normalizeVibePortalType } from '../../shared/vibePortal.js';
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -1923,10 +1923,16 @@ class BuildModeEditor {
       this.planeZIndexInput,
       this.navAreaSelect,
       this.prefabSelect,
+      ...Object.values(this.prefabInstanceScaleInputs ?? {}),
     ].forEach((field) => {
       field.disabled = primitiveDisabled;
     });
-    if (vegetation) {
+    const prefabInstanceScale = this._selectedPrefabInstanceScale();
+    const raidTaskPrefabScale = this._selectedRaidTaskPrefabScale();
+    if (this.prefabInstanceScaleInputs?._wrap) {
+      this.prefabInstanceScaleInputs._wrap.style.display = prefabInstanceScale ? 'block' : 'none';
+    }
+    if (vegetation || raidTaskPrefabScale) {
       Object.values(this.scaleInputs).forEach((field) => {
         field.disabled = false;
       });
@@ -1962,6 +1968,7 @@ class BuildModeEditor {
 
     [
       this.raidTaskTypeSelect,
+      this.raidTaskCompleteEffectSelect,
       this.raidTaskVisualTargetSelect,
       this.raidTaskVisualPreviewSelect,
       this.raidTaskBeforePrefabEnabledToggle,
@@ -1977,6 +1984,9 @@ class BuildModeEditor {
       this.ropeSegmentsInput,
       this.ropeThicknessInput,
       this.ropeColorInput,
+      this.ropeVisualModeSelect,
+      this.ropeCardWidthInput,
+      this.ropeCardOpacityInput,
       this.ropeTextureAtlasSelect,
       this.ropeTextureCellInput,
     ].forEach((field) => {
@@ -2016,7 +2026,7 @@ class BuildModeEditor {
     if (this.fanSection) this.fanSection.style.display = fan ? 'block' : 'none';
     if (this.extractionSection) this.extractionSection.style.display = extraction ? 'block' : 'none';
     if (this.raidTaskSection) this.raidTaskSection.style.display = raidTask ? 'block' : 'none';
-    this.scaleInputs._wrap.style.display = primitive || vegetation ? 'block' : 'none';
+    this.scaleInputs._wrap.style.display = primitive || vegetation || raidTaskPrefabScale ? 'block' : 'none';
     this.colliderToggle._wrap.style.display = primitive && !propSelected ? 'flex' : 'none';
     this.castShadowToggle._wrap.style.display = (primitive && !propSelected) || light ? 'flex' : 'none';
     this.receiveShadowToggle._wrap.style.display = primitive && !propSelected ? 'flex' : 'none';
@@ -2049,9 +2059,15 @@ class BuildModeEditor {
     this.castShadowToggle.checked = entry.castShadow === true;
 
     if (primitive) {
-      this.scaleInputs.x.value = primitive.scale.x;
-      this.scaleInputs.y.value = primitive.scale.y;
-      this.scaleInputs.z.value = primitive.scale.z;
+      const scale = prefabInstanceScale ?? primitive.scale;
+      this.scaleInputs.x.value = scale.x;
+      this.scaleInputs.y.value = scale.y;
+      this.scaleInputs.z.value = scale.z;
+      if (this.prefabInstanceScaleInputs && prefabInstanceScale) {
+        this.prefabInstanceScaleInputs.x.value = prefabInstanceScale.x;
+        this.prefabInstanceScaleInputs.y.value = prefabInstanceScale.y;
+        this.prefabInstanceScaleInputs.z.value = prefabInstanceScale.z;
+      }
       const paletteRef = this._getPaletteSelectedTextureRef(primitive)
         ?? (this.textureTarget === 'all' ? primitive.texture : null)
         ?? this._getEffectiveTextureRef(primitive, this.textureTarget);
@@ -2084,6 +2100,12 @@ class BuildModeEditor {
       this.prefabSelect.value = primitive.prefabId ?? '';
     }
 
+    if (raidTaskPrefabScale) {
+      this.scaleInputs.x.value = raidTaskPrefabScale.x;
+      this.scaleInputs.y.value = raidTaskPrefabScale.y;
+      this.scaleInputs.z.value = raidTaskPrefabScale.z;
+    }
+
     if (light) {
       this.lightTypeSelect.value = light.lightType;
       this.lightColorInput.value = light.color;
@@ -2112,6 +2134,9 @@ class BuildModeEditor {
 
     if (raidTask && this.raidTaskTypeSelect) {
       this.raidTaskTypeSelect.value = raidTask.taskType;
+      if (this.raidTaskCompleteEffectSelect) {
+        this.raidTaskCompleteEffectSelect.value = raidTask.completeEffect ?? 'default';
+      }
       if (this.raidTaskVisualTargetSelect) {
         this.raidTaskVisualTargetSelect.value = this.activeRaidTaskVisualTarget;
         this.app.room.setRaidTaskPrefabEditTarget(raidTask.id, this.activeRaidTaskVisualTarget);
@@ -2149,6 +2174,19 @@ class BuildModeEditor {
       }
       if (this.ropeColorInput) {
         this.ropeColorInput.value = rope.color ?? DEFAULT_ROPE_COLOR;
+      }
+      if (this.ropeVisualModeSelect) {
+        this.ropeVisualModeSelect.value = rope.visualMode ?? 'rope';
+      }
+      if (this.ropeCardWidthInput) {
+        const width = Number(rope.cards?.width ?? DEFAULT_ROPE_CARD_WIDTH);
+        this.ropeCardWidthInput.value = width;
+        this.ropeCardWidthInput._output.textContent = width.toFixed(2);
+      }
+      if (this.ropeCardOpacityInput) {
+        const opacity = Number(rope.cards?.opacity ?? DEFAULT_ROPE_CARD_OPACITY);
+        this.ropeCardOpacityInput.value = opacity;
+        this.ropeCardOpacityInput._output.textContent = opacity.toFixed(2);
       }
       if (this.ropeTextureAtlasSelect && rope.texture?.atlas) {
         this.ropeTextureAtlasSelect.value = rope.texture.atlas;
@@ -2218,6 +2256,58 @@ class BuildModeEditor {
 
   _selectedPrefab() {
     return this.prefabLibrary.prefabs.find((prefab) => prefab.id === this.prefabSelect.value) ?? null;
+  }
+
+  _selectedPrefabInstanceScale() {
+    const primitive = this._selectedPrimitive();
+    if (!primitive?.prefabInstanceId) return null;
+    return primitive.prefabInstanceScale ?? { x: 1, y: 1, z: 1 };
+  }
+
+  _updateSelectedPrefabInstanceScale(axis, value) {
+    if (!['x', 'y', 'z'].includes(axis)) return;
+    const primitive = this._selectedPrimitive();
+    if (!primitive?.prefabInstanceId) return;
+    const current = primitive.prefabInstanceScale ?? { x: 1, y: 1, z: 1 };
+    const nextScale = {
+      x: current.x,
+      y: current.y,
+      z: current.z,
+      [axis]: Math.max(0.05, Number.isFinite(value) ? value : current[axis]),
+    };
+    this.app.room.updatePrefabInstanceTransform(primitive.prefabInstanceId, { scale: nextScale });
+    this.layout = this.app.room.getEditableLayout();
+    this._syncForm();
+    this._attachTransformControls();
+  }
+
+  _selectedRaidTaskPrefabScale() {
+    const task = this._selectedRaidTask();
+    const slot = this.activeRaidTaskVisualTarget;
+    if (!task || (slot !== 'before' && slot !== 'after')) return null;
+    const prefab = slot === 'after' ? task.afterPrefab : task.beforePrefab;
+    return prefab?.scale ?? { x: 1, y: 1, z: 1 };
+  }
+
+  _updateSelectedRaidTaskPrefabScale(axis, value) {
+    if (!['x', 'y', 'z'].includes(axis)) return;
+    const task = this._selectedRaidTask();
+    const slot = this.activeRaidTaskVisualTarget;
+    if (!task || (slot !== 'before' && slot !== 'after')) return;
+    const current = this._selectedRaidTaskPrefabScale() ?? { x: 1, y: 1, z: 1 };
+    const nextScale = {
+      x: current.x,
+      y: current.y,
+      z: current.z,
+      [axis]: Math.max(0.05, Number.isFinite(value) ? value : current[axis]),
+    };
+    this.app.room.updateEditableRaidTaskTransform(task.id, {
+      scale: nextScale,
+      prefabSlot: slot,
+    });
+    this.layout = this.app.room.getEditableLayout();
+    this._syncForm();
+    this._attachTransformControls();
   }
 
   _selectedVegetationSpecies() {

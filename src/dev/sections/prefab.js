@@ -1,4 +1,4 @@
-import { addInlineButton, createSection, styleField } from '../ui/fields.js';
+import { addInlineButton, createSection, createVectorInputs, styleField } from '../ui/fields.js';
 
 export function installPrefabSection(editor) {
   const section = createSection(editor.panel, 'Prefabs');
@@ -24,6 +24,10 @@ export function installPrefabSection(editor) {
   addInlineButton(actions, 'Place', () => editor._placeSelectedPrefab(), '#23472d');
   addInlineButton(actions, 'Delete', () => editor._deleteSelectedPrefab(), '#5d221f');
   addInlineButton(actions, 'Save Lib', () => editor._savePrefabLibrary());
+
+  editor.prefabInstanceScaleInputs = createVectorInputs(section, 'Selected Group Scale', { step: 0.1, min: 0.05 }, (axis, value) => {
+    editor._updateSelectedPrefabInstanceScale(axis, value);
+  });
 
   editor.prefabMeta = document.createElement('div');
   Object.assign(editor.prefabMeta.style, {

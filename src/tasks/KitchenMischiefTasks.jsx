@@ -51,6 +51,14 @@ const TASK_COPY = Object.freeze({
     steps: ['Brush', 'Wheel', 'Sensor', 'Escape'],
     color: HUD_COLORS.lime,
   },
+  window: {
+    title: 'Window',
+    subtitle: 'Force the window open and make a clean getaway route.',
+    action: 'OPEN',
+    done: 'WINDOW OPEN!',
+    steps: ['Latch', 'Wedge', 'Lift', 'Slip'],
+    color: HUD_COLORS.cyan,
+  },
 });
 
 function MischiefTaskView(props) {
@@ -322,4 +330,8 @@ export function openKnifeDrawerTask(options) {
 
 export function openSabotageRoombaTask(options) {
   return openMischiefTask('sabotage_roomba', options);
+}
+
+export function openWindowTask(options) {
+  return openMischiefTask('window', options);
 }

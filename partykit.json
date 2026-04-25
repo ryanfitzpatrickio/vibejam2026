@@ -1,6 +1,11 @@
 {
+  "$schema": "./node_modules/partykit/schema.json",
   "name": "mouse-trouble",
   "main": "party/server.js",
   "compatibilityDate": "2024-12-01",
-  "domain": "party.ryanfitzpatrick.io"
+  "domain": "party.ryanfitzpatrick.io",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
 }

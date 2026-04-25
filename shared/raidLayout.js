@@ -11,6 +11,7 @@ export const RAID_TASK_TYPES = Object.freeze({
   CUT_LIGHTS: 'cut_lights',
   KNIFE_DRAWER: 'knife_drawer',
   SABOTAGE_ROOMBA: 'sabotage_roomba',
+  WINDOW: 'window',
   UNLOCK_GUS: 'unlock_gus',
   UNLOCK_SPEEDY: 'unlock_speedy',
 });
@@ -23,8 +24,30 @@ export const RAID_TASK_TYPE_LABELS = Object.freeze({
   [RAID_TASK_TYPES.CUT_LIGHTS]: 'Cut Lights',
   [RAID_TASK_TYPES.KNIFE_DRAWER]: 'Knife Drawer',
   [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: 'Sabotage Roomba',
+  [RAID_TASK_TYPES.WINDOW]: 'Window',
   [RAID_TASK_TYPES.UNLOCK_GUS]: 'Unlock Gus',
   [RAID_TASK_TYPES.UNLOCK_SPEEDY]: 'Unlock Speedy',
+});
+
+export const RAID_TASK_COMPLETE_EFFECTS = Object.freeze({
+  DEFAULT: 'default',
+  NONE: 'none',
+  SMOKE_SPARKS: 'smoke_sparks',
+});
+
+export const RAID_TASK_COMPLETE_EFFECT_LABELS = Object.freeze({
+  [RAID_TASK_COMPLETE_EFFECTS.DEFAULT]: 'Default for task',
+  [RAID_TASK_COMPLETE_EFFECTS.NONE]: 'None',
+  [RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS]: 'Smoke + Sparks',
+});
+
+const DEFAULT_TASK_TEXTURE_ATLAS = 'textures';
+const TASK_PREFAB_FACE_TEXTURE_SLOTS = Object.freeze({
+  box: Object.freeze(['right', 'left', 'top', 'bottom', 'front', 'back']),
+  cylinder: Object.freeze(['side', 'top', 'bottom']),
+  wedge: Object.freeze(['back', 'bottom', 'left', 'right', 'slope']),
+  plane: Object.freeze([]),
+  prop: Object.freeze([]),
 });
 
 function cloneVectorLike(source, fallback) {
@@ -33,6 +56,35 @@ function cloneVectorLike(source, fallback) {
     y: Number.isFinite(source?.y) ? source.y : fallback.y,
     z: Number.isFinite(source?.z) ? source.z : fallback.z,
   };
+}
+
+function normalizeTaskTextureRef(value, fallbackCell = 0) {
+  if (typeof value === 'number') {
+    return {
+      atlas: DEFAULT_TASK_TEXTURE_ATLAS,
+      cell: value,
+    };
+  }
+  if (value && typeof value === 'object') {
+    return {
+      atlas: typeof value.atlas === 'string' && value.atlas ? value.atlas : DEFAULT_TASK_TEXTURE_ATLAS,
+      cell: Number.isFinite(value.cell) ? value.cell : fallbackCell,
+    };
+  }
+  return {
+    atlas: DEFAULT_TASK_TEXTURE_ATLAS,
+    cell: fallbackCell,
+  };
+}
+
+function normalizeTaskFaceTextures(type, value = {}) {
+  const result = {};
+  (TASK_PREFAB_FACE_TEXTURE_SLOTS[type] ?? []).forEach((slot) => {
+    if (!Object.prototype.hasOwnProperty.call(value ?? {}, slot)) return;
+    const ref = value[slot];
+    result[slot] = ref == null ? null : normalizeTaskTextureRef(ref);
+  });
+  return result;
 }
 
 function normalizeTaskPrefabPrimitive(entry = {}) {
@@ -49,11 +101,37 @@ function normalizeTaskPrefabPrimitive(entry = {}) {
     position: cloneVectorLike(entry.position, { x: 0, y: 0.5, z: 0 }),
     rotation: cloneVectorLike(entry.rotation, { x: 0, y: 0, z: 0 }),
     scale: cloneVectorLike(entry.scale, { x: 1, y: 1, z: 1 }),
+    texture: {
+      ...normalizeTaskTextureRef(entry.texture, 0),
+      repeat: {
+        x: Number.isFinite(entry.texture?.repeat?.x) ? entry.texture.repeat.x : 1,
+        y: Number.isFinite(entry.texture?.repeat?.y) ? entry.texture.repeat.y : 1,
+      },
+      rotation: Number.isFinite(entry.texture?.rotation) ? entry.texture.rotation : 0,
+      offset: {
+        x: Number.isFinite(entry.texture?.offset?.x) ? entry.texture.offset.x : 0,
+        y: Number.isFinite(entry.texture?.offset?.y) ? entry.texture.offset.y : 0,
+      },
+    },
+    faceTextures: normalizeTaskFaceTextures(type, entry.faceTextures),
     material: {
       color: typeof entry.material?.color === 'string' ? entry.material.color : '#ffffff',
       roughness: Number.isFinite(entry.material?.roughness) ? entry.material.roughness : 0.82,
       metalness: Number.isFinite(entry.material?.metalness) ? entry.material.metalness : 0.04,
     },
+    ...(type === 'prop' ? {
+      chroma: {
+        similarity: Math.min(1, Math.max(0, Number(entry.chroma?.similarity ?? 0.32))),
+        feather: Math.min(1, Math.max(0, Number(entry.chroma?.feather ?? 0.08))),
+      },
+    } : {}),
+    collider: type === 'prop' ? entry.collider === true : entry.collider !== false,
+    colliderClearance: Number.isFinite(entry.colliderClearance) ? entry.colliderClearance : 0,
+    castShadow: type === 'prop' ? entry.castShadow === true : entry.castShadow !== false,
+    receiveShadow: type === 'prop' ? entry.receiveShadow === true : entry.receiveShadow !== false,
+    ...(type === 'plane' ? {
+      zIndex: Number.isFinite(entry.zIndex) ? Math.trunc(entry.zIndex) : 0,
+    } : {}),
   };
 }
 
@@ -103,12 +181,22 @@ export function normalizeExtractionPortalEntry(entry = {}) {
 export function normalizeRaidTaskEntry(entry = {}) {
   const rawType = typeof entry.taskType === 'string' ? entry.taskType : RAID_TASK_TYPES.PLACEHOLDER;
   const taskType = rawType.length > 32 ? RAID_TASK_TYPES.PLACEHOLDER : rawType;
+  const defaultCompleteEffect = taskType === RAID_TASK_TYPES.WINDOW
+    ? RAID_TASK_COMPLETE_EFFECTS.NONE
+    : RAID_TASK_COMPLETE_EFFECTS.DEFAULT;
+  const rawCompleteEffect = typeof entry.completeEffect === 'string'
+    ? entry.completeEffect
+    : (typeof entry.postCompleteEffect === 'string' ? entry.postCompleteEffect : defaultCompleteEffect);
+  const completeEffect = Object.values(RAID_TASK_COMPLETE_EFFECTS).includes(rawCompleteEffect)
+    ? rawCompleteEffect
+    : defaultCompleteEffect;
   return {
     id: typeof entry.id === 'string' && entry.id.length > 0
       ? entry.id
       : `raid-task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     name: typeof entry.name === 'string' ? entry.name : 'Task marker',
     taskType,
+    completeEffect,
     position: {
       x: Number.isFinite(entry.position?.x) ? entry.position.x : 0,
       y: Number.isFinite(entry.position?.y) ? entry.position.y : 0,

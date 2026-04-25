@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { RAID_TASK_COMPLETE_EFFECTS } from '../../shared/raidLayout.js';
 import { getTaskRuntime } from './taskRegistry.js';
 import { CheeseBurst } from './CheeseBurst.js';
+import { SmokeSparksEffect } from './SmokeSparksEffect.js';
 import { actionLabel, subscribeInputSource } from '../input/inputSource.js';
 
 const INTERACT_RADIUS = 1.6;
@@ -148,9 +150,16 @@ export class TaskController {
       });
     }
 
-    if (runtime?.onCompleteEffect && markerGroup && !this._completedEffects.has(definition.id)) {
+    const configuredEffect = definition.completeEffect ?? RAID_TASK_COMPLETE_EFFECTS.DEFAULT;
+    const completeEffect = configuredEffect === RAID_TASK_COMPLETE_EFFECTS.DEFAULT
+      ? runtime?.completeEffect
+      : configuredEffect;
+    const createEffect = completeEffect === RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS
+      ? (scene, worldPos) => new SmokeSparksEffect(scene, worldPos)
+      : null;
+    if (createEffect && markerGroup && !this._completedEffects.has(definition.id)) {
       try {
-        const effect = runtime.onCompleteEffect(this.scene, taskWorld);
+        const effect = createEffect(this.scene, taskWorld);
         if (effect) {
           markerGroup.userData.setRaidTaskCompleted?.(true);
           this._completedEffects.set(definition.id, { effect, group: markerGroup });

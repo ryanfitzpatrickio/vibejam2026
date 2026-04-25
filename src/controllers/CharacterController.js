@@ -28,6 +28,8 @@ export const CHARGED_JUMP_INDICATOR_HOLD_MS = 1000;
 export const CHARGED_THROW_MIN_HOLD_MS = 450;
 export const CHARGED_THROW_FULL_HOLD_MS = 1600;
 export const CHARGED_THROW_INDICATOR_HOLD_MS = 1000;
+export const QUICK_TOSS_FULL_HOLD_MS = 850;
+export const QUICK_TOSS_INDICATOR_HOLD_MS = 180;
 
 const CONFIG = Object.freeze({
   walkSpeed: 4.0,
@@ -120,6 +122,12 @@ export class CharacterController {
     this.chargedThrowHoldMs = 0;
     this.chargedThrowProgress = 0;
     this.chargedThrowReleasePressed = false;
+    this.quickTossHeld = false;
+    this.quickTossHoldMs = 0;
+    this.quickTossProgress = 0;
+    this.quickTossReleasePressed = false;
+    this._quickTossDownAt = 0;
+    this._prevQuickTossDown = false;
     /** Set true on G / RB keydown edge; cleared after the network reads it. */
     this.throwPressed = false;
     this._prevThrowDown = false;
@@ -194,6 +202,12 @@ export class CharacterController {
     if (!this.inputEnabled) {
       this.keys = {};
       this.mouseButtons = { left: false, right: false };
+      this.quickTossHeld = false;
+      this.quickTossHoldMs = 0;
+      this.quickTossProgress = 0;
+      this.quickTossReleasePressed = false;
+      this._quickTossDownAt = 0;
+      this._prevQuickTossDown = false;
     }
   }
 
@@ -421,10 +435,10 @@ export class CharacterController {
       return;
     }
 
-    if (this.chargedThrowHeld) {
+    if (this.chargedThrowHeld || this.quickTossHeld) {
       const scrubbed = this.mouse.animationManager?.scrubReverseClip?.(
         ['Attack', 'Smack', 'Punch', 'Swipe', 'Bite', 'Jump'],
-        this.chargedThrowProgress,
+        this.chargedThrowHeld ? this.chargedThrowProgress : this.quickTossProgress,
       );
       if (scrubbed) {
         this._prevAnimState = 'chargeThrow';
@@ -508,6 +522,21 @@ export class CharacterController {
     const grabHeldNow = !!this.keys[this.keyBindings.grab];
     const useInteractAsThrow = this.throwOnInteractWhileGrabHeld;
     const nowMs = globalThis.performance?.now?.() ?? Date.now();
+    const quickTossNow = !!this.mouseButtons.left
+      && (!this.thirdPersonCamera || this.thirdPersonCamera.pointerLocked);
+    if (quickTossNow && !this._prevQuickTossDown) {
+      this._quickTossDownAt = nowMs;
+    }
+    if (!quickTossNow && this._prevQuickTossDown) {
+      this.quickTossReleasePressed = true;
+      this._quickTossDownAt = 0;
+    }
+    this._prevQuickTossDown = quickTossNow;
+    this.quickTossHeld = quickTossNow;
+    this.quickTossHoldMs = quickTossNow ? Math.max(0, nowMs - (this._quickTossDownAt || nowMs)) : 0;
+    this.quickTossProgress = quickTossNow
+      ? Math.max(0, Math.min(1, this.quickTossHoldMs / QUICK_TOSS_FULL_HOLD_MS))
+      : 0;
     if (interactNow && !this._prevInteractDown) {
       this._interactDownAt = nowMs;
       this._interactDownWasThrow = useInteractAsThrow;

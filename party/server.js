@@ -97,6 +97,11 @@ const CHARGED_THROW_MOUSE_UP_MULTIPLIER = 1.35;
 const CHARGED_THROW_BALL_SPEED = 58;
 const CHARGED_THROW_BALL_UP = 42;
 const CHARGED_THROW_BALL_SPIN = 34;
+const QUICK_TOSS_FULL_HOLD_SECONDS = 0.85;
+const QUICK_TOSS_MOUSE_LAUNCH_SCALE = 3.8;
+const QUICK_TOSS_MOUSE_UP_MULTIPLIER = 1.55;
+const QUICK_TOSS_BACK_LAUNCH_SCALE = 1.55;
+const QUICK_TOSS_BACK_UP_MULTIPLIER = 1.35;
 const THROW_SMACK_SUPPRESS_SECONDS = 0.35;
 const DEFAULT_ENEMY_SPAWNS = Object.freeze([{ x: -5, y: 0, z: -5 }]);
 const DEFAULT_ALLOWED_ORIGINS = Object.freeze(['https://mouse.ryanfitzpatrick.io']);
@@ -128,6 +133,7 @@ const TASK_REWARD_AMOUNTS = Object.freeze({
   [RAID_TASK_TYPES.CUT_LIGHTS]: 10,
   [RAID_TASK_TYPES.KNIFE_DRAWER]: 18,
   [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: 12,
+  [RAID_TASK_TYPES.WINDOW]: 14,
 });
 const TASK_NOISE_RADIUS = Object.freeze({
   [RAID_TASK_TYPES.CHEW_WIRES]: 10,
@@ -136,6 +142,7 @@ const TASK_NOISE_RADIUS = Object.freeze({
   [RAID_TASK_TYPES.CUT_LIGHTS]: 14,
   [RAID_TASK_TYPES.KNIFE_DRAWER]: 18,
   [RAID_TASK_TYPES.SABOTAGE_ROOMBA]: 12,
+  [RAID_TASK_TYPES.WINDOW]: 12,
 });
 
 const BOUNDS = LEVEL_WORLD_BOUNDS_XZ;
@@ -624,15 +631,10 @@ export default class GameServer {
 
   _applyLayout(layout, { resetPredators = false } = {}) {
     this._layout = layout;
-    this.levelColliders = buildRoomCollidersFromLayout(layout, { scaleFactor: 1 });
-    this.hotSurfaceZones = collectHotSurfaceZones(this.levelColliders);
+    this._refreshLevelColliders();
     this.spawnPoints = collectSpawnPointsFromLayout(layout);
     this.portalPlacements = collectVibePortalPlacementsFromLayout(layout);
     this.extractionPortalDefs = collectExtractionPortalsFromLayout(layout, this.spawnPoints);
-    this.pushBallWorld?.setLevelColliders?.(this.levelColliders);
-    this.roombaCannonWorld?.setLevelColliders?.(this.levelColliders);
-    this.mouseLaunchWorld?.setLevelColliders?.(this.levelColliders);
-    this.ropeWorld?.setLevelColliders?.(this.levelColliders);
     if (Array.isArray(layout?.ropes)) {
       this.ropeWorld?.setRopes?.(layout.ropes);
     }
@@ -643,6 +645,23 @@ export default class GameServer {
       this._initPredators();
       this.cheeseWorld.seedScatter();
     }
+  }
+
+  _completedRaidTaskIds() {
+    return this._taskCompletionClaims.get('__global__') ?? new Set();
+  }
+
+  _refreshLevelColliders() {
+    const layout = this._layout ?? kitchenLayout;
+    this.levelColliders = buildRoomCollidersFromLayout(layout, {
+      scaleFactor: 1,
+      completedTaskIds: this._completedRaidTaskIds(),
+    });
+    this.hotSurfaceZones = collectHotSurfaceZones(this.levelColliders);
+    this.pushBallWorld?.setLevelColliders?.(this.levelColliders);
+    this.roombaCannonWorld?.setLevelColliders?.(this.levelColliders);
+    this.mouseLaunchWorld?.setLevelColliders?.(this.levelColliders);
+    this.ropeWorld?.setLevelColliders?.(this.levelColliders);
   }
 
   _pickRoombaDock() {
@@ -799,6 +818,9 @@ export default class GameServer {
     state.grabbedBy = null;
     state.grabbedTarget = null;
     state.grabbedBallId = null;
+    state._quickTossHoldSeconds = 0;
+    state._quickTossActive = false;
+    state._quickTossHeldInput = false;
     state.heroAvailable = false;
     state.isHero = false;
     state.heroAvatar = null;
@@ -1345,6 +1367,7 @@ export default class GameServer {
     const claims = this._getTaskCompletionClaims('__global__');
     if (claims.has(taskId)) return;
     claims.add(taskId);
+    this._refreshLevelColliders();
     this._taskCompleteCooldown.set(senderId, now);
     this._awardMischief(player, MISCHIEF_POINTS.taskComplete, now / 1000);
     this._emitNoise(player, TASK_NOISE_RADIUS[task.taskType] ?? 10, 220);
@@ -1551,6 +1574,7 @@ export default class GameServer {
     this._unlockPickupCooldown.clear();
     this._taskCompleteCooldown.clear();
     this._taskCompletionClaims.clear();
+    this._refreshLevelColliders();
     this.broadcast(JSON.stringify({
       type: 'unlock-reset',
       heroClaims: { ...this.heroClaims },
@@ -1586,6 +1610,12 @@ export default class GameServer {
       state._chargedThrowOrbitAngle = 0;
       state._chargedThrowAimX = 0;
       state._chargedThrowAimZ = 1;
+      state._quickTossHoldSeconds = 0;
+      state._quickTossActive = false;
+      state._quickTossHeldInput = false;
+      state._quickTossAimX = 0;
+      state._quickTossAimZ = 1;
+      state._nextQuickTossAttemptAt = 0;
       state._grabHeldInput = false;
       state._nextGrabAttemptAt = 0;
       state.roombaLaunch = null;
@@ -1739,9 +1769,12 @@ export default class GameServer {
     /** Collect interaction requests from this tick's inputs. */
     const grabHeld = new Set();
     const grabAttempts = new Set();
+    const quickTossAttempts = new Set();
+    const quickTossReleaseIds = new Set();
     const smackRequests = [];
     const chargedSmackRequests = [];
     const chargedThrowRequests = [];
+    const quickTossRequests = [];
     /** Player ids that pressed throw (RB / G) this tick. */
     const throwRequests = new Set();
     for (const [id, state] of this.players) {
@@ -1951,6 +1984,20 @@ export default class GameServer {
               state._nextGrabAttemptAt = now + GRAB_RETRY_INTERVAL_SECONDS;
             }
           }
+          if (state._quickTossHeldInput) {
+            grabHeld.add(id);
+            const retryAt = Number(state._nextQuickTossAttemptAt) || 0;
+            if (!state.grabbedTarget && !state.grabbedBallId && retryAt <= now) {
+              quickTossAttempts.add(id);
+              state._nextQuickTossAttemptAt = now + GRAB_RETRY_INTERVAL_SECONDS;
+            }
+            if (state.grabbedTarget && state._quickTossActive) {
+              state._quickTossHoldSeconds = Math.min(
+                QUICK_TOSS_FULL_HOLD_SECONDS,
+                (Number(state._quickTossHoldSeconds) || 0) + dt,
+              );
+            }
+          }
           const vacuumPull = roombaForVacuum?.phase === 'vacuuming'
             ? getRoombaVacuumPullAcceleration(roombaForVacuum, state)
             : null;
@@ -1972,7 +2019,9 @@ export default class GameServer {
           let didThrow = false;
           let chargedSmackReleaseReq = false;
           let chargedThrowReleaseReq = false;
+          let quickTossReleaseReq = false;
           let lastGrab = false;
+          let lastQuickToss = !!state._quickTossHeldInput;
           let heroActivateReq = false;
           let adversaryToggleReq = false;
           let ropeGrabPress = false;
@@ -2019,9 +2068,11 @@ export default class GameServer {
             if (input.smack) didSmack = true;
             if (input.chargedSmackRelease) chargedSmackReleaseReq = true;
             if (input.chargedThrowRelease) chargedThrowReleaseReq = true;
+            if (input.quickTossRelease) quickTossReleaseReq = true;
             if (input.throw) didThrow = true;
             if (input.heroActivate) heroActivateReq = true;
             if (input.adversaryToggle) adversaryToggleReq = true;
+            lastQuickToss = !!input.quickTossHeld;
             if (!lastRopeGrab && input.ropeGrab) ropeGrabPress = true;
             lastRopeGrab = !!input.ropeGrab;
             const jumpNow = !!(input.jumpPressed ?? input.jump);
@@ -2029,7 +2080,10 @@ export default class GameServer {
             runningJump = jumpNow;
           }
           state._interactHeld = !!(latestInput?.interactHeld);
-          if (chargedSmackReleaseReq) {
+          const suppressSmackForExtract = this.round.phase === 'extract' && state._interactHeld;
+          if (suppressSmackForExtract) {
+            state._chargedSmackHoldSeconds = 0;
+          } else if (chargedSmackReleaseReq) {
             chargedSmackRequests.push({ id, chargeSeconds: Number(state._chargedSmackHoldSeconds) || 0 });
             state._chargedSmackHoldSeconds = 0;
           } else if (latestInput?.smackHeld && state.alive) {
@@ -2067,6 +2121,37 @@ export default class GameServer {
           } else {
             state._chargedThrowHoldSeconds = 0;
           }
+          const quickTossInputActive = !!(latestInput?.quickTossHeld);
+          if (quickTossInputActive || quickTossReleaseReq) {
+            const aimX = Number(latestInput?.quickTossAimX) || 0;
+            const aimZ = Number(latestInput?.quickTossAimZ) || 0;
+            const aimLen = Math.hypot(aimX, aimZ);
+            if (aimLen > 0.001) {
+              state._quickTossAimX = aimX / aimLen;
+              state._quickTossAimZ = aimZ / aimLen;
+            }
+            state._suppressSmackUntil = Math.max(
+              Number(state._suppressSmackUntil) || 0,
+              now + THROW_SMACK_SUPPRESS_SECONDS,
+            );
+          }
+          if (quickTossReleaseReq) {
+            quickTossReleaseIds.add(id);
+            quickTossRequests.push({ id, chargeSeconds: Number(state._quickTossHoldSeconds) || 0 });
+            state._quickTossHoldSeconds = 0;
+            state._quickTossHeldInput = false;
+          } else if (quickTossInputActive && state.alive) {
+            if (state.grabbedTarget && state._quickTossActive) {
+              state._quickTossHoldSeconds = Math.min(
+                QUICK_TOSS_FULL_HOLD_SECONDS,
+                (Number(state._quickTossHoldSeconds) || 0) + dt,
+              );
+            }
+          } else {
+            state._quickTossHoldSeconds = 0;
+            state._quickTossHeldInput = false;
+            state._quickTossActive = false;
+          }
           this._lastRopeGrab.set(id, lastRopeGrab);
           this._lastRopeJump.set(id, runningJump);
           // Press-and-hold grapple: while R is held we keep trying to grab each
@@ -2085,6 +2170,7 @@ export default class GameServer {
             }
           }
           state._grabHeldInput = lastGrab;
+          state._quickTossHeldInput = lastQuickToss;
           if (lastGrab) {
             grabHeld.add(id);
             const retryAt = Number(state._nextGrabAttemptAt) || 0;
@@ -2094,6 +2180,16 @@ export default class GameServer {
             }
           } else {
             state._nextGrabAttemptAt = 0;
+          }
+          if (lastQuickToss) {
+            grabHeld.add(id);
+            const retryAt = Number(state._nextQuickTossAttemptAt) || 0;
+            if (!state.grabbedTarget && !state.grabbedBallId && retryAt <= now) {
+              quickTossAttempts.add(id);
+              state._nextQuickTossAttemptAt = now + GRAB_RETRY_INTERVAL_SECONDS;
+            }
+          } else {
+            state._nextQuickTossAttemptAt = 0;
           }
           if (didSmack) smackRequests.push(id);
           if (didThrow) throwRequests.add(id);
@@ -2195,6 +2291,9 @@ export default class GameServer {
         simulatePlayerTick(state, input, dt, BOUNDS, this.levelColliders, vacuumPull);
         state.emote = input.emote ?? null;
         state._interactHeld = !!input.interactHeld;
+        if (this.round.phase === 'extract' && state._interactHeld) {
+          state._chargedSmackHoldSeconds = 0;
+        }
         seqs[id] = 0;
       }
     }
@@ -2397,10 +2496,12 @@ export default class GameServer {
     // --- Process grab interactions (hold-based) ---
     // Release grabs for anyone who stopped holding Q (mice + balls).
     for (const [id, state] of this.players) {
-      if (state.grabbedTarget && !grabHeld.has(id)) {
+      if (state.grabbedTarget && !grabHeld.has(id) && !quickTossReleaseIds.has(id)) {
         const target = this.players.get(state.grabbedTarget);
         if (target) target.grabbedBy = null;
         state.grabbedTarget = null;
+        state._quickTossActive = false;
+        state._quickTossHoldSeconds = 0;
       }
       if (state.grabbedBallId && !grabHeld.has(id)) {
         // Drop the ball gently in front of the grabber so it doesn't snap
@@ -2412,6 +2513,48 @@ export default class GameServer {
     const claimedBalls = new Set();
     for (const [, state] of this.players) {
       if (state.grabbedBallId) claimedBalls.add(state.grabbedBallId);
+    }
+    // Left-click quick toss only auto-grabs mice. Q keeps the precise mouse/ball
+    // grab behavior, while quick toss is an arcade shove-to-throw action.
+    for (const grabberId of quickTossAttempts) {
+      const grabber = this.players.get(grabberId);
+      if (!grabber?.alive || grabber.grabCooldown > 0 || grabber.grabbedTarget || grabber.grabbedBallId || grabber.extracted || grabber.spectator || grabber.isAdversary) continue;
+      let bestId = null;
+      let bestDist = GRAB_RANGE;
+      for (const [otherId, other] of this.players) {
+        if (otherId === grabberId || !other.alive || other.smackStunTimer > 0) continue;
+        if (other.extracted || other.spectator || other.isAdversary) continue;
+        if (this.mouseLaunchWorld.isFlying(otherId)) continue;
+        const dx = other.position.x - grabber.position.x;
+        const dz = other.position.z - grabber.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestId = otherId;
+        }
+      }
+      if (!bestId) continue;
+      const target = this.players.get(bestId);
+      if (target.grabbedBy) {
+        const oldGrabber = this.players.get(target.grabbedBy);
+        if (oldGrabber) {
+          oldGrabber.grabbedTarget = null;
+          oldGrabber._quickTossActive = false;
+          oldGrabber._quickTossHoldSeconds = 0;
+        }
+      }
+      grabber.grabbedTarget = bestId;
+      grabber._quickTossActive = true;
+      grabber._quickTossHoldSeconds = 0;
+      grabber._chargedThrowHoldSeconds = 0;
+      target.grabbedBy = grabberId;
+      grabber.grabAnimTimer = 0.45;
+      target.grabAnimTimer = 0.45;
+      if (grabber.roundStats) {
+        grabber.roundStats.grabsInitiated = (grabber.roundStats.grabsInitiated ?? 0) + 1;
+      }
+      this._awardMischief(grabber, MISCHIEF_POINTS.grab);
+      this._emitNoise(grabber, 8, 100);
     }
     // Initiate new grabs only on a press edge or throttled retry. Holding Q
     // maintains existing grabs but should not retrigger capture effects.
@@ -2441,6 +2584,8 @@ export default class GameServer {
           if (oldGrabber) oldGrabber.grabbedTarget = null;
         }
         grabber.grabbedTarget = bestId;
+        grabber._quickTossActive = false;
+        grabber._quickTossHoldSeconds = 0;
         target.grabbedBy = grabberId;
         // One-shot grab pose window: both players play the grab anim briefly
         // at the moment of capture, then resume their normal anims.
@@ -2487,12 +2632,17 @@ export default class GameServer {
         // Grab broken — target dead or gone
         if (target) target.grabbedBy = null;
         state.grabbedTarget = null;
+        state._quickTossActive = false;
+        state._quickTossHoldSeconds = 0;
         continue;
       }
       processedGrabs.add(id);
       processedGrabs.add(state.grabbedTarget);
 
-      if ((Number(state._chargedThrowHoldSeconds) || 0) > 0) {
+      const throwOrbitActive = (Number(state._chargedThrowHoldSeconds) || 0) > 0
+        || (Number(state._quickTossHoldSeconds) || 0) > 0
+        || !!state._quickTossActive;
+      if (throwOrbitActive) {
         state._chargedThrowOrbitAngle = (Number(state._chargedThrowOrbitAngle) || 0) + CHARGED_THROW_ORBIT_SPEED * dt;
         const angle = state._chargedThrowOrbitAngle;
         const ox = Math.sin(angle) * CHARGED_THROW_ORBIT_RADIUS;
@@ -2591,6 +2741,58 @@ export default class GameServer {
     const THROW_BALL_SPEED = 14;
     const THROW_BALL_UP = 5.5;
     const THROW_BALL_SPIN = 8;
+    for (const request of quickTossRequests) {
+      const throwerId = request?.id;
+      const thrower = this.players.get(throwerId);
+      if (!thrower?.alive || thrower.spectator || thrower.extracted) continue;
+      thrower._suppressSmackUntil = Math.max(
+        Number(thrower._suppressSmackUntil) || 0,
+        now + THROW_SMACK_SUPPRESS_SECONDS,
+      );
+      const targetId = thrower.grabbedTarget;
+      const target = targetId ? this.players.get(targetId) : null;
+      const rot = thrower.rotation ?? 0;
+      const fullCharge = (Number(request?.chargeSeconds) || 0) >= QUICK_TOSS_FULL_HOLD_SECONDS * 0.95;
+      const aimX = Number(thrower._quickTossAimX) || 0;
+      const aimZ = Number(thrower._quickTossAimZ) || 0;
+      const aimLen = Math.hypot(aimX, aimZ);
+      const forwardX = Math.sin(rot);
+      const forwardZ = Math.cos(rot);
+      const fx = fullCharge && aimLen > 0.001 ? aimX / aimLen : -forwardX;
+      const fz = fullCharge && aimLen > 0.001 ? aimZ / aimLen : -forwardZ;
+      const launchScale = fullCharge ? QUICK_TOSS_MOUSE_LAUNCH_SCALE : QUICK_TOSS_BACK_LAUNCH_SCALE;
+      const upMultiplier = fullCharge ? QUICK_TOSS_MOUSE_UP_MULTIPLIER : QUICK_TOSS_BACK_UP_MULTIPLIER;
+      if (target) {
+        const startOffset = fullCharge ? 0.7 : 0.25;
+        target.position.x = thrower.position.x + fx * startOffset;
+        target.position.z = thrower.position.z + fz * startOffset;
+        target.position.y = thrower.position.y + (fullCharge ? 0.95 : 1.18);
+        target.velocity.x = 0;
+        target.velocity.y = 0;
+        target.velocity.z = 0;
+        target.grabbedBy = null;
+        target.grabCooldown = GRAB_COOLDOWN;
+        this.mouseLaunchWorld.startFlight(
+          target.id ?? targetId,
+          target,
+          fx,
+          fz,
+          launchScale,
+          { jitter: false, upMultiplier },
+        );
+        if (thrower.roundStats) {
+          thrower.roundStats.throwsLanded = (thrower.roundStats.throwsLanded ?? 0) + 1;
+        }
+        this._awardMischief(thrower, fullCharge ? MISCHIEF_POINTS.throw * 2 : MISCHIEF_POINTS.throw);
+        this._emitNoise(thrower, fullCharge ? 16 : 12, fullCharge ? 220 : 130);
+      }
+      thrower.grabbedTarget = null;
+      if (target) thrower.grabCooldown = GRAB_COOLDOWN * 0.5;
+      thrower._quickTossHoldSeconds = 0;
+      thrower._quickTossActive = false;
+      thrower._quickTossHeldInput = false;
+      thrower._throwSpinCharge = 0;
+    }
     for (const request of chargedThrowRequests) {
       const throwerId = request?.id;
       const thrower = this.players.get(throwerId);
@@ -2610,6 +2812,8 @@ export default class GameServer {
       const fx = aimLen > 0.001 ? aimX / aimLen : Math.sin(rot);
       const fz = aimLen > 0.001 ? aimZ / aimLen : Math.cos(rot);
       thrower._chargedThrowHoldSeconds = 0;
+      thrower._quickTossHoldSeconds = 0;
+      thrower._quickTossActive = false;
       thrower._throwSpinCharge = 0;
       if (thrower.grabbedTarget) {
         const target = this.players.get(thrower.grabbedTarget);
@@ -2666,6 +2870,8 @@ export default class GameServer {
       const fx = Math.sin(rot);
       const fz = Math.cos(rot);
       const spinBoost = 1 + Math.min(0.9, Math.max(0, Number(thrower._throwSpinCharge) || 0) * 0.45);
+      thrower._quickTossHoldSeconds = 0;
+      thrower._quickTossActive = false;
       thrower._throwSpinCharge = 0;
       if (thrower.grabbedTarget) {
         const target = this.players.get(thrower.grabbedTarget);
