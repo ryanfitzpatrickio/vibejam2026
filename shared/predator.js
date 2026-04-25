@@ -14,6 +14,14 @@ import { CAT_BT, selectRoutineAfterIdle, initialIdleDelay } from './catBehaviorT
 import { PHYSICS } from './physics.js';
 import { NAV_AGENT_CONFIGS, NAV_POLY_FLAGS } from './navConfig.js';
 import { LEVEL_WORLD_BOUNDS_XZ } from './levelWorldBounds.js';
+import {
+  angleDiff,
+  distSqXZ,
+  distXZ,
+  getVerticalSpan,
+  normalizeXZ,
+  spansOverlap,
+} from './predatorMath.js';
 
 export const PREDATOR_AI = Object.freeze({
   IDLE: 'idle',
@@ -166,35 +174,6 @@ export function createPredatorState(config) {
     unstuckTimer: 0,
     unstuckDir: { x: 0, z: 0 },
   };
-}
-
-function distXZ(a, b) {
-  const dx = a.x - b.x;
-  const dz = a.z - b.z;
-  return Math.sqrt(dx * dx + dz * dz);
-}
-
-function distSqXZ(a, b) {
-  const dx = a.x - b.x;
-  const dz = a.z - b.z;
-  return dx * dx + dz * dz;
-}
-
-function normalizeXZ(v) {
-  const len = Math.sqrt(v.x * v.x + v.z * v.z);
-  if (len < 0.0001) return { x: 0, z: 0 };
-  return { x: v.x / len, z: v.z / len };
-}
-
-function getVerticalSpan(positionY, height) {
-  return {
-    min: positionY,
-    max: positionY + Math.max(0, height ?? 0),
-  };
-}
-
-function spansOverlap(a, b) {
-  return a.min <= b.max && a.max >= b.min;
 }
 
 function canPredatorHitPlayer(predator, player) {
@@ -659,13 +638,6 @@ function huntVerticalBandOk(state, player) {
   const dy = player.position.y - state.position.y;
   if (dy < -CAT_BT.maxPreyBelowForHunt) return false;
   return true;
-}
-
-function angleDiff(target, current) {
-  let d = target - current;
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return d;
 }
 
 function pickPatrolTarget(state, radiusScale = 1) {

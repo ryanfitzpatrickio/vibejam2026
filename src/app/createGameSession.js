@@ -1,4 +1,43 @@
 import * as THREE from 'three';
+import { applyAtmosphere, buildNavMeshOverlay, createWebGLRenderer } from './sessionScene.js';
+import { createOfflineNetClient } from './offlineNetClient.js';
+import { readAudioPrefs, writeAudioPrefs } from './audioPrefs.js';
+import { buildScoreboardRows } from './scoreboardRows.js';
+import { syncActionJuicePopups } from './actionJuiceSync.js';
+import { bindPerformancePanelToggles } from './performancePanelBindings.js';
+import { createPerformanceToggles } from './performanceToggles.js';
+import {
+  createExtractHoldRing,
+  hideExtractHoldRing,
+  updateExtractHoldRing,
+} from './extractHoldRing.js';
+import { createExtractionPortalMarkers } from './extractionPortalMarkers.js';
+import {
+  createPerfFlags,
+  createQualityState,
+  updateAdaptiveQuality,
+} from './adaptiveQuality.js';
+import {
+  ROPE_HINT_RANGE,
+  ROPE_POSE_GRACE_SECONDS,
+  buildGameplayHint,
+  nearestRopeDistanceSq,
+} from './gameplayHints.js';
+import { createDynamicWorldItems } from './dynamicWorldItems.js';
+import {
+  CHARGED_THROW_CAMERA_SIDE_OFFSET,
+  LOCAL_CHARGED_THROW_ORBIT_SPEED,
+  createChargedThrowTracer,
+  disposeChargedThrowTracer,
+  getChargedThrowAimDirection,
+  updateChargedThrowTracer,
+} from './chargedThrowAim.js';
+import {
+  copyServerToPrediction,
+  createRenderPositionSmoother,
+  restoreTinyPredictionCorrection,
+} from './localPredictionSync.js';
+import { handleHeroUnlockMarkerMessage } from './heroUnlockMarkerVisuals.js';
 import { Mouse } from '../entities/Mouse.js';
 import { Bunny } from '../entities/Bunny.js';
 import { Cat } from '../entities/Cat.js';
@@ -59,26 +98,9 @@ import { simulateTick, createPlayerState } from '../../shared/physics.js';
 import { getRoombaVacuumPullAcceleration } from '../../shared/roomba.js';
 import { readVibePortalArrivalFromSearch } from '../../shared/vibePortal.js';
 import kitchenNavMesh from '../../shared/kitchen-navmesh.generated.js';
-import { playerChaseRecordSeconds } from '../../shared/chaseScore.js';
 import { LEVEL_WORLD_BOUNDS_XZ } from '../../shared/levelWorldBounds.js';
 import { normalizeRope } from '../../shared/ropes.js';
 import { collectSpawnPointsFromLayout } from '../../shared/spawnPoints.js';
-
-function applyAtmosphere(scene) {
-  scene.background = new THREE.Color('#8e7a63');
-  scene.fog = new THREE.Fog('#8d7964', 16, 68);
-}
-
-function createWebGLRenderer(canvas) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
-  renderer.shadowMap.enabled = false;
-  // PCFSoftShadowMap is deprecated on WebGLRenderer (Three r183+); PCFShadowMap is the supported path.
-  // PCFShadowMap is also more compatible on some mobile Mali GPUs (e.g. G715).
-  renderer.shadowMap.type = THREE.PCFShadowMap;
-  return renderer;
-}
 
 function dampValue(current, target, smoothing, dt) {
   if (dt <= 0) return target;
@@ -89,14 +111,6 @@ function dampValue(current, target, smoothing, dt) {
 function shortestAngleDelta(target, current) {
   return THREE.MathUtils.euclideanModulo((target - current) + Math.PI, Math.PI * 2) - Math.PI;
 }
-
-const LOCAL_CHARGED_THROW_ORBIT_SPEED = 25.5;
-const CHARGED_THROW_TRACER_POINTS = 30;
-const CHARGED_THROW_TRACER_HORIZ_SPEED = 7.2 * 4.6;
-const CHARGED_THROW_TRACER_UP_SPEED = 9.4 * Math.sqrt(4.6) * 1.35;
-const CHARGED_THROW_TRACER_GRAVITY = 22;
-const CHARGED_THROW_TRACER_STEP_SECONDS = 0.075;
-const CHARGED_THROW_CAMERA_SIDE_OFFSET = 1.15;
 
 function directionBucketFromLateral(current, lateral, enter = 0.34, exit = 0.16) {
   if (current === 'right') return lateral < exit ? 'straight' : 'right';
@@ -118,8 +132,6 @@ const HUMAN_NAMEPLATE_OFFSET_Y = 9.35;
 const ACTION_JUICE_MOUSE_OFFSET_Y = 1.14;
 const ACTION_JUICE_HUMAN_OFFSET_Y = 5.6;
 const MISCHIEF_CHAIN_WINDOW_SECONDS = 3.4;
-const ROPE_HINT_RANGE = 1.85;
-const ROPE_POSE_GRACE_SECONDS = 0.22;
 const GRAB_ONE_SHOT_ANIM_SECONDS = 0.6;
 
 function pickRemoteRoombaSnapshot(remotePredators) {
@@ -144,157 +156,10 @@ function vacuumPullForPrediction(net, predictionState) {
   );
 }
 
-const AUDIO_PREFS_KEY = 'mouse-trouble-audio-prefs';
 const GITHUB_URL = 'https://github.com/ryanfitzpatrickio/vibejam2026';
 
 /** Cat AI states where the hunt target is the local player — drives ambient crossfade. */
 const CAT_AMBIENT_HUNT_AI = new Set(['alert', 'roar', 'chase', 'attack', 'cooldown']);
-
-function readAudioPrefs() {
-  try {
-    const raw = window.localStorage?.getItem(AUDIO_PREFS_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return {
-      musicMuted: !!parsed?.musicMuted,
-      sfxMuted: !!parsed?.sfxMuted,
-    };
-  } catch {
-    return { musicMuted: false, sfxMuted: false };
-  }
-}
-
-function writeAudioPrefs(prefs) {
-  try {
-    window.localStorage?.setItem(AUDIO_PREFS_KEY, JSON.stringify({
-      musicMuted: !!prefs.musicMuted,
-      sfxMuted: !!prefs.sfxMuted,
-    }));
-  } catch {
-    // Local storage may be unavailable in private contexts.
-  }
-}
-
-function buildNavMeshOverlay(navMesh) {
-  const group = new THREE.Group();
-  group.name = 'navmesh-overlay';
-
-  const fillPositions = [];
-  const linePositions = [];
-
-  for (const tile of Object.values(navMesh?.tiles ?? {})) {
-    const vertices = tile?.vertices;
-    const polys = tile?.polys;
-    if (!Array.isArray(vertices) || !Array.isArray(polys)) continue;
-
-    for (const poly of polys) {
-      const indices = Array.isArray(poly?.vertices)
-        ? poly.vertices.filter((index) => Number.isInteger(index) && index >= 0)
-        : [];
-      if (indices.length < 3) continue;
-
-      const points = indices.map((index) => {
-        const base = index * 3;
-        return {
-          x: vertices[base],
-          y: (vertices[base + 1] ?? 0) + 0.03,
-          z: vertices[base + 2],
-        };
-      });
-
-      for (let i = 1; i < points.length - 1; i += 1) {
-        const a = points[0];
-        const b = points[i];
-        const c = points[i + 1];
-        fillPositions.push(
-          a.x, a.y, a.z,
-          b.x, b.y, b.z,
-          c.x, c.y, c.z,
-        );
-      }
-
-      for (let i = 0; i < points.length; i += 1) {
-        const current = points[i];
-        const next = points[(i + 1) % points.length];
-        linePositions.push(
-          current.x, current.y + 0.005, current.z,
-          next.x, next.y + 0.005, next.z,
-        );
-      }
-    }
-  }
-
-  if (fillPositions.length) {
-    const fillGeometry = new THREE.BufferGeometry();
-    fillGeometry.setAttribute('position', new THREE.Float32BufferAttribute(fillPositions, 3));
-    const fillMaterial = new THREE.MeshBasicMaterial({
-      color: '#6de2b5',
-      transparent: true,
-      opacity: 0.22,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
-    });
-    const fillMesh = new THREE.Mesh(fillGeometry, fillMaterial);
-    fillMesh.renderOrder = 50;
-    group.add(fillMesh);
-  }
-
-  if (linePositions.length) {
-    const lineGeometry = new THREE.BufferGeometry();
-    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
-    const lineMaterial = new THREE.LineBasicMaterial({
-      color: '#b7fff0',
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false,
-    });
-    const lineSegments = new THREE.LineSegments(lineGeometry, lineMaterial);
-    lineSegments.renderOrder = 51;
-    group.add(lineSegments);
-  }
-
-  group.visible = false;
-  return group;
-}
-
-function createOfflineNetClient(roomId = 'offline') {
-  return {
-    ws: null,
-    roomId,
-    localId: 'offline-local',
-    connected: false,
-    remotePlayers: new Map(),
-    remotePredators: new Map(),
-    pushBalls: [],
-    ropes: [],
-    cheesePickups: [],
-    round: null,
-    extractionPortals: [],
-    adversary: { playerId: null, available: false, safeRadius: 0 },
-    serverState: null,
-    serverSeq: -1,
-    ping: 0,
-    heroClaims: {},
-    unlockItems: [],
-    _listeners: new Set(),
-    connect() {},
-    disconnect() {},
-    on(fn) {
-      this._listeners.add(fn);
-      return () => this._listeners.delete(fn);
-    },
-    sendInput() { return 0; },
-    sendSpawnExtraBall() {},
-    sendTaskComplete() {},
-    sendSqueak() {},
-    sendUnlockPickup() {},
-    sendClaimHero() {},
-    sendDisplayName() {},
-    async fetchLeaderboard() { return null; },
-  };
-}
 
 export async function createGameSession({
   canvas,
@@ -308,8 +173,6 @@ export async function createGameSession({
   applyAtmosphere(scene);
 
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
-  const _chargedThrowAimDir = new THREE.Vector3();
-  const _chargedThrowArcStart = new THREE.Vector3();
 
   const mouse = new Mouse({
     furColor: '#f5a962',
@@ -332,7 +195,12 @@ export async function createGameSession({
   const navMeshOverlay = buildNavMeshOverlay(kitchenNavMesh);
   scene.add(navMeshOverlay);
 
-  const room = new Room({ height: 4, scale: 1 });
+  const room = new Room({
+    height: 4,
+    scale: 1,
+    useGeneratedBakes: false,
+    useHouseGeneratedBake: false,
+  });
   scene.add(room.getGroup());
   // The Mouse builds its primitive avatar synchronously in its constructor and
   // streams the skinned GLB in behind the scenes. The Room synchronously
@@ -412,32 +280,8 @@ export async function createGameSession({
     }
   };
 
-  const perfFlags = {
-    labels: true,
-    gameplayUi: true,
-    localPlayer: true,
-    remotePlayers: true,
-    predators: true,
-    wind: true,
-    ropes: true,
-    raidMarkers: true,
-  };
-  const qualityState = {
-    tier: 0,
-    dprCap: 1.5,
-    baseDprCap: 1.5,
-    lowFpsSeconds: 0,
-    highFpsSeconds: 0,
-    lastResizeWidth: 1,
-    lastResizeHeight: 1,
-    lastDevicePixelRatio: 1,
-    lastScoreboardAt: 0,
-    lastCatLocatorAt: 0,
-    lastTaskUpdateAt: 0,
-    actionJuiceAccum: 0,
-    labelsWereEnabled: true,
-    outlinesWereEnabled: true,
-  };
+  const perfFlags = createPerfFlags();
+  const qualityState = createQualityState();
 
   const thirdPersonCamera = new ThirdPersonCamera({
     camera,
@@ -564,34 +408,7 @@ export async function createGameSession({
   let _prevExtractProgress = 0;
   let _wasExtracted = false;
 
-  const extractionMarkerGroup = new THREE.Group();
-  extractionMarkerGroup.name = 'ExtractionPortals';
-  scene.add(extractionMarkerGroup);
-  const _portalRingGeo = new THREE.RingGeometry(0.55, 0.88, 28);
-  const _portalOuterRingGeo = new THREE.RingGeometry(0.95, 1.08, 36);
-  const _portalBeamGeo = new THREE.CylinderGeometry(0.18, 0.74, 3.4, 28, 1, true);
-  const _portalRingMat = new THREE.MeshBasicMaterial({
-    color: '#facc15',
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.88,
-    depthWrite: false,
-  });
-  const _portalOuterRingMat = new THREE.MeshBasicMaterial({
-    color: '#ff7a3d',
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.42,
-    depthWrite: false,
-  });
-  const _portalBeamMat = new THREE.MeshBasicMaterial({
-    color: '#fff176',
-    transparent: true,
-    opacity: 0.22,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-  });
+  const extractionMarkers = createExtractionPortalMarkers(scene);
 
   const audioManager = getAudioManager();
   audioManager.attachListenerToCamera(camera);
@@ -814,85 +631,14 @@ export async function createGameSession({
     return 0;
   };
 
-  // Visuals for the unlock markers: default helper (pole + diamond) vs. a
-  // pile after the hero is claimed. Rebuilt on round reset.
-  function clearGroupChildren(g) {
-    while (g.children.length) {
-      const c = g.children[0];
-      g.remove(c);
-      c.traverse?.((n) => {
-        if (n.geometry) n.geometry.dispose?.();
-        if (n.material) {
-          const mats = Array.isArray(n.material) ? n.material : [n.material];
-          for (const m of mats) m.dispose?.();
-        }
-      });
-    }
-  }
-
-  function buildDefaultMarkerVisuals(group, id) {
-    const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.06, 1.1, 12),
-      new THREE.MeshBasicMaterial({ color: '#e8b84a', transparent: true, opacity: 0.92, depthWrite: false, toneMapped: false }),
-    );
-    pole.position.y = 0.55;
-    pole.userData.raidTaskId = id;
-    pole.userData.skipOutline = true;
-    group.add(pole);
-    const top = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.26, 0),
-      new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false }),
-    );
-    top.position.y = 1.22;
-    top.userData.raidTaskId = id;
-    top.userData.skipOutline = true;
-    group.add(top);
-  }
-
-  function buildPileVisuals(group, heroKey) {
-    const color = heroKey === 'gus' ? 0xd486a8 : 0x6fb4ff;
-    for (let i = 0; i < 5; i += 1) {
-      const s = 0.13 + Math.random() * 0.08;
-      const mesh = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(s, 0),
-        new THREE.MeshStandardMaterial({ color, roughness: 0.6 }),
-      );
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 0.25;
-      mesh.position.set(Math.cos(a) * r, s, Math.sin(a) * r);
-      group.add(mesh);
-    }
-  }
-
-  function forEachUnlockMarker(fn) {
-    const entries = room?.editableRaidTaskObjects;
-    if (!entries) return;
-    for (const entry of entries.values()) {
-      const t = entry?.definition?.taskType;
-      if (t === 'unlock_gus' || t === 'unlock_speedy') fn(entry);
-    }
-  }
-
   net.on((data) => {
     if (data?.type === 'open') {
       devLayoutSyncedForConnection = false;
       maybeSyncDevLayoutToServer();
       return;
     }
-    if (data?.type === 'hero-claimed') {
-      const expectedType = data.heroKey === 'gus' ? 'unlock_gus' : 'unlock_speedy';
-      forEachUnlockMarker((entry) => {
-        if (entry.definition.taskType !== expectedType) return;
-        clearGroupChildren(entry.group);
-        buildPileVisuals(entry.group, data.heroKey);
-      });
+    if (handleHeroUnlockMarkerMessage(room, data)) {
       return;
-    }
-    if (data?.type === 'unlock-reset') {
-      forEachUnlockMarker((entry) => {
-        clearGroupChildren(entry.group);
-        buildDefaultMarkerVisuals(entry.group, entry.definition.id);
-      });
     }
     if (data?.type === 'task-completed' && typeof data.taskId === 'string') {
       taskController.markTaskCompleted(data.taskId);
@@ -936,73 +682,12 @@ export async function createGameSession({
   const _mischiefChains = new Map();
   let occlusionFrameIndex = 0;
 
-  const DEFAULT_PUSH_BALL_RADIUS = 0.38;
-  const PUSH_BALL_MAX_INSTANCES = 128;
-  const pushBallUnitGeometry = new THREE.SphereGeometry(1, 20, 14);
-  const pushBallSharedMaterial = new THREE.MeshStandardMaterial({ metalness: 0.16, roughness: 0.52 });
-  const pushBallInstanced = new THREE.InstancedMesh(
-    pushBallUnitGeometry,
-    pushBallSharedMaterial,
-    PUSH_BALL_MAX_INSTANCES,
-  );
-  pushBallInstanced.name = 'PushBallsInstanced';
-  pushBallInstanced.castShadow = true;
-  pushBallInstanced.receiveShadow = true;
-  pushBallInstanced.count = 0;
-  pushBallInstanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  pushBallInstanced.frustumCulled = false;
-  scene.add(pushBallInstanced);
+  const dynamicWorldItems = createDynamicWorldItems(scene);
 
   const ropeSystem = new RopeSystem({
     resolveTexture: (atlasId, cellIndex) => room._createAtlasTexture(cellIndex, atlasId),
   });
   scene.add(ropeSystem);
-
-  /** @type {Map<string, { smoothPos: THREE.Vector3, smoothQuat: THREE.Quaternion, targetPos: THREE.Vector3, targetQuat: THREE.Quaternion, radius: number }>} */
-  const pushBallStates = new Map();
-  const _pushBallMatrix = new THREE.Matrix4();
-  const _pushBallScale = new THREE.Vector3();
-  const _pushBallColor = new THREE.Color();
-  let pushBallsRenderVisible = true;
-
-  const CHEESE_PICKUP_MAX_INSTANCES = 256;
-  const cheesePickupGroup = new THREE.Group();
-  cheesePickupGroup.name = 'WorldCheesePickups';
-  scene.add(cheesePickupGroup);
-  const cheesePickupGeometry = new THREE.ConeGeometry(0.24, 0.38, 6);
-  cheesePickupGeometry.rotateX(Math.PI);
-  const cheesePickupMaterial = new THREE.MeshStandardMaterial({
-    color: '#f2d046',
-    emissive: '#806018',
-    emissiveIntensity: 0.22,
-    roughness: 0.42,
-    metalness: 0.06,
-  });
-  const cheesePickupInstanced = new THREE.InstancedMesh(
-    cheesePickupGeometry,
-    cheesePickupMaterial,
-    CHEESE_PICKUP_MAX_INSTANCES,
-  );
-  cheesePickupInstanced.name = 'CheesePickupsInstanced';
-  cheesePickupInstanced.castShadow = true;
-  cheesePickupInstanced.receiveShadow = true;
-  cheesePickupInstanced.count = 0;
-  cheesePickupInstanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  cheesePickupInstanced.frustumCulled = false;
-  cheesePickupInstanced.visible = false;
-  cheesePickupGroup.add(cheesePickupInstanced);
-  /** @type {Map<string, { phase: number, spinY: number }>} */
-  const cheesePickupStates = new Map();
-  const _cheeseMatrix = new THREE.Matrix4();
-  const _cheesePos = new THREE.Vector3();
-  const _cheeseQuat = new THREE.Quaternion();
-  const _cheeseEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  const _cheeseScale = new THREE.Vector3();
-
-  function cheesePickupVisualScale(amount) {
-    const n = Math.max(1, Math.floor(Number(amount) || 1));
-    return Math.min(2.5, 0.58 + 0.022 * Math.min(n, 200));
-  }
 
   function resize(width, height, pixelRatio = window.devicePixelRatio || 1) {
     const safeWidth = Math.max(1, Math.floor(width));
@@ -1055,216 +740,9 @@ export async function createGameSession({
     position: { x: 0, y: -1.18, z: 0 },
   });
   localNameplateAnchor.add(chargedThrowReticle.label);
-  const chargedThrowTracerPositions = new Float32Array(CHARGED_THROW_TRACER_POINTS * 3);
-  const chargedThrowTracerGeometry = new THREE.BufferGeometry();
-  chargedThrowTracerGeometry.setAttribute(
-    'position',
-    new THREE.BufferAttribute(chargedThrowTracerPositions, 3),
-  );
-  const chargedThrowTracerMaterial = new THREE.LineBasicMaterial({
-    color: '#63ff7a',
-    transparent: true,
-    opacity: 0.92,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const chargedThrowTracer = new THREE.Line(chargedThrowTracerGeometry, chargedThrowTracerMaterial);
-  chargedThrowTracer.name = 'ChargedThrowTracer';
-  chargedThrowTracer.frustumCulled = false;
-  chargedThrowTracer.renderOrder = 3000;
-  chargedThrowTracer.visible = false;
-  scene.add(chargedThrowTracer);
-  const extractRingRoot = document.createElement('div');
-  Object.assign(extractRingRoot.style, {
-    width: '74px',
-    height: '74px',
-    borderRadius: '999px',
-    display: 'none',
-    position: 'relative',
-    pointerEvents: 'none',
-    filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))',
-  });
-  const extractRingSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  extractRingSvg.setAttribute('viewBox', '0 0 74 74');
-  Object.assign(extractRingSvg.style, {
-    position: 'absolute',
-    inset: '0',
-    width: '74px',
-    height: '74px',
-    overflow: 'visible',
-  });
-  const extractRingTrack = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  extractRingTrack.setAttribute('cx', '37');
-  extractRingTrack.setAttribute('cy', '37');
-  extractRingTrack.setAttribute('r', '30');
-  extractRingTrack.setAttribute('fill', 'rgba(18,13,8,0.54)');
-  extractRingTrack.setAttribute('stroke', 'rgba(255,255,255,0.2)');
-  extractRingTrack.setAttribute('stroke-width', '8');
-  const extractRingFill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  extractRingFill.setAttribute('cx', '37');
-  extractRingFill.setAttribute('cy', '37');
-  extractRingFill.setAttribute('r', '30');
-  extractRingFill.setAttribute('fill', 'none');
-  extractRingFill.setAttribute('stroke', '#fff176');
-  extractRingFill.setAttribute('stroke-width', '8');
-  extractRingFill.setAttribute('stroke-linecap', 'round');
-  extractRingFill.setAttribute('pathLength', '100');
-  extractRingFill.setAttribute('stroke-dasharray', '0 100');
-  extractRingFill.style.transform = 'rotate(-90deg)';
-  extractRingFill.style.transformOrigin = '37px 37px';
-  extractRingSvg.append(extractRingTrack, extractRingFill);
-  const extractRingInner = document.createElement('div');
-  Object.assign(extractRingInner.style, {
-    width: '48px',
-    height: '48px',
-    borderRadius: '999px',
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    transform: 'translate(-50%, -50%)',
-    background: 'rgba(33,22,12,0.7)',
-    border: '2px solid rgba(255,255,255,0.78)',
-    color: '#fff7c2',
-    font: '900 18px "Fredoka", "Baloo", system-ui, sans-serif',
-    textShadow: '0 2px 0 #25100b',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  });
-  extractRingInner.textContent = 'E';
-  extractRingRoot.appendChild(extractRingSvg);
-  extractRingRoot.appendChild(extractRingInner);
-  const extractRingLabel = new CSS2DObject(extractRingRoot);
-  extractRingLabel.position.set(0, -0.56, 0);
-  extractRingLabel.visible = false;
-  localNameplateAnchor.add(extractRingLabel);
-  function setLabelsEnabled(enabled) {
-    perfFlags.labels = !!enabled;
-    labelRenderer.domElement.style.display = perfFlags.labels ? '' : 'none';
-    localNameplate.setVisible(perfFlags.labels);
-    remotePlayerManager.setNameplatesVisible(perfFlags.labels);
-    actionJuice.setEnabled(perfFlags.labels && perfFlags.gameplayUi);
-  }
-
-  function setGameplayUiEnabled(enabled) {
-    perfFlags.gameplayUi = !!enabled;
-    hud.setVisible(perfFlags.gameplayUi);
-    roundRaid.setVisible(perfFlags.gameplayUi);
-    mischiefMeter.setVisible(perfFlags.gameplayUi);
-    catLocator.setVisible(perfFlags.gameplayUi);
-    scoreboard.setVisible(perfFlags.gameplayUi);
-    toolbar.setVisible(perfFlags.gameplayUi);
-    chaseAlert.setVisible(perfFlags.gameplayUi);
-    adversaryStatus.setVisible(perfFlags.gameplayUi);
-    heroPrompt.setEnabled(perfFlags.gameplayUi);
-    actionJuice.setEnabled(perfFlags.labels && perfFlags.gameplayUi);
-    taskPromptElement.style.display = 'none';
-  }
-
-  function setLocalPlayerVisible(enabled) {
-    perfFlags.localPlayer = !!enabled;
-    mouse.visible = perfFlags.localPlayer && !(predictionState.isAdversary && human?.playerControlled);
-  }
-
-  function setRemotePlayersVisible(enabled) {
-    perfFlags.remotePlayers = !!enabled;
-    remotePlayerManager.setPlayersVisible(perfFlags.remotePlayers);
-  }
-
-  function setPredatorsVisible(enabled) {
-    perfFlags.predators = !!enabled;
-    if (!perfFlags.predators) {
-      if (cat) cat.visible = false;
-      if (roomba) {
-        roomba.visible = false;
-        roomba.dockGroup.visible = false;
-      }
-      if (human) human.visible = false;
-    }
-  }
-
-  function setWindVisible(enabled) {
-    perfFlags.wind = !!enabled;
-    if (!perfFlags.wind) {
-      windStreaks.setIntensity(0);
-      windStreaks.update(0);
-    }
-  }
-
-  function setRopesVisible(enabled) {
-    perfFlags.ropes = !!enabled;
-    ropeSystem.visible = perfFlags.ropes;
-  }
-
-  function setRaidMarkersVisible(enabled) {
-    perfFlags.raidMarkers = !!enabled;
-    room.setRaidTaskHelpersVisible(perfFlags.raidMarkers);
-    extractionMarkerGroup.visible = perfFlags.raidMarkers && extractionMarkerGroup.children.length > 0;
-  }
-
-  function applyAdaptiveQualityTier(tier) {
-    const nextTier = Math.max(0, Math.min(3, Math.floor(Number(tier) || 0)));
-    if (nextTier === qualityState.tier) return;
-    const prevTier = qualityState.tier;
-    qualityState.tier = nextTier;
-
-    qualityState.dprCap = [qualityState.baseDprCap, 1.35, 1.15, 1.0][nextTier] ?? 1.0;
-    actionJuice.setMaxPopups?.([18, 12, 8, 4][nextTier] ?? 4);
-
-    if (nextTier >= 2 && prevTier < 2) {
-      qualityState.labelsWereEnabled = perfFlags.labels;
-      setLabelsEnabled(false);
-    } else if (nextTier < 2 && prevTier >= 2 && qualityState.labelsWereEnabled && !perfFlags.labels) {
-      setLabelsEnabled(true);
-    }
-
-    if (nextTier >= 1 && prevTier < 1) {
-      qualityState.outlinesWereEnabled = outlinePipeline.isEnabled();
-      outlinePipeline.setEnabled(false);
-    } else if (nextTier < 1 && prevTier >= 1 && qualityState.outlinesWereEnabled && !outlinePipeline.isEnabled()) {
-      outlinePipeline.setEnabled(true);
-    }
-
-    resize(
-      qualityState.lastResizeWidth,
-      qualityState.lastResizeHeight,
-      qualityState.lastDevicePixelRatio,
-    );
-  }
-
-  function updateAdaptiveQuality(deltaSeconds) {
-    const dt = Math.max(0, Math.min(0.25, Number(deltaSeconds) || 0));
-    if (dt <= 0) return;
-    const fps = 1 / dt;
-    if (fps < 42) {
-      qualityState.lowFpsSeconds += dt;
-      qualityState.highFpsSeconds = 0;
-    } else if (fps > 56) {
-      qualityState.highFpsSeconds += dt;
-      qualityState.lowFpsSeconds = 0;
-    } else {
-      qualityState.lowFpsSeconds = Math.max(0, qualityState.lowFpsSeconds - dt * 0.5);
-      qualityState.highFpsSeconds = Math.max(0, qualityState.highFpsSeconds - dt * 0.35);
-    }
-
-    if (qualityState.lowFpsSeconds > 2.2 && qualityState.tier < 3) {
-      qualityState.lowFpsSeconds = 0;
-      applyAdaptiveQualityTier(qualityState.tier + 1);
-    } else if (qualityState.highFpsSeconds > 8 && qualityState.tier > 0) {
-      qualityState.highFpsSeconds = 0;
-      applyAdaptiveQualityTier(qualityState.tier - 1);
-    }
-  }
-
-  let lastReconciledSeq = -2;
-  const vibePortalManager = new VibePortalManager({
-    scene,
-    getPlayerState: () => predictionState,
-    getPlayerObject: () => mouse,
-    getPlayerColor: () => '#f5a962',
-    getPortalPlacements: () => room.getVibePortalPlacements(),
-  });
-
+  const chargedThrowTracer = createChargedThrowTracer(scene);
+  const extractRing = createExtractHoldRing();
+  localNameplateAnchor.add(extractRing.label);
   const scoreboard = new ScoreboardOverlay();
   const gamepadManager = new GamepadManager({
     controller,
@@ -1287,6 +765,42 @@ export async function createGameSession({
   // to render. Three.js skips children of objects not attached to the active scene.
   if (!camera.parent) scene.add(camera);
 
+  const performanceToggles = createPerformanceToggles({
+    perfFlags,
+    labelRenderer,
+    localNameplate,
+    remotePlayerManager,
+    actionJuice,
+    hud,
+    roundRaid,
+    mischiefMeter,
+    catLocator,
+    scoreboard,
+    toolbar,
+    chaseAlert,
+    adversaryStatus,
+    heroPrompt,
+    taskPromptElement,
+    mouse,
+    getPredictionState: () => predictionState,
+    getHuman: () => human,
+    getCat: () => cat,
+    getRoomba: () => roomba,
+    windStreaks,
+    ropeSystem,
+    room,
+    extractionMarkerGroup: extractionMarkers.group,
+  });
+
+  let lastReconciledSeq = -2;
+  const vibePortalManager = new VibePortalManager({
+    scene,
+    getPlayerState: () => predictionState,
+    getPlayerObject: () => mouse,
+    getPlayerColor: () => '#f5a962',
+    getPortalPlacements: () => room.getVibePortalPlacements(),
+  });
+
   function isLocalPlayerCatHuntTarget() {
     const lid = net.localId;
     if (!lid || !net.connected) return false;
@@ -1300,33 +814,8 @@ export async function createGameSession({
     return false;
   }
 
-  function scoreboardLabel(id, localId) {
-    if (id === localId) return 'You';
-    if (typeof id === 'string' && id.startsWith('bot-')) return `Bot ${id.slice(4)}`;
-    if (typeof id === 'string' && id.length > 12) return id.slice(0, 8);
-    return String(id);
-  }
-
-  function scoreboardRowLabel(id, localId, p) {
-    const dn = typeof p?.displayName === 'string' && p.displayName.trim() ? p.displayName.trim() : '';
-    if (dn) return id === localId ? `${dn} (you)` : dn;
-    return scoreboardLabel(id, localId);
-  }
-
   function playerActionJuiceOffsetY(playerState) {
     return playerState?.isAdversary ? ACTION_JUICE_HUMAN_OFFSET_Y : ACTION_JUICE_MOUSE_OFFSET_Y;
-  }
-
-  function copyPlayerActionJuiceState(playerState) {
-    return {
-      cheeseCarried: Math.max(0, Math.floor(Number(playerState?.cheeseCarried) || 0)),
-      mischiefScore: Math.max(0, Math.floor(Number(playerState?.roundStats?.mischiefScore) || 0)),
-      mischiefCombo: Math.max(0, Math.floor(Number(playerState?.roundStats?.mischiefCombo) || 0)),
-      grabsInitiated: Math.max(0, Math.floor(Number(playerState?.roundStats?.grabsInitiated) || 0)),
-      throwsLanded: Math.max(0, Math.floor(Number(playerState?.roundStats?.throwsLanded) || 0)),
-      smacksLanded: Math.max(0, Math.floor(Number(playerState?.roundStats?.smacksLanded) || 0)),
-      smackStunTimer: Math.max(0, Number(playerState?.smackStunTimer) || 0),
-    };
   }
 
   function spawnActionJuice(playerState, text, tone) {
@@ -1344,117 +833,8 @@ export async function createGameSession({
     });
   }
 
-  function syncActionJuicePopups(allPlayers, nowSeconds) {
-    const seen = new Set();
-    for (const [playerId, playerState] of allPlayers) {
-      if (!playerState) continue;
-      seen.add(playerId);
-      const next = copyPlayerActionJuiceState(playerState);
-      const prev = _prevActionJuiceState.get(playerId);
-      if (prev) {
-        const cheeseGain = next.cheeseCarried - prev.cheeseCarried;
-        if (cheeseGain > 0 && playerState.alive !== false && !playerState.isAdversary) {
-          spawnActionJuice(playerState, `+${cheeseGain} 🧀`, 'cheese');
-        }
-
-        const mischiefGain = next.mischiefScore - prev.mischiefScore;
-        if (mischiefGain > 0 && playerState.alive !== false) {
-          const chain = _mischiefChains.get(playerId) ?? { combo: 0, lastAt: -Infinity };
-          chain.combo = (nowSeconds - chain.lastAt) <= MISCHIEF_CHAIN_WINDOW_SECONDS ? chain.combo : 0;
-          chain.combo = Math.max(chain.combo + 1, next.mischiefCombo);
-          chain.lastAt = nowSeconds;
-          _mischiefChains.set(playerId, chain);
-          spawnActionJuice(
-            playerState,
-            chain.combo > 1 ? `+${mischiefGain} mischief x${chain.combo}` : `+${mischiefGain} mischief`,
-            'mischief',
-          );
-        }
-
-        const grabGain = next.grabsInitiated - prev.grabsInitiated;
-        if (grabGain > 0 && playerState.alive !== false) {
-          spawnActionJuice(playerState, 'Grabbed!', 'grab');
-        }
-
-        const throwGain = next.throwsLanded - prev.throwsLanded;
-        if (throwGain > 0 && playerState.alive !== false) {
-          spawnActionJuice(playerState, 'Yeet!', 'grab');
-        }
-
-        const smackGain = next.smacksLanded - prev.smacksLanded;
-        if (smackGain > 0 && playerState.alive !== false) {
-          spawnActionJuice(playerState, 'Smack landed!', 'smack');
-        }
-
-        if (next.smackStunTimer > 0 && prev.smackStunTimer <= 0) {
-          spawnActionJuice(playerState, 'Smacked!', 'smack');
-        }
-      }
-      _prevActionJuiceState.set(playerId, next);
-    }
-
-    for (const playerId of Array.from(_prevActionJuiceState.keys())) {
-      if (!seen.has(playerId)) _prevActionJuiceState.delete(playerId);
-    }
-    for (const playerId of Array.from(_mischiefChains.keys())) {
-      if (!seen.has(playerId)) _mischiefChains.delete(playerId);
-    }
-  }
-
-  function buildScoreboardRows() {
-    const lid = net.localId;
-    if (!lid) return [];
-    if (!net.connected) {
-      const selfName = predictionState.displayName?.trim() || 'You';
-      return [{
-        label: `${selfName} (you)`,
-        deaths: predictionState.deaths ?? 0,
-        chaseSec: playerChaseRecordSeconds(predictionState),
-        cheese: Math.max(0, Math.floor(predictionState.cheeseCarried ?? 0)),
-      }];
-    }
-    const byId = new Map();
-    byId.set(lid, net.serverState ?? predictionState);
-    for (const [id, p] of net.remotePlayers) byId.set(id, p);
-    const rows = [...byId.entries()].map(([id, p]) => ({
-      label: scoreboardRowLabel(id, lid, p),
-      deaths: p.deaths ?? 0,
-      chaseSec: playerChaseRecordSeconds(p),
-      cheese: Math.max(0, Math.floor(p.cheeseCarried ?? 0)),
-      role: p.isAdversary ? 'Human' : 'Mouse',
-      adversarySafeSeconds: p.adversarySafeSeconds ?? 0,
-    }));
-    rows.sort(
-      (a, b) => b.chaseSec - a.chaseSec
-        || b.cheese - a.cheese
-        || b.deaths - a.deaths
-        || a.label.localeCompare(b.label),
-    );
-    return rows.slice(0, 10);
-  }
-
-  function nearestRopeDistanceSq(ropesSnapshot, playerPos) {
-    if (!Array.isArray(ropesSnapshot) || !playerPos) return Infinity;
-    let nearestSq = Infinity;
-    for (const rope of ropesSnapshot) {
-      if (!Array.isArray(rope?.segments)) continue;
-      for (const segment of rope.segments) {
-        const dx = (Number(segment?.x) || 0) - playerPos.x;
-        const dy = (Number(segment?.y) || 0) - (playerPos.y + 0.65);
-        const dz = (Number(segment?.z) || 0) - playerPos.z;
-        const distSq = dx * dx + dy * dy + dz * dz;
-        if (distSq < nearestSq) nearestSq = distSq;
-      }
-    }
-    return nearestSq;
-  }
-
-  // Visual smoothing: render position lerps toward prediction to hide small corrections
-  const renderPos = new THREE.Vector3();
-  let renderPosInitialized = false;
-  const RECONCILE_SNAP_THRESHOLD = 3.0; // teleport if error > this
-  const RECONCILE_SKIP_THRESHOLD = 0.001; // ignore corrections smaller than this
-  const RECONCILE_SMOOTH_RATE = 20; // lerp speed for corrections
+  // Visual smoothing: render position lerps toward prediction to hide small corrections.
+  const renderPositionSmoother = createRenderPositionSmoother();
   const PHYSICS_STEP = 1 / 30;
   const MAX_PHYSICS_STEPS = 4;
   let physicsAccum = 0;
@@ -1471,65 +851,6 @@ export async function createGameSession({
   let prevLocalGrabbedBy = null;
   let prevLocalGrabbedBallId = null;
 
-  function copyServerToPrediction(ss) {
-    predictionState.position.x = ss.position.x;
-    predictionState.position.y = ss.position.y;
-    predictionState.position.z = ss.position.z;
-    predictionState.velocity.x = ss.velocity.x;
-    predictionState.velocity.y = ss.velocity.y;
-    predictionState.velocity.z = ss.velocity.z;
-    predictionState.rotation = ss.rotation;
-    predictionState.grounded = ss.grounded;
-    predictionState.stamina = ss.stamina;
-    predictionState.staminaRegenTimer = ss.staminaRegenTimer;
-    predictionState.health = ss.health;
-    predictionState.alive = ss.alive;
-    predictionState.sprinting = ss.sprinting;
-    predictionState.crouching = ss.crouching;
-    predictionState.sliding = ss.sliding;
-    predictionState.slideTimer = ss.slideTimer;
-    predictionState.slideCooldownTimer = ss.slideCooldownTimer;
-    predictionState.slideDirX = ss.slideDirX;
-    predictionState.slideDirZ = ss.slideDirZ;
-    predictionState.canDoubleJump = ss.canDoubleJump;
-    predictionState.hasDoubleJumped = ss.hasDoubleJumped;
-    predictionState.wallHolding = !!ss.wallHolding;
-    predictionState.wallNormalX = ss.wallNormalX ?? 0;
-    predictionState.wallNormalZ = ss.wallNormalZ ?? 0;
-    predictionState.wallJumpWindowTimer = ss.wallJumpWindowTimer ?? 0;
-    predictionState.wallAttachCooldownTimer = ss.wallAttachCooldownTimer ?? 0;
-    predictionState.deathTime = ss.deathTime ?? 0;
-    predictionState.deaths = ss.deaths ?? 0;
-    predictionState.longestChaseSeconds = ss.longestChaseSeconds ?? 0;
-    predictionState.chaseStreakSeconds = ss.chaseStreakSeconds ?? 0;
-    predictionState.cheeseCarried = ss.cheeseCarried ?? 0;
-    // Mirror ropeSwing so simulateTick's rope early-return triggers during
-    // client prediction. Without this, client keeps running ground physics
-    // while server drives position via cannon rope, producing visible fight
-    // between predicted and authoritative positions after re-grabs.
-    predictionState.ropeSwing = ss.ropeSwing ?? null;
-    predictionState.livesRemaining = ss.livesRemaining ?? predictionState.livesRemaining;
-    predictionState.spectator = !!ss.spectator;
-    predictionState.extracted = !!ss.extracted;
-    predictionState.extractProgress = ss.extractProgress ?? 0;
-    predictionState.animState = ss.animState ?? predictionState.animState;
-    predictionState.isAdversary = !!ss.isAdversary;
-    predictionState.adversaryRole = ss.adversaryRole ?? null;
-    predictionState.adversarySafeSeconds = ss.adversarySafeSeconds ?? 0;
-    predictionState.adversarySafeStreakSeconds = ss.adversarySafeStreakSeconds ?? 0;
-    predictionState.isHero = !!ss.isHero;
-    predictionState.heroAvatar = ss.heroAvatar ?? null;
-    predictionState.heroAvailable = !!ss.heroAvailable;
-    predictionState.heroAvatarAvailable = ss.heroAvatarAvailable ?? null;
-    predictionState.heroTimeRemaining = ss.heroTimeRemaining ?? 0;
-    if (ss.roundStats && typeof ss.roundStats === 'object') {
-      predictionState.roundStats = { ...predictionState.roundStats, ...ss.roundStats };
-    }
-    if (typeof ss.displayName === 'string' && ss.displayName.trim()) {
-      predictionState.displayName = ss.displayName;
-    }
-  }
-
   function reconcileWithServer() {
     if (net.serverSeq <= lastReconciledSeq) return;
     lastReconciledSeq = net.serverSeq;
@@ -1542,7 +863,7 @@ export async function createGameSession({
     const prevY = predictionState.position.y;
     const prevZ = predictionState.position.z;
 
-    copyServerToPrediction(ss);
+    copyServerToPrediction(predictionState, ss);
 
     const dt = 1 / 30;
     const colliders = getCollisionCollidersWithRoomba();
@@ -1551,22 +872,11 @@ export async function createGameSession({
       simulateTick(predictionState, input, dt, CLIENT_BOUNDS, colliders, vPull);
     }
 
-    // Measure correction magnitude
-    const dx = predictionState.position.x - prevX;
-    const dy = predictionState.position.y - prevY;
-    const dz = predictionState.position.z - prevZ;
-    const errorSq = dx * dx + dy * dy + dz * dz;
-
-    if (errorSq < RECONCILE_SKIP_THRESHOLD * RECONCILE_SKIP_THRESHOLD) {
-      // Correction is negligible — revert to pre-reconciliation to avoid micro-jitter
-      predictionState.position.x = prevX;
-      predictionState.position.y = prevY;
-      predictionState.position.z = prevZ;
-    }
+    restoreTinyPredictionCorrection(predictionState, { x: prevX, y: prevY, z: prevZ });
   }
 
   function snapLocalStateToServer(ss) {
-    copyServerToPrediction(ss);
+    copyServerToPrediction(predictionState, ss);
     localGrabAnimTimer = 0;
     prevLocalGrabbedTarget = ss?.grabbedTarget ?? null;
     prevLocalGrabbedBy = ss?.grabbedBy ?? null;
@@ -1578,51 +888,7 @@ export async function createGameSession({
     jumpAutoFiredForHold = false;
     physicsAccum = 0;
     net.pendingInputs.length = 0;
-    // Snap render position to spawn/teleport
-    renderPos.set(
-      predictionState.position.x,
-      predictionState.position.y + mouse.groundOffset,
-      predictionState.position.z,
-    );
-    renderPosInitialized = true;
-  }
-
-  function getChargedThrowAimDirection(out = _chargedThrowAimDir) {
-    // Use camera yaw, not camera.getWorldDirection(). During over-the-shoulder
-    // aiming the camera looks inward at the mouse, which would put the tracer
-    // directly down-screen and make the ballistic arc look like a straight line.
-    out.set(-Math.sin(thirdPersonCamera.yaw), 0, -Math.cos(thirdPersonCamera.yaw));
-    if (out.lengthSq() <= 0.0001) out.set(0, 0, 1);
-    else out.normalize();
-    return out;
-  }
-
-  function updateChargedThrowTracer(visible) {
-    chargedThrowTracer.visible = !!visible;
-    if (!visible) return;
-    const aim = getChargedThrowAimDirection(_chargedThrowAimDir);
-    _chargedThrowArcStart.set(
-      predictionState.position.x + aim.x * 0.72,
-      predictionState.position.y + mouse.groundOffset + 0.68,
-      predictionState.position.z + aim.z * 0.72,
-    );
-    for (let i = 0; i < CHARGED_THROW_TRACER_POINTS; i += 1) {
-      const t = i * CHARGED_THROW_TRACER_STEP_SECONDS;
-      const px = _chargedThrowArcStart.x + aim.x * CHARGED_THROW_TRACER_HORIZ_SPEED * t;
-      const py = Math.max(
-        0.04,
-        _chargedThrowArcStart.y
-          + CHARGED_THROW_TRACER_UP_SPEED * t
-          - 0.5 * CHARGED_THROW_TRACER_GRAVITY * t * t,
-      );
-      const pz = _chargedThrowArcStart.z + aim.z * CHARGED_THROW_TRACER_HORIZ_SPEED * t;
-      const base = i * 3;
-      chargedThrowTracerPositions[base] = px;
-      chargedThrowTracerPositions[base + 1] = py;
-      chargedThrowTracerPositions[base + 2] = pz;
-    }
-    chargedThrowTracerGeometry.attributes.position.needsUpdate = true;
-    chargedThrowTracerGeometry.computeBoundingSphere();
+    renderPositionSmoother.snapToPrediction(predictionState, mouse.groundOffset);
   }
 
   net.on((data) => {
@@ -1881,7 +1147,7 @@ export async function createGameSession({
 
   function isLocalPlayerSpawned() {
     if (!net.connected || !net.localId) return false;
-    if (!renderPosInitialized) return false;
+    if (!renderPositionSmoother.isInitialized()) return false;
     const ss = net.serverState;
     if (!ss) return false;
     return ss.alive !== false;
@@ -1902,11 +1168,7 @@ export async function createGameSession({
         // Snap render position to the freshly spawned player so there's no
         // lerp from the drone's last frame — the hand-off happens on the
         // same frame the HUD lights up.
-        renderPos.set(
-          predictionState.position.x,
-          predictionState.position.y + mouse.groundOffset,
-          predictionState.position.z,
-        );
+        renderPositionSmoother.snapToPrediction(predictionState, mouse.groundOffset);
       } else {
         updateCinematicCamera(timeMs || performance.now());
         render();
@@ -1918,7 +1180,15 @@ export async function createGameSession({
 
     const nowSeconds = performance.now() * 0.001;
     occlusionFrameIndex += 1;
-    updateAdaptiveQuality(deltaSeconds);
+    updateAdaptiveQuality({
+      deltaSeconds,
+      qualityState,
+      perfFlags,
+      actionJuice,
+      outlinePipeline,
+      setLabelsEnabled: performanceToggles.setLabelsEnabled,
+      resize,
+    });
 
     gamepadManager.update(deltaSeconds);
     if (emoteWheel.isVisible() && getInputSource() === 'gamepad') {
@@ -2072,31 +1342,11 @@ export async function createGameSession({
         audioManager.playSoundAtPosition('jump', _physicsJumpSoundPos);
       }
 
-      // Update render position with smoothing to hide reconciliation corrections
-      const targetX = predictionState.position.x;
-      const targetY = predictionState.position.y + mouse.groundOffset;
-      const targetZ = predictionState.position.z;
-
-      if (!renderPosInitialized) {
-        renderPos.set(targetX, targetY, targetZ);
-        renderPosInitialized = true;
-      } else {
-        const errX = targetX - renderPos.x;
-        const errY = targetY - renderPos.y;
-        const errZ = targetZ - renderPos.z;
-        const errSq = errX * errX + errY * errY + errZ * errZ;
-
-        if (errSq > RECONCILE_SNAP_THRESHOLD * RECONCILE_SNAP_THRESHOLD) {
-          // Large error (teleport/spawn) — snap immediately
-          renderPos.set(targetX, targetY, targetZ);
-        } else {
-          // Smooth toward prediction target
-          const t = 1 - Math.exp(-RECONCILE_SMOOTH_RATE * PHYSICS_STEP);
-          renderPos.x += errX * t;
-          renderPos.y += errY * t;
-          renderPos.z += errZ * t;
-        }
-      }
+      const renderPos = renderPositionSmoother.updateFromPrediction(
+        predictionState,
+        mouse.groundOffset,
+        PHYSICS_STEP,
+      );
 
       mouse.position.x = renderPos.x;
       mouse.position.y = renderPos.y;
@@ -2179,7 +1429,7 @@ export async function createGameSession({
         const localQuickTossActive = !!(controller.quickTossHeld || controller.quickTossReleasePressed);
         const localSpinningThrow = localChargingThrow || (localHeldForChargedThrow && localQuickTossActive);
         if (localSpinningThrow) {
-          const aim = getChargedThrowAimDirection(_chargedThrowAimDir);
+          const aim = getChargedThrowAimDirection(thirdPersonCamera, chargedThrowTracer.aimDir);
           const serverAngle = Number(net.serverState?._chargedThrowOrbitAngle);
           if (!localChargedThrowWasSpinning) {
             localChargedThrowSpinAngle = Number.isFinite(serverAngle) ? serverAngle : mouse.getYaw();
@@ -2202,7 +1452,7 @@ export async function createGameSession({
           localChargedThrowWasSpinning = false;
         }
         if (localQuickTossActive && !localSpinningThrow) {
-          const aim = getChargedThrowAimDirection(_chargedThrowAimDir);
+          const aim = getChargedThrowAimDirection(thirdPersonCamera, chargedThrowTracer.aimDir);
           inputWithEmote.quickTossAimX = aim.x;
           inputWithEmote.quickTossAimZ = aim.z;
         }
@@ -2322,7 +1572,14 @@ export async function createGameSession({
       // Detect smack / grab transitions and play spatial audio
       const allPlayers = new Map(net.remotePlayers);
       if (net.serverState) allPlayers.set(net.localId, net.serverState);
-      syncActionJuicePopups(allPlayers, nowSeconds);
+      syncActionJuicePopups({
+        allPlayers,
+        nowSeconds,
+        previousState: _prevActionJuiceState,
+        mischiefChains: _mischiefChains,
+        chainWindowSeconds: MISCHIEF_CHAIN_WINDOW_SECONDS,
+        spawnActionJuice,
+      });
       for (const [pid, pState] of allPlayers) {
         const prevStun = _prevSmackStun.get(pid) ?? 0;
         const curStun = pState.smackStunTimer ?? 0;
@@ -2485,14 +1742,7 @@ export async function createGameSession({
       && extractProgress > 0.02
       && !net.serverState?.extracted
     );
-    extractRingLabel.visible = showExtractRing;
-    extractRingRoot.style.display = showExtractRing ? 'flex' : 'none';
-    if (showExtractRing) {
-      const pct = Math.round(extractProgress * 100);
-      extractRingFill.setAttribute('stroke-dasharray', `${pct} 100`);
-      extractRingRoot.style.boxShadow = `0 0 ${12 + extractProgress * 24}px rgba(255,241,118,0.52)`;
-      extractRingInner.textContent = `${pct}%`;
-    }
+    updateExtractHoldRing(extractRing, showExtractRing, extractProgress);
 
     const showChargedSmackReticle = !!(
       perfFlags.gameplayUi
@@ -2557,7 +1807,12 @@ export async function createGameSession({
       && !predictionState.extracted
       && !predictionState.spectator
     );
-    updateChargedThrowTracer(showChargedThrowTracer);
+    updateChargedThrowTracer(chargedThrowTracer, {
+      visible: showChargedThrowTracer,
+      thirdPersonCamera,
+      predictionState,
+      groundOffset: mouse.groundOffset,
+    });
     if (showChargedThrowReticle && timeMs >= chargedThrowSfxAt) {
       audioManager.playSoundAtPosition('beep', predictionState.position);
       chargedThrowSfxAt = timeMs + 260;
@@ -2565,55 +1820,17 @@ export async function createGameSession({
       chargedThrowSfxAt = 0;
     }
 
-    if (net.connected && Array.isArray(net.extractionPortals) && net.extractionPortals.length > 0) {
-      while (extractionMarkerGroup.children.length < net.extractionPortals.length) {
-        const portal = new THREE.Group();
-        portal.name = 'ExtractionPortalMarker';
-        const ring = new THREE.Mesh(_portalRingGeo, _portalRingMat.clone());
-        const outerRing = new THREE.Mesh(_portalOuterRingGeo, _portalOuterRingMat.clone());
-        const beam = new THREE.Mesh(_portalBeamGeo, _portalBeamMat.clone());
-        ring.rotation.x = -Math.PI / 2;
-        outerRing.rotation.x = -Math.PI / 2;
-        beam.position.y = 1.7;
-        beam.renderOrder = 9;
-        ring.renderOrder = 10;
-        outerRing.renderOrder = 9;
-        portal.add(beam, outerRing, ring);
-        portal.userData.parts = { ring, outerRing, beam };
-        extractionMarkerGroup.add(portal);
-      }
-      extractionMarkerGroup.visible = perfFlags.raidMarkers;
-      net.extractionPortals.forEach((p, i) => {
-        const m = extractionMarkerGroup.children[i];
-        if (!m) return;
-        m.visible = true;
-        m.position.set(p.x ?? 0, (p.y ?? 0) + 0.03, p.z ?? 0);
-        const pulse = 0.5 + 0.5 * Math.sin(nowSeconds * 7.5 + i);
-        m.scale.setScalar(1 + pulse * 0.16);
-        const parts = m.userData.parts ?? {};
-        if (parts.ring) {
-          parts.ring.rotation.z = nowSeconds * 1.8;
-          parts.ring.material.opacity = 0.72 + pulse * 0.24;
-        }
-        if (parts.outerRing) {
-          parts.outerRing.rotation.z = -nowSeconds * 1.15;
-          parts.outerRing.material.opacity = 0.22 + pulse * 0.28;
-        }
-        if (parts.beam) {
-          parts.beam.material.opacity = 0.12 + pulse * 0.18;
-        }
-      });
-      for (let i = net.extractionPortals.length; i < extractionMarkerGroup.children.length; i += 1) {
-        extractionMarkerGroup.children[i].visible = false;
-      }
-    } else {
-      extractionMarkerGroup.visible = false;
-      extractRingLabel.visible = false;
-      extractRingRoot.style.display = 'none';
+    const hasExtractionMarkers = extractionMarkers.update({
+      portals: net.connected ? net.extractionPortals : [],
+      visible: perfFlags.raidMarkers,
+      nowSeconds,
+    });
+    if (!hasExtractionMarkers) {
+      hideExtractHoldRing(extractRing);
     }
     if (nowSeconds - qualityState.lastScoreboardAt >= 0.2) {
       qualityState.lastScoreboardAt = nowSeconds;
-      const scoreboardRows = buildScoreboardRows();
+      const scoreboardRows = buildScoreboardRows(net, predictionState);
       scoreboard.setRows(scoreboardRows);
       toolbar.setLeaderboardRows(scoreboardRows);
     }
@@ -2648,113 +1865,27 @@ export async function createGameSession({
     const ropePoseSignal = !!(net.serverState?.ropeSwing || predictionState.ropeSwing || ropeGrabAssistActive);
     if (ropePoseSignal) ropePoseGraceUntil = nowSeconds + ROPE_POSE_GRACE_SECONDS;
     const ropePoseActive = ropePoseSignal || nowSeconds < ropePoseGraceUntil;
-    if (pushBallsRenderVisible && net.connected && Array.isArray(balls) && balls.length > 0) {
-      const seen = new Set();
-      let count = 0;
-      for (const b of balls) {
-        if (!b?.id) continue;
-        if (count >= PUSH_BALL_MAX_INSTANCES) break;
-        seen.add(b.id);
-        const r = typeof b.r === 'number' && b.r > 0 ? b.r : DEFAULT_PUSH_BALL_RADIUS;
-        let state = pushBallStates.get(b.id);
-        if (!state) {
-          state = {
-            smoothPos: new THREE.Vector3(b.x, b.y, b.z),
-            smoothQuat: new THREE.Quaternion(b.qx, b.qy, b.qz, b.qw),
-            targetPos: new THREE.Vector3(b.x, b.y, b.z),
-            targetQuat: new THREE.Quaternion(b.qx, b.qy, b.qz, b.qw),
-            radius: r,
-          };
-          pushBallStates.set(b.id, state);
-        }
-        state.targetPos.set(b.x, b.y, b.z);
-        state.targetQuat.set(b.qx, b.qy, b.qz, b.qw);
-        state.smoothPos.lerp(state.targetPos, 0.42);
-        state.smoothQuat.slerp(state.targetQuat, 0.42);
-        state.radius = r;
-
-        _pushBallScale.setScalar(r);
-        _pushBallMatrix.compose(state.smoothPos, state.smoothQuat, _pushBallScale);
-        pushBallInstanced.setMatrixAt(count, _pushBallMatrix);
-        _pushBallColor.set(typeof b.color === 'string' && b.color ? b.color : '#e8945c');
-        pushBallInstanced.setColorAt(count, _pushBallColor);
-        count++;
-      }
-      for (const id of Array.from(pushBallStates.keys())) {
-        if (!seen.has(id)) pushBallStates.delete(id);
-      }
-      pushBallInstanced.count = count;
-      pushBallInstanced.instanceMatrix.needsUpdate = true;
-      if (pushBallInstanced.instanceColor) pushBallInstanced.instanceColor.needsUpdate = true;
-      pushBallInstanced.visible = count > 0;
-    } else {
-      pushBallInstanced.count = 0;
-      pushBallInstanced.visible = false;
-      if (pushBallStates.size > 0) pushBallStates.clear();
-    }
+    dynamicWorldItems.updatePushBalls({
+      connected: net.connected,
+      balls,
+    });
 
     // Context-aware hints for held objects, ropes, and ball handling.
-    let nextHint = null;
-    if ((net.serverState?.grabbedTarget || net.serverState?.grabbedBallId) && controller.alive) {
-      nextHint = isCoarsePointer
-        ? { id: 'throwHeldBall', key: 'SMACK', text: 'Throw what you are holding' }
-        : { id: 'throwHeldBall', action: 'smack', text: 'Throw what you are holding' };
-    } else if (ropePoseActive && controller.alive) {
-      nextHint = {
-        id: 'ropeSwing',
-        items: isCoarsePointer
-          ? [
-            { key: 'STICK', text: 'Swing on the rope' },
-            { key: 'JUMP', text: 'Jump up the rope' },
-          ]
-          : [
-            { key: 'WASD', text: 'Swing on the rope' },
-            { action: 'jump', text: 'Jump up the rope' },
-          ],
-      };
-    } else if (
-      controller.alive
-      && ropeDistanceSq <= ROPE_HINT_RANGE * ROPE_HINT_RANGE
-    ) {
-      nextHint = {
-        id: 'ropeGrab',
-        items: isCoarsePointer
-          ? [
-            { key: 'JUMP', text: 'Jump toward the rope or fan' },
-            { key: 'ROPE', text: 'Hold to grab rope / fan blades' },
-          ]
-          : [
-            { action: 'jump', text: 'Jump toward the rope or fan' },
-            { action: 'grab', text: 'Hold to grab rope / fan blades' },
-          ],
-      };
-    } else if (Date.now() >= smackBallHintCooldownUntil && Array.isArray(balls) && balls.length > 0 && controller.alive) {
-      let nearestSq = Infinity;
-      for (const b of balls) {
-        const dx = b.x - mouse.position.x;
-        const dz = b.z - mouse.position.z;
-        const dSq = dx * dx + dz * dz;
-        if (dSq < nearestSq) nearestSq = dSq;
-      }
-      if (nearestSq < 2.5 * 2.5) {
-        nextHint = {
-          id: 'smackBall',
-          items: isCoarsePointer
-            ? [
-              { key: 'SMACK', text: 'Smack the ball' },
-              { key: 'GRAB', text: 'Pick up the ball' },
-            ]
-            : [
-              { action: 'smack', text: 'Smack the ball' },
-              { action: 'grab', text: 'Pick up the ball' },
-            ],
-        };
-        if (_smackFiredThisFrame) {
-          smackBallHintCooldownUntil = Date.now() + SMACK_BALL_HINT_COOLDOWN_MS;
-          nextHint = null;
-        }
-      }
-    }
+    const hintResult = buildGameplayHint({
+      isCoarsePointer,
+      controller,
+      net,
+      ropePoseActive,
+      ropeDistanceSq,
+      balls,
+      mousePosition: mouse.position,
+      nowMs: Date.now(),
+      smackBallHintCooldownUntil,
+      smackBallHintCooldownMs: SMACK_BALL_HINT_COOLDOWN_MS,
+      smackFiredThisFrame: _smackFiredThisFrame,
+    });
+    const nextHint = hintResult.hint;
+    smackBallHintCooldownUntil = hintResult.smackBallHintCooldownUntil;
     const nextHintId = nextHint?.id ?? null;
     if (nextHintId !== activeHintId) {
       activeHintId = nextHintId;
@@ -2781,44 +1912,12 @@ export async function createGameSession({
       ropeSystem.update([], ropeStyleById);
     }
 
-    const cheeseList = net.connected ? net.cheesePickups : [];
-    if (net.connected && Array.isArray(cheeseList) && cheeseList.length > 0) {
-      const seenCheese = new Set();
-      let cheeseCount = 0;
-      for (const c of cheeseList) {
-        if (!c?.id) continue;
-        if (cheeseCount >= CHEESE_PICKUP_MAX_INSTANCES) break;
-        seenCheese.add(c.id);
-        let state = cheesePickupStates.get(c.id);
-        if (!state) {
-          state = { phase: Math.random() * Math.PI * 2, spinY: 0 };
-          cheesePickupStates.set(c.id, state);
-        }
-        state.spinY += deltaSeconds * 0.65;
-        const baseY = (typeof c.y === 'number' ? c.y : 0) + 0.14;
-        _cheesePos.set(
-          typeof c.x === 'number' ? c.x : 0,
-          baseY + Math.sin(timeMs * 0.002 * 2.1 + state.phase) * 0.07,
-          typeof c.z === 'number' ? c.z : 0,
-        );
-        _cheeseEuler.set(0, state.spinY, 0);
-        _cheeseQuat.setFromEuler(_cheeseEuler);
-        _cheeseScale.setScalar(cheesePickupVisualScale(c.amount));
-        _cheeseMatrix.compose(_cheesePos, _cheeseQuat, _cheeseScale);
-        cheesePickupInstanced.setMatrixAt(cheeseCount, _cheeseMatrix);
-        cheeseCount += 1;
-      }
-      for (const id of Array.from(cheesePickupStates.keys())) {
-        if (!seenCheese.has(id)) cheesePickupStates.delete(id);
-      }
-      cheesePickupInstanced.count = cheeseCount;
-      cheesePickupInstanced.instanceMatrix.needsUpdate = true;
-      cheesePickupInstanced.visible = cheeseCount > 0;
-    } else {
-      cheesePickupInstanced.count = 0;
-      cheesePickupInstanced.visible = false;
-      if (cheesePickupStates.size > 0) cheesePickupStates.clear();
-    }
+    dynamicWorldItems.updateCheesePickups({
+      connected: net.connected,
+      cheesePickups: net.cheesePickups,
+      nowSeconds,
+      deltaSeconds,
+    });
 
     occlusionFader.update(deltaSeconds);
     if (nowSeconds - qualityState.lastTaskUpdateAt >= 0.08) {
@@ -3011,31 +2110,8 @@ export async function createGameSession({
     toolbar.dispose();
     scene.remove(ropeSystem);
     ropeSystem.dispose();
-    scene.remove(pushBallInstanced);
-    pushBallInstanced.dispose?.();
-    pushBallUnitGeometry.dispose();
-    pushBallSharedMaterial.dispose();
-    pushBallStates.clear();
-    cheesePickupGroup.remove(cheesePickupInstanced);
-    cheesePickupInstanced.dispose?.();
-    cheesePickupGeometry.dispose();
-    cheesePickupMaterial.dispose();
-    cheesePickupStates.clear();
-    scene.remove(cheesePickupGroup);
-    extractionMarkerGroup.traverse((child) => {
-      if (Array.isArray(child.material)) {
-        child.material.forEach((material) => material?.dispose?.());
-      } else {
-        child.material?.dispose?.();
-      }
-    });
-    scene.remove(extractionMarkerGroup);
-    _portalRingGeo.dispose();
-    _portalOuterRingGeo.dispose();
-    _portalBeamGeo.dispose();
-    _portalRingMat.dispose();
-    _portalOuterRingMat.dispose();
-    _portalBeamMat.dispose();
+    dynamicWorldItems.dispose();
+    extractionMarkers.dispose();
     roundRaid.dispose();
     mischiefMeter.dispose();
     onboarding.dispose();
@@ -3046,9 +2122,7 @@ export async function createGameSession({
     chargedSmackReticle.dispose();
     chargedJumpReticle.dispose();
     chargedThrowReticle.dispose();
-    scene.remove(chargedThrowTracer);
-    chargedThrowTracerGeometry.dispose();
-    chargedThrowTracerMaterial.dispose();
+    disposeChargedThrowTracer(scene, chargedThrowTracer);
     localNameplate.dispose();
     adversaryStatus.dispose();
     if (_humanWasPlayerControlled) human?.setPlayerControlled(false);
@@ -3067,125 +2141,29 @@ export async function createGameSession({
   }
 
   function wirePerformancePanel(panel) {
-    if (!panel?.bindPerformanceToggles) return;
-    panel.bindPerformanceToggles({
-      shadows: {
-        label: 'Shadow maps (extra passes per light)',
-        get: () => renderer.shadowMap.enabled,
-        set: (v) => {
-          renderer.shadowMap.enabled = !!v;
-        },
-      },
-      staticMerge: {
-        label: 'Static geometry merge (combine by material)',
-        get: () => room.isStaticMergeEnabled?.() === true,
-        set: (v) => room.setStaticMergeEnabled?.(!!v),
-      },
-      fullscreenOutline: {
-        label: 'Fullscreen outline (post-process)',
-        get: () => outlinePipeline.isEnabled(),
-        set: (v) => outlinePipeline.setEnabled(v),
-      },
-      roomOutlines: {
-        label: 'Room edge outlines (batched)',
-        get: () => roomOutlineMeshes.some((m) => m && m.visible !== false),
-        set: (v) => setOutlineListVisible(roomOutlineMeshes, v),
-      },
-      localMouseOutlines: {
-        label: 'Local mouse edge outlines (per mesh)',
-        get: () => localMouseOutlineMeshes.some((m) => m && m.visible !== false),
-        set: (v) => setOutlineListVisible(localMouseOutlineMeshes, v),
-      },
-      remoteMouseOutlines: {
-        label: 'Remote mouse edge outlines',
-        get: () => remotePlayerManager.getEdgeOutlinesVisible(),
-        set: (v) => remotePlayerManager.setEdgeOutlinesVisible(v),
-      },
-      labels: {
-        label: 'CSS labels / nameplates',
-        get: () => perfFlags.labels,
-        set: (v) => setLabelsEnabled(v),
-      },
-      gameplayUi: {
-        label: 'HUD / overlays / toolbar',
-        get: () => perfFlags.gameplayUi,
-        set: (v) => setGameplayUiEnabled(v),
-      },
-      localPlayer: {
-        label: 'Local player model',
-        get: () => perfFlags.localPlayer,
-        set: (v) => setLocalPlayerVisible(v),
-      },
-      remotePlayers: {
-        label: 'Remote player models',
-        get: () => perfFlags.remotePlayers,
-        set: (v) => setRemotePlayersVisible(v),
-      },
-      predators: {
-        label: 'Predator models (cat / roomba / human)',
-        get: () => perfFlags.predators,
-        set: (v) => setPredatorsVisible(v),
-      },
-      navOverlay: {
-        label: 'Nav mesh overlay',
-        get: () => navMeshOverlay.visible === true,
-        set: (v) => {
-          navMeshOverlay.visible = !!v;
-        },
-      },
-      vibePortals: {
-        label: 'Vibe portals (rings / particles / sprites)',
-        get: () => vibePortalManager.getPortalsVisible(),
-        set: (v) => vibePortalManager.setPortalsVisible(v),
-      },
-      cheesePickups: {
-        label: 'Cheese pickup meshes',
-        get: () => cheesePickupGroup.visible !== false,
-        set: (v) => {
-          cheesePickupGroup.visible = !!v;
-        },
-      },
-      pushBalls: {
-        label: 'Push ball meshes',
-        get: () => pushBallsRenderVisible,
-        set: (v) => {
-          pushBallsRenderVisible = !!v;
-          if (!pushBallsRenderVisible) {
-            pushBallInstanced.count = 0;
-            pushBallInstanced.visible = false;
-          }
-        },
-      },
-      wind: {
-        label: 'Wind streaks',
-        get: () => perfFlags.wind,
-        set: (v) => setWindVisible(v),
-      },
-      ropes: {
-        label: 'Rope visuals',
-        get: () => perfFlags.ropes,
-        set: (v) => setRopesVisible(v),
-      },
-      raidMarkers: {
-        label: 'Raid / extraction markers',
-        get: () => perfFlags.raidMarkers,
-        set: (v) => setRaidMarkersVisible(v),
-      },
-      occlusionFader: {
-        label: 'Occlusion x-ray fader (wall fade)',
-        get: () => occlusionFader.enabled !== false,
-        set: (v) => occlusionFader.setEnabled(v),
-      },
-      grass: {
-        label: 'Grass (vegetation instanced cards)',
-        get: () => room.vegetationSystem?.isKindVisible('grass') !== false,
-        set: (v) => room.vegetationSystem?.setKindVisible('grass', v),
-      },
-      trees: {
-        label: 'Trees (vegetation canopies + trunks)',
-        get: () => room.vegetationSystem?.isKindVisible('tree') !== false,
-        set: (v) => room.vegetationSystem?.setKindVisible('tree', v),
-      },
+    bindPerformancePanelToggles(panel, {
+      renderer,
+      room,
+      outlinePipeline,
+      roomOutlineMeshes,
+      localMouseOutlineMeshes,
+      remotePlayerManager,
+      setOutlineListVisible,
+      perfFlags,
+      setLabelsEnabled: performanceToggles.setLabelsEnabled,
+      setGameplayUiEnabled: performanceToggles.setGameplayUiEnabled,
+      setLocalPlayerVisible: performanceToggles.setLocalPlayerVisible,
+      setRemotePlayersVisible: performanceToggles.setRemotePlayersVisible,
+      setPredatorsVisible: performanceToggles.setPredatorsVisible,
+      navMeshOverlay,
+      vibePortalManager,
+      cheesePickupGroup: dynamicWorldItems.cheesePickupGroup,
+      getPushBallsVisible: dynamicWorldItems.getPushBallsVisible,
+      setPushBallsVisible: dynamicWorldItems.setPushBallsVisible,
+      setWindVisible: performanceToggles.setWindVisible,
+      setRopesVisible: performanceToggles.setRopesVisible,
+      setRaidMarkersVisible: performanceToggles.setRaidMarkersVisible,
+      occlusionFader,
     });
   }
 

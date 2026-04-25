@@ -124,6 +124,7 @@ const AVAILABLE_ATLAS_IDS = new Set([
 const LAYOUT_PATH = path.resolve('public/levels/kitchen-layout.json');
 const GLB_REGISTRY_PATH = path.resolve('public/levels/glb-registry.json');
 const SOURCE_DIR = path.resolve('assets/source/custom');
+const PUBLIC_MODELS_DIR = path.resolve('public/models');
 const HOUSE_LAYOUT_ID = 'kitchen-layout';
 const HOUSE_ASSET_ID = 'asset-house-kitchen-layout';
 const HOUSE_GLTF_PRIMITIVE_ID = 'primitive-house-kitchen-layout-glb';
@@ -664,21 +665,30 @@ async function main() {
   console.log(`House bake subset: ${bakedHousePrimitives.length}/${housePrimitives.length} primitives`);
 
   await fs.mkdir(SOURCE_DIR, { recursive: true });
+  await fs.mkdir(PUBLIC_MODELS_DIR, { recursive: true });
 
   const scene = await buildHouseScene(bakedHousePrimitives);
   const glb = Buffer.from(await exportSceneToGlb(scene));
   const assetEntry = makeHouseAssetEntry();
-  const outputPath = path.resolve(assetEntry.sourcePath);
-  const previousGlb = await fs.readFile(outputPath).catch(() => null);
+  const sourceOutputPath = path.resolve(assetEntry.sourcePath);
+  const publicOutputPath = path.resolve('public', assetEntry.publicPath);
+  const previousSourceGlb = await fs.readFile(sourceOutputPath).catch(() => null);
+  const previousPublicGlb = await fs.readFile(publicOutputPath).catch(() => null);
   let wroteAny = false;
 
-  if (!previousGlb || !previousGlb.equals(glb)) {
-    await fs.writeFile(outputPath, glb);
+  if (!previousSourceGlb || !previousSourceGlb.equals(glb)) {
+    await fs.writeFile(sourceOutputPath, glb);
     wroteAny = true;
-    console.log(`Baked house GLB: ${assetEntry.filename}`);
+    console.log(`Baked source house GLB: ${assetEntry.sourcePath}`);
   }
 
-  const stat = await fs.stat(outputPath);
+  if (!previousPublicGlb || !previousPublicGlb.equals(glb)) {
+    await fs.writeFile(publicOutputPath, glb);
+    wroteAny = true;
+    console.log(`Baked runtime house GLB: ${assetEntry.publicPath}`);
+  }
+
+  const stat = await fs.stat(publicOutputPath);
   assetEntry.size = stat.size;
 
   const nextAssets = Array.isArray(registry.assets) ? [...registry.assets] : [];
