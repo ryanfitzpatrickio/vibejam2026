@@ -14,6 +14,7 @@ export function isRoomPrimitiveVisible(room, primitive) {
   if (primitive?.deleted) return false;
   if (primitive?.hiddenByGeneratedBake) return false;
   if (primitive?.spawnType) return room.spawnMarkersVisible;
+  if (primitive?.gameplayType === 'hot_surface') return room.hotSurfaceHelpersVisible;
   return true;
 }
 
@@ -22,6 +23,18 @@ export function setRoomSpawnMarkersVisible(room, visible) {
 
   for (const primitive of room.editableLayout.primitives) {
     if (!primitive?.spawnType) continue;
+    const mesh = room.editableMeshes.get(primitive.id);
+    if (mesh) {
+      mesh.visible = room._isPrimitiveVisible(primitive);
+    }
+  }
+}
+
+export function setRoomHotSurfaceHelpersVisible(room, visible) {
+  room.hotSurfaceHelpersVisible = visible === true;
+
+  for (const primitive of room.editableLayout.primitives) {
+    if (primitive?.gameplayType !== 'hot_surface') continue;
     const mesh = room.editableMeshes.get(primitive.id);
     if (mesh) {
       mesh.visible = room._isPrimitiveVisible(primitive);

@@ -173,6 +173,12 @@ export function createPlayerState(id) {
     grabCooldown: 0,
     /** Cooldown before this player can smack again (seconds). */
     smackCooldown: 0,
+    /** Burn damage-over-time remaining after touching a hot surface. */
+    burnTimer: 0,
+    /** Internal burn damage tick timer. */
+    burnTickTimer: 0,
+    /** Monotonic client effect trigger for burn visuals/audio. */
+    burnEffectSeq: 0,
 
     /** Extraction raid: lives left this round (cat/roomba deaths). */
     livesRemaining: LIVES_PER_ROUND,
@@ -630,6 +636,8 @@ export function respawnPlayer(state, spawnX, spawnZ, spawnY = 0) {
   state.smackStunTimer = 0;
   state.grabCooldown = 0;
   state.smackCooldown = 0;
+  state.burnTimer = 0;
+  state.burnTickTimer = 0;
   state.extractProgress = 0;
 }
 

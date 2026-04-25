@@ -20,7 +20,7 @@ export function installPrefabSection(editor) {
   });
   section.appendChild(actions);
 
-  addInlineButton(actions, 'New / Edit', () => editor._openPrefabEditor());
+  editor.prefabEditButton = addInlineButton(actions, 'New / Edit', () => editor._openPrefabEditor());
   addInlineButton(actions, 'Place', () => editor._placeSelectedPrefab(), '#23472d');
   addInlineButton(actions, 'Delete', () => editor._deleteSelectedPrefab(), '#5d221f');
   addInlineButton(actions, 'Save Lib', () => editor._savePrefabLibrary());

@@ -157,6 +157,7 @@ class BuildModeEditor {
     this.app.room.setLightHelpersVisible(this.visible);
     this.app.room.setPortalHelpersVisible(this.visible);
     this.app.room.setExtractionHelpersVisible?.(this.visible);
+    this.app.room.setHotSurfaceHelpersVisible?.(this.visible);
     // Raid task helpers double as gameplay markers — keep them on.
     this.app.room.setRaidTaskHelpersVisible?.(true);
     this.app.room.setRopeHelpersVisible?.(this.visible);
@@ -305,6 +306,7 @@ class BuildModeEditor {
     this._addActionButton('Ceiling Fan', () => this._addFan(), '#4a3b24');
     this._addActionButton('Extract hole', () => this._addExtractionPortal(), '#1a4d42');
     this._addActionButton('Task marker', () => this._addRaidTask(), '#4d3a1a');
+    this._addActionButton('Hot Surface', () => this._addHotSurface(), '#6a1f1f');
     this._addActionButton('Move', () => this._setTransformMode('translate'));
     this._addActionButton('Rotate', () => this._setTransformMode('rotate'));
     this._addActionButton('Scale', () => this._setTransformMode('scale'));
@@ -1539,6 +1541,15 @@ class BuildModeEditor {
     }
     this._syncRaidTaskPrefabSection?.();
 
+    const instanceInfo = this._selectedPrefabInstanceInfo();
+    if (this.prefabEditButton) {
+      this.prefabEditButton.textContent = instanceInfo ? 'Edit Local' : 'New / Edit';
+      this.prefabEditButton.style.background = instanceInfo ? '#31513a' : '#2f2c28';
+      this.prefabEditButton.title = instanceInfo
+        ? 'Edit only this placed prefab instance; group position/rotation/scale stay applied.'
+        : 'Edit the shared prefab library.';
+    }
+
     const prefab = this._selectedPrefab();
     if (!this.prefabMeta) return;
     if (!prefab) {
@@ -1546,10 +1557,17 @@ class BuildModeEditor {
       return;
     }
 
-    this.prefabMeta.textContent = [
+    const lines = [
       `Size: ${prefab.size.x} x ${prefab.size.y} x ${prefab.size.z} cells`,
       `Parts: ${prefab.primitives.length}`,
-    ].join('\n');
+    ];
+    if (instanceInfo) {
+      lines.push('');
+      lines.push(`Selected local instance: ${instanceInfo.instanceId}`);
+      lines.push(`Local parts: ${instanceInfo.parts.length}`);
+      lines.push('Edit Local applies to this placed copy only.');
+    }
+    this.prefabMeta.textContent = lines.join('\n');
   }
 
   _syncVegetationSection() {
@@ -1607,7 +1625,139 @@ class BuildModeEditor {
   }
 
   _openPrefabEditor() {
+    const instanceInfo = this._selectedPrefabInstanceInfo();
+    if (instanceInfo) {
+      this._openLocalPrefabEditor(instanceInfo);
+      return;
+    }
     this.prefabEditor.open(this.prefabLibrary, this.prefabSelect.value || null);
+  }
+
+  _selectedPrefabInstanceInfo() {
+    const primitive = this._selectedPrimitive();
+    const instanceId = primitive?.prefabInstanceId ?? null;
+    if (!instanceId) return null;
+    const parts = this._editorPrimitives().filter((entry) => entry.prefabInstanceId === instanceId);
+    if (!parts.length) return null;
+    const sourcePrefab = this.prefabLibrary.prefabs.find((prefab) => prefab.id === (parts[0].prefabId ?? primitive.prefabId)) ?? null;
+    return {
+      instanceId,
+      parts,
+      sourcePrefab,
+      anchor: parts[0],
+    };
+  }
+
+  _inferPrefabSizeFromParts(parts) {
+    if (!parts?.length) return { x: 1, y: 1, z: 1 };
+    const bounds = new THREE.Box3();
+    parts.forEach((part) => {
+      const halfX = Math.max(0.01, Math.abs(part.scale?.x ?? 1) * 0.5);
+      const halfY = Math.max(0.01, Math.abs(part.scale?.y ?? 1) * 0.5);
+      const halfZ = Math.max(0.01, Math.abs(part.scale?.z ?? 1) * 0.5);
+      const center = new THREE.Vector3(part.position?.x ?? 0, part.position?.y ?? 0, part.position?.z ?? 0);
+      bounds.expandByPoint(center.clone().add(new THREE.Vector3(-halfX, -halfY, -halfZ)));
+      bounds.expandByPoint(center.clone().add(new THREE.Vector3(halfX, halfY, halfZ)));
+    });
+    const size = bounds.getSize(new THREE.Vector3());
+    return {
+      x: Math.max(1, Math.ceil(size.x / Math.max(0.001, this.grid.cellWidth))),
+      y: Math.max(1, Math.ceil(size.y / Math.max(0.001, this.grid.verticalStep))),
+      z: Math.max(1, Math.ceil(size.z / Math.max(0.001, this.grid.cellDepth))),
+    };
+  }
+
+  _openLocalPrefabEditor(instanceInfo) {
+    const localPrefabId = `local-${instanceInfo.instanceId}`;
+    const sourceName = instanceInfo.sourcePrefab?.name ?? instanceInfo.anchor?.prefabId ?? 'Prefab';
+    const localPrefab = {
+      id: localPrefabId,
+      name: `${sourceName} Local`,
+      size: deepClone(instanceInfo.sourcePrefab?.size ?? this._inferPrefabSizeFromParts(instanceInfo.parts)),
+      primitives: instanceInfo.parts.map((part) => {
+        const copy = deepClone(part);
+        delete copy.prefabId;
+        delete copy.prefabInstanceId;
+        delete copy.prefabInstanceOrigin;
+        delete copy.prefabInstanceRotation;
+        delete copy.prefabInstanceScale;
+        return copy;
+      }),
+    };
+    const localLibrary = {
+      version: 1,
+      prefabs: [localPrefab],
+    };
+    this.prefabEditor.openLocal(localLibrary, localPrefabId, {
+      onSave: (_library, prefab) => this._applyLocalPrefabEdits(instanceInfo.instanceId, prefab),
+    });
+  }
+
+  _applyLocalPrefabEdits(instanceId, prefab) {
+    if (!instanceId || !prefab) {
+      return { ok: false, error: 'Missing local prefab instance.' };
+    }
+
+    const layout = this.app.room.getEditableLayout();
+    const currentParts = (layout.primitives ?? []).filter((entry) => entry.prefabInstanceId === instanceId);
+    if (!currentParts.length) {
+      return { ok: false, error: 'Placed prefab instance no longer exists.' };
+    }
+
+    const anchor = currentParts[0];
+    const prefabId = anchor.prefabId ?? prefab.id;
+    const prefabInstanceOrigin = deepClone(anchor.prefabInstanceOrigin ?? anchor.position ?? { x: 0, y: 0, z: 0 });
+    const prefabInstanceRotation = deepClone(anchor.prefabInstanceRotation ?? { x: 0, y: 0, z: 0 });
+    const prefabInstanceScale = deepClone(anchor.prefabInstanceScale ?? { x: 1, y: 1, z: 1 });
+    const previousById = new Map(currentParts.map((part) => [part.id, part]));
+    const outsideIds = new Set((layout.primitives ?? [])
+      .filter((entry) => entry.prefabInstanceId !== instanceId)
+      .map((entry) => entry.id));
+    const usedIds = new Set();
+    const idSuffix = Date.now().toString(36);
+
+    const replacements = (prefab.primitives ?? []).map((part, index) => {
+      let id = part.id;
+      if (!id || outsideIds.has(id) || usedIds.has(id)) {
+        id = `${instanceId}-part-${index + 1}-${idSuffix}`;
+      }
+      usedIds.add(id);
+
+      const previous = previousById.get(part.id) ?? {};
+      return {
+        ...deepClone(previous),
+        ...deepClone(part),
+        id,
+        prefabId,
+        prefabInstanceId: instanceId,
+        prefabInstanceOrigin: deepClone(prefabInstanceOrigin),
+        prefabInstanceRotation: deepClone(prefabInstanceRotation),
+        prefabInstanceScale: deepClone(prefabInstanceScale),
+        deleted: false,
+      };
+    });
+
+    const nextLayout = {
+      ...layout,
+      primitives: [
+        ...(layout.primitives ?? []).filter((entry) => entry.prefabInstanceId !== instanceId),
+        ...replacements,
+      ],
+    };
+
+    this.app.room.setEditableLayout(nextLayout);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = replacements.find((part) => part.id === this.selectedId)?.id
+      ?? replacements[0]?.id
+      ?? this.selectedId;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Applied local prefab edits to ${instanceId}.`);
+
+    return {
+      ok: true,
+      message: `Applied ${replacements.length} local part${replacements.length === 1 ? '' : 's'} to world instance.`,
+    };
   }
 
   _openVegetationEditor() {
@@ -1885,6 +2035,39 @@ class BuildModeEditor {
     this._syncForm();
     this._attachTransformControls();
     this._setStatus(`Added ${primitive.name}.`);
+  }
+
+  _addHotSurface() {
+    const base = createDefaultPrimitive('box', this.app);
+    const primitive = this.app.room.snapPrimitiveToGrid({
+      ...base,
+      name: `hot-surface-${Math.random().toString(36).slice(2, 5)}`,
+      position: { ...base.position, y: 0.125 },
+      scale: { x: 1.5, y: 0.25, z: 1.1 },
+      texture: {
+        atlas: base.texture?.atlas ?? 'textures',
+        cell: null,
+        repeat: { x: 1, y: 1 },
+        rotation: 0,
+        offset: { x: 0, y: 0 },
+      },
+      material: {
+        color: '#ff2a1f',
+        roughness: 0.72,
+        metalness: 0.02,
+      },
+      gameplayType: 'hot_surface',
+      collider: false,
+      castShadow: false,
+      receiveShadow: false,
+      cameraOccluder: false,
+    }, { snapY: false, snapPosition: true, snapScale: false, allowEdgeOverflow: true });
+    this.app.room.upsertEditablePrimitive(primitive);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = primitive.id;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus('Added hot surface hazard.');
   }
 
   _addSpawnMarker(spawnType) {

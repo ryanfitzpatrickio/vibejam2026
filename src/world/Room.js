@@ -104,6 +104,7 @@ import {
   isRoomPrimitiveVisible,
   setRoomEditableLayout,
   setRoomExtractionHelpersVisible,
+  setRoomHotSurfaceHelpersVisible,
   setRoomPortalHelpersVisible,
   setRoomRaidTaskHelpersVisible,
   setRoomRaidTaskPrefabEditorPreview,
@@ -244,6 +245,7 @@ export class Room {
     this.fanHelpersVisible = true;
     this.extractionHelpersVisible = false;
     this.raidTaskHelpersVisible = false;
+    this.hotSurfaceHelpersVisible = false;
     this.editableMeshes = new Map();
     this.editableLightObjects = new Map();
     this.editablePortalObjects = new Map();
@@ -1138,6 +1140,10 @@ export class Room {
 
   setSpawnMarkersVisible(visible) {
     return setRoomSpawnMarkersVisible(this, visible);
+  }
+
+  setHotSurfaceHelpersVisible(visible) {
+    return setRoomHotSurfaceHelpersVisible(this, visible);
   }
 
   setPortalHelpersVisible(visible) {

@@ -247,7 +247,7 @@ function transformTaskPrefabPoint(point, part, task, prefab, scaleFactor = 1) {
   });
 }
 
-function buildPrimitiveAabb(primitive, scaleFactor = 1) {
+export function buildPrimitiveAabb(primitive, scaleFactor = 1) {
   const points = getPrimitiveLocalPoints(primitive);
   const aabb = createEmptyAabb();
 

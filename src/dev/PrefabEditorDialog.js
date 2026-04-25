@@ -43,6 +43,8 @@ export class PrefabEditorDialog {
     this.onSaveLibrary = onSaveLibrary;
     this.library = normalizePrefabLibrary(DEFAULT_PREFAB_LIBRARY);
     this.prefabId = this.library.prefabs[0]?.id ?? null;
+    this.saveMode = 'library';
+    this.localSaveHandler = null;
     this.selectedPartId = null;
     this.textureTarget = 'all';
     this.meshes = new Map();
@@ -61,6 +63,8 @@ export class PrefabEditorDialog {
   }
 
   open(library, prefabId = null) {
+    this.saveMode = 'library';
+    this.localSaveHandler = null;
     this.library = normalizePrefabLibrary(library ?? DEFAULT_PREFAB_LIBRARY);
     this.prefabId = prefabId ?? this.library.prefabs[0]?.id ?? null;
     if (!this.prefabId) {
@@ -71,10 +75,27 @@ export class PrefabEditorDialog {
     this.selectedPartId = this._selectedPrefab()?.primitives[0]?.id ?? null;
     this.overlay.style.display = 'grid';
     this._syncPrefabOptions();
+    this._syncSaveModeControls();
     this._syncForm();
     this._rebuildScene();
     this._resizeRenderer();
     this._startLoop();
+  }
+
+  openLocal(library, prefabId, { onSave = null } = {}) {
+    this.saveMode = 'local';
+    this.localSaveHandler = onSave;
+    this.library = normalizePrefabLibrary(library ?? DEFAULT_PREFAB_LIBRARY);
+    this.prefabId = prefabId ?? this.library.prefabs[0]?.id ?? null;
+    this.selectedPartId = this._selectedPrefab()?.primitives[0]?.id ?? null;
+    this.overlay.style.display = 'grid';
+    this._syncPrefabOptions();
+    this._syncSaveModeControls();
+    this._syncForm();
+    this._rebuildScene();
+    this._resizeRenderer();
+    this._startLoop();
+    this._setStatus('Editing placed prefab instance. Save applies only to this world copy.');
   }
 
   close() {
@@ -216,9 +237,9 @@ export class PrefabEditorDialog {
     });
     this.panel.appendChild(this.actions);
 
-    this._addActionButton('New Prefab', () => this._newPrefab());
-    this._addActionButton('Clone', () => this._clonePrefab());
-    this._addActionButton('Delete', () => this._deletePrefab(), '#5d221f');
+    this.newPrefabButton = this._addActionButton('New Prefab', () => this._newPrefab());
+    this.clonePrefabButton = this._addActionButton('Clone', () => this._clonePrefab());
+    this.deletePrefabButton = this._addActionButton('Delete', () => this._deletePrefab(), '#5d221f');
     this._addActionButton('Add Box', () => this._addPart('box'));
     this._addActionButton('Add Plane', () => this._addPart('plane'));
     this._addActionButton('Add Cyl', () => this._addPart('cylinder'));
@@ -226,7 +247,7 @@ export class PrefabEditorDialog {
     this._addActionButton('Move', () => this._setTransformMode('translate'));
     this._addActionButton('Rotate', () => this._setTransformMode('rotate'));
     this._addActionButton('Scale', () => this._setTransformMode('scale'));
-    this._addActionButton('Save', () => this._saveLibrary(), '#23472d');
+    this.saveButton = this._addActionButton('Save', () => this._saveLibrary(), '#23472d');
     this._addActionButton('Close', () => this.close());
 
     this._createPrefabSection();
@@ -261,7 +282,10 @@ export class PrefabEditorDialog {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.18;
+    if ('outputColorSpace' in this.renderer && THREE.SRGBColorSpace) {
+      this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
 
     this.controls = new this.OrbitControls(this.camera, this.canvas);
     this.controls.enableDamping = true;
@@ -288,26 +312,49 @@ export class PrefabEditorDialog {
     this.partsRoot = new THREE.Group();
     this.previewRoot.add(this.partsRoot);
 
-    const ambient = new THREE.HemisphereLight('#dfe8f1', '#3b2f26', 1.2);
-    this.scene.add(ambient);
-
-    const sun = new THREE.DirectionalLight('#ffdcb3', 2.1);
-    sun.position.set(5, 7, 4);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.near = 0.1;
-    sun.shadow.camera.far = 20;
-    sun.shadow.camera.left = -6;
-    sun.shadow.camera.right = 6;
-    sun.shadow.camera.top = 6;
-    sun.shadow.camera.bottom = -6;
-    this.scene.add(sun);
+    this._createLightingRig();
 
     window.addEventListener('resize', () => {
       if (this.overlay.style.display !== 'none') {
         this._resizeRenderer();
       }
     });
+  }
+
+  _createLightingRig() {
+    const ambient = new THREE.HemisphereLight('#f2f7ff', '#4a3528', 1.45);
+    ambient.name = 'PrefabEditorAmbient';
+    this.scene.add(ambient);
+
+    const key = new THREE.DirectionalLight('#ffe0b2', 2.6);
+    key.name = 'PrefabEditorKeyLight';
+    key.position.set(5.5, 8, 4.5);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.near = 0.1;
+    key.shadow.camera.far = 24;
+    key.shadow.camera.left = -7;
+    key.shadow.camera.right = 7;
+    key.shadow.camera.top = 7;
+    key.shadow.camera.bottom = -7;
+    key.shadow.bias = -0.00015;
+    key.shadow.normalBias = 0.018;
+    this.scene.add(key);
+
+    const fill = new THREE.DirectionalLight('#9fc7ff', 0.85);
+    fill.name = 'PrefabEditorFillLight';
+    fill.position.set(-5, 3.5, 5);
+    this.scene.add(fill);
+
+    const rim = new THREE.DirectionalLight('#fff4da', 1.25);
+    rim.name = 'PrefabEditorRimLight';
+    rim.position.set(-3.5, 4.2, -5);
+    this.scene.add(rim);
+
+    const top = new THREE.PointLight('#fff8e8', 0.9, 8, 2);
+    top.name = 'PrefabEditorTopLight';
+    top.position.set(0, 4.8, 0.5);
+    this.scene.add(top);
   }
 
   _bindViewportSelection() {
@@ -745,6 +792,21 @@ export class PrefabEditorDialog {
     });
     button.addEventListener('click', onClick);
     this.actions.appendChild(button);
+    return button;
+  }
+
+  _syncSaveModeControls() {
+    const isLocal = this.saveMode === 'local';
+    if (this.newPrefabButton) this.newPrefabButton.style.display = isLocal ? 'none' : '';
+    if (this.clonePrefabButton) this.clonePrefabButton.style.display = isLocal ? 'none' : '';
+    if (this.deletePrefabButton) this.deletePrefabButton.style.display = isLocal ? 'none' : '';
+    if (this.saveButton) this.saveButton.textContent = isLocal ? 'Apply Local' : 'Save';
+    if (this.prefabSelect) {
+      this.prefabSelect.disabled = isLocal;
+      this.prefabSelect.title = isLocal
+        ? 'Local instance editing is locked to the selected placed prefab.'
+        : '';
+    }
   }
 
   _addInlineButton(parent, label, onClick, background = '#2f2c28') {
@@ -1412,15 +1474,18 @@ export class PrefabEditorDialog {
     const depth = prefab.size.z * this.grid.cellDepth;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(width, depth),
-      new THREE.MeshBasicMaterial({
+      new THREE.MeshStandardMaterial({
         color: '#d9c2a1',
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.34,
+        roughness: 0.82,
+        metalness: 0.02,
         side: THREE.DoubleSide,
       }),
     );
     floor.rotation.x = -Math.PI * 0.5;
     floor.position.y = 0;
+    floor.receiveShadow = true;
     this.gridRoot.add(floor);
 
     const gridSize = Math.max(width, depth);
@@ -1511,6 +1576,16 @@ export class PrefabEditorDialog {
 
   async _saveLibrary() {
     const payload = normalizePrefabLibrary(this.library);
+    if (this.saveMode === 'local') {
+      const prefab = payload.prefabs.find((entry) => entry.id === this.prefabId) ?? payload.prefabs[0] ?? null;
+      const result = await this.localSaveHandler?.(payload, prefab);
+      if (result?.ok === false) {
+        this._setStatus(`Apply failed: ${result.error || 'Unknown error'}`, true);
+        return;
+      }
+      this._setStatus(result?.message || 'Applied local prefab changes to world instance.');
+      return payload;
+    }
     const result = await this.onSaveLibrary?.(payload);
     if (result?.ok === false) {
       this._setStatus(`Save failed: ${result.error || 'Unknown error'}`, true);

@@ -5,6 +5,14 @@ import { playerChaseRecordSeconds, tickPlayerChaseScores } from '../shared/chase
 import { EXTRACT_HOLD_SECONDS, LIVES_PER_ROUND } from '../shared/roundState.js';
 import { MISCHIEF_POINTS } from './interactionTuning.js';
 
+const HOT_SURFACE_COOLDOWN_SECONDS = 0.85;
+const HOT_SURFACE_BURN_SECONDS = 3.0;
+const HOT_SURFACE_DOT_INTERVAL_SECONDS = 0.75;
+const HOT_SURFACE_IMPACT_DAMAGE = 0.65;
+const HOT_SURFACE_DOT_DAMAGE = 0.3;
+const HOT_SURFACE_UP_VELOCITY = 5.8;
+const HOT_SURFACE_AWAY_VELOCITY = 3.4;
+
 function isNearExtractionPortal(px, pz, portals) {
   if (!Array.isArray(portals)) return false;
   for (const p of portals) {
@@ -25,6 +33,24 @@ function killPlayer(runtime, playerId, state) {
   state.animState = 'death';
   runtime.cheeseWorld.onDeathDropCarried(state);
   runtime.stats?.recordDeath(playerId);
+}
+
+function clearPlayerDrivenAttachments(runtime, playerId, state) {
+  state.roombaLaunch = null;
+  state.ropeSwing = null;
+  runtime.mouseLaunchWorld.removePlayer(playerId);
+  runtime.ropeWorld.removePlayer(playerId);
+  runtime.fanWorld.removePlayer(playerId);
+}
+
+function applyPlayerDamage(runtime, playerId, state, amount) {
+  state.health = Math.max(0, (state.health ?? PHYSICS.maxHealth) - amount);
+  if (state.health > 0) return false;
+  killPlayer(runtime, playerId, state);
+  state.burnTimer = 0;
+  state.burnTickTimer = 0;
+  clearPlayerDrivenAttachments(runtime, playerId, state);
+  return true;
 }
 
 function stepPredators(runtime, dt, mousePlayersObj) {
@@ -63,11 +89,7 @@ function stepPredators(runtime, dt, mousePlayersObj) {
     target.velocity.x += hit.knockbackX;
     target.velocity.z += hit.knockbackZ;
     if (!target.alive) {
-      target.roombaLaunch = null;
-      target.ropeSwing = null;
-      runtime.mouseLaunchWorld.removePlayer(hit.playerId);
-      runtime.ropeWorld.removePlayer(hit.playerId);
-      runtime.fanWorld.removePlayer(hit.playerId);
+      clearPlayerDrivenAttachments(runtime, hit.playerId, target);
     }
   }
 }
@@ -105,24 +127,38 @@ function updateCheeseAndRoundStats(runtime, dt, now) {
 
 function applyHotSurfaces(runtime, dt) {
   for (const [pid, state] of runtime.players) {
+    if (!state) continue;
+    state.burnTimer = Math.max(0, (Number(state.burnTimer) || 0) - dt);
+    state.burnTickTimer = Math.max(0, (Number(state.burnTickTimer) || 0) - dt);
+    if (state.burnTimer > 0 && state.burnTickTimer <= 0 && state?.alive && !state.spectator && !state.extracted && !state.isAdversary) {
+      state.burnTickTimer = HOT_SURFACE_DOT_INTERVAL_SECONDS;
+      if (applyPlayerDamage(runtime, pid, state, HOT_SURFACE_DOT_DAMAGE)) continue;
+    }
     if (!state?.alive || state.spectator || state.extracted || state.isAdversary) continue;
     state._hotSurfaceCooldown = Math.max(0, (Number(state._hotSurfaceCooldown) || 0) - dt);
     if (state._hotSurfaceCooldown > 0) continue;
     const px = state.position.x;
     const py = state.position.y;
     const pz = state.position.z;
-    const onHotSurface = runtime.hotSurfaceZones.some((zone) => (
+    const hotSurface = runtime.hotSurfaceZones.find((zone) => (
       px >= zone.minX && px <= zone.maxX
       && py >= zone.minY && py <= zone.maxY
       && pz >= zone.minZ && pz <= zone.maxZ
     ));
-    if (!onHotSurface) continue;
-    state._hotSurfaceCooldown = 1.1;
-    state.health = Math.max(0, (state.health ?? PHYSICS.maxHealth) - 1);
-    state.velocity.y = Math.max(state.velocity.y ?? 0, 4.5);
-    if (state.health <= 0) {
-      killPlayer(runtime, pid, state);
-    }
+    if (!hotSurface) continue;
+    state._hotSurfaceCooldown = HOT_SURFACE_COOLDOWN_SECONDS;
+    state.burnTimer = Math.max(state.burnTimer, HOT_SURFACE_BURN_SECONDS);
+    state.burnTickTimer = HOT_SURFACE_DOT_INTERVAL_SECONDS;
+    state.burnEffectSeq = (Number(state.burnEffectSeq) || 0) + 1;
+
+    const awayX = px - (hotSurface.centerX ?? ((hotSurface.minX + hotSurface.maxX) * 0.5));
+    const awayZ = pz - (hotSurface.centerZ ?? ((hotSurface.minZ + hotSurface.maxZ) * 0.5));
+    const len = Math.hypot(awayX, awayZ) || 1;
+    state.velocity.x += (awayX / len) * HOT_SURFACE_AWAY_VELOCITY;
+    state.velocity.y = Math.max(state.velocity.y ?? 0, HOT_SURFACE_UP_VELOCITY);
+    state.velocity.z += (awayZ / len) * HOT_SURFACE_AWAY_VELOCITY;
+
+    applyPlayerDamage(runtime, pid, state, HOT_SURFACE_IMPACT_DAMAGE);
   }
 }
 

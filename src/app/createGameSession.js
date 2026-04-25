@@ -85,6 +85,7 @@ import { HeroPrompt } from '../hud/HeroPrompt.jsx';
 import { TaskController } from '../tasks/TaskController.js';
 import { UnlockCollectibles } from '../tasks/UnlockCollectibles.js';
 import { HeroAvatar } from '../entities/HeroAvatar.js';
+import { BurnEffect } from '../effects/BurnEffect.js';
 import { getAudioManager } from '../audio/AudioManager.js';
 import { OcclusionFader } from '../utils/OcclusionFader.js';
 import { createPlayerNameplate, syncNameplateWorldPosition } from '../world/PlayerNameplate.js';
@@ -666,6 +667,8 @@ export async function createGameSession({
   /** Track previous smackStunTimer / grabbedTarget per player for audio event detection. */
   const _prevSmackStun = new Map();
   const _prevGrabbedTarget = new Map();
+  const _prevBurnSeq = new Map();
+  const _burnEffects = new Map();
   let _prevCatAiState = 'idle';
 
   const _localNameplateWorld = new THREE.Vector3();
@@ -675,6 +678,7 @@ export async function createGameSession({
   const _physicsWorldUp = new THREE.Vector3(0, 1, 0);
   const _physicsJumpSoundPos = new THREE.Vector3();
   const _spatialEventPos = new THREE.Vector3();
+  const _burnEffectWorldPos = new THREE.Vector3();
   const _actionJuiceWorldPos = new THREE.Vector3();
   /** Per-player snapshot state used for popup deltas. */
   const _prevActionJuiceState = new Map();
@@ -1603,12 +1607,41 @@ export async function createGameSession({
           audioManager.playSoundAtPosition('grab', _spatialEventPos);
         }
         _prevGrabbedTarget.set(pid, curGrab);
+
+        const burnSeq = Number(pState.burnEffectSeq) || 0;
+        const prevBurnSeq = _prevBurnSeq.get(pid) ?? 0;
+        const burning = (Number(pState.burnTimer) || 0) > 0;
+        const pos = pState.position;
+        if (pos) {
+          _burnEffectWorldPos.set(pos.x, pos.y + 0.22, pos.z);
+          let burnEffect = _burnEffects.get(pid);
+          if (burnSeq > prevBurnSeq) {
+            burnEffect?.dispose();
+            burnEffect = new BurnEffect(scene, _burnEffectWorldPos);
+            _burnEffects.set(pid, burnEffect);
+            audioManager.playSoundAtPosition('crash', _burnEffectWorldPos);
+            spawnActionJuice({ position: _burnEffectWorldPos, isAdversary: false }, 'HOT!', 'smack');
+          }
+          if (burnEffect) {
+            burnEffect.setPosition(_burnEffectWorldPos);
+            burnEffect.setActive(burning);
+            burnEffect.update(deltaSeconds);
+            if (burnEffect.finished) {
+              burnEffect.dispose();
+              _burnEffects.delete(pid);
+            }
+          }
+        }
+        _prevBurnSeq.set(pid, burnSeq);
       }
       // Clean up stale entries
       for (const pid of _prevSmackStun.keys()) {
         if (!allPlayers.has(pid)) {
           _prevSmackStun.delete(pid);
           _prevGrabbedTarget.delete(pid);
+          _prevBurnSeq.delete(pid);
+          _burnEffects.get(pid)?.dispose();
+          _burnEffects.delete(pid);
         }
       }
     }

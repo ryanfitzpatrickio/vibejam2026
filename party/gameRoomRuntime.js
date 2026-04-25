@@ -6,7 +6,7 @@ import {
   createRoombaState,
   getRoombaVacuumPullAcceleration,
 } from '../shared/roomba.js';
-import { buildRoomCollidersFromLayout } from '../shared/roomCollision.js';
+import { buildPrimitiveAabb, buildRoomCollidersFromLayout } from '../shared/roomCollision.js';
 import kitchenLayout from '../shared/kitchen-layout.generated.js';
 import kitchenNavMesh from '../shared/kitchen-navmesh.generated.js';
 import kitchenMouseNavMesh from '../shared/kitchen-mouse-navmesh.generated.js';
@@ -122,9 +122,36 @@ function yawDeltaAbs(a, b) {
   return Math.abs(diff);
 }
 
-function collectHotSurfaceZones(colliders) {
-  if (!Array.isArray(colliders)) return [];
-  return colliders
+function hotSurfaceZoneFromAabb(aabb) {
+  if (!aabb?.min || !aabb?.max) return null;
+  const minX = aabb.min.x - 0.08;
+  const maxX = aabb.max.x + 0.08;
+  const minZ = aabb.min.z - 0.08;
+  const maxZ = aabb.max.z + 0.08;
+  return {
+    minX,
+    maxX,
+    minY: aabb.min.y - 0.65,
+    maxY: aabb.max.y + 0.75,
+    minZ,
+    maxZ,
+    centerX: (minX + maxX) * 0.5,
+    centerZ: (minZ + maxZ) * 0.5,
+  };
+}
+
+function collectHotSurfaceZones(layout, colliders) {
+  const zones = [];
+  const primitives = Array.isArray(layout?.primitives) ? layout.primitives : [];
+  for (const primitive of primitives) {
+    if (!primitive || primitive.deleted === true) continue;
+    if (primitive.gameplayType !== 'hot_surface' && primitive.hazardType !== 'hot_surface') continue;
+    const zone = hotSurfaceZoneFromAabb(buildPrimitiveAabb(primitive, 1));
+    if (zone) zones.push(zone);
+  }
+
+  if (!Array.isArray(colliders)) return zones;
+  colliders
     .filter((collider) => {
       const name = String(collider?.metadata?.primitiveName ?? '').toLowerCase();
       return collider?.type === 'surface' && (
@@ -134,14 +161,14 @@ function collectHotSurfaceZones(colliders) {
         || name.includes('hot')
       );
     })
-    .map((collider) => ({
-      minX: collider.aabb.min.x - 0.08,
-      maxX: collider.aabb.max.x + 0.08,
-      minY: collider.aabb.max.y - 0.25,
-      maxY: collider.aabb.max.y + 0.75,
-      minZ: collider.aabb.min.z - 0.08,
-      maxZ: collider.aabb.max.z + 0.08,
-    }));
+    .forEach((collider) => {
+      const zone = hotSurfaceZoneFromAabb({
+        min: { x: collider.aabb.min.x, y: collider.aabb.max.y - 0.25, z: collider.aabb.min.z },
+        max: { x: collider.aabb.max.x, y: collider.aabb.max.y + 0.2, z: collider.aabb.max.z },
+      });
+      if (zone) zones.push(zone);
+    });
+  return zones;
 }
 
 /** Reject oversized WebSocket frames before JSON.parse (DoS). */
@@ -161,7 +188,7 @@ export default class GameRoomRuntime {
   inputQueues = new Map();
   tickInterval = null;
   levelColliders = buildRoomCollidersFromLayout(kitchenLayout, { scaleFactor: 1 });
-  hotSurfaceZones = collectHotSurfaceZones(this.levelColliders);
+  hotSurfaceZones = collectHotSurfaceZones(kitchenLayout, this.levelColliders);
   levelNavMesh = kitchenNavMesh;
   /** Walk mesh for mice (mouse-only nav polys); cats use levelNavMesh. */
   levelMouseNavMesh = kitchenMouseNavMesh;
@@ -273,7 +300,7 @@ export default class GameRoomRuntime {
       scaleFactor: 1,
       completedTaskIds: this._completedRaidTaskIds(),
     });
-    this.hotSurfaceZones = collectHotSurfaceZones(this.levelColliders);
+    this.hotSurfaceZones = collectHotSurfaceZones(layout, this.levelColliders);
     this.pushBallWorld?.setLevelColliders?.(this.levelColliders);
     this.roombaCannonWorld?.setLevelColliders?.(this.levelColliders);
     this.mouseLaunchWorld?.setLevelColliders?.(this.levelColliders);

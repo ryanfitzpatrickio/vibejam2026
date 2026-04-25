@@ -2719,7 +2719,7 @@
           "position": {
             "x": 2,
             "y": 1.0118,
-            "z": 0
+            "z": -0.3283
           },
           "rotation": {
             "x": -1.5707963267948966,
@@ -3651,6 +3651,209 @@
             "color": "#ffffff",
             "roughness": 0.88,
             "metalness": 0.04
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        }
+      ]
+    },
+    {
+      "id": "prefab-moeqjexz-5745l",
+      "name": "fridge raided",
+      "size": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "primitives": [
+        {
+          "id": "prefab-part-moeqjexz-rnd7i",
+          "name": "fridge_bottom",
+          "type": "box",
+          "position": {
+            "x": 0,
+            "y": 1.5,
+            "z": -0.125
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 3,
+            "z": 1.75
+          },
+          "texture": {
+            "atlas": "textures3",
+            "cell": 41,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": -0.24
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures",
+              "cell": 47
+            }
+          },
+          "material": {
+            "color": "#D3D3D3",
+            "roughness": 0.5,
+            "metalness": 0.8
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-moeqjexz-vn0t6",
+          "name": "fridge_top",
+          "type": "box",
+          "position": {
+            "x": 0,
+            "y": 3.5,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 1,
+            "z": 2
+          },
+          "texture": {
+            "atlas": "textures3",
+            "cell": 31,
+            "repeat": {
+              "x": 1,
+              "y": 0.6
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures3",
+              "cell": 30
+            }
+          },
+          "material": {
+            "color": "#D3D3D3",
+            "roughness": 0.5,
+            "metalness": 0.8
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-moeqrjro-uzh4t",
+          "name": "fridge_bottom-copy",
+          "type": "box",
+          "position": {
+            "x": 0.9583,
+            "y": 1.8576,
+            "z": 1.75
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1.5707963267948966,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 2.25,
+            "z": 0.25
+          },
+          "texture": {
+            "atlas": "textures3",
+            "cell": 41,
+            "repeat": {
+              "x": 1,
+              "y": 0.6
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0.2
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures3",
+              "cell": 40
+            }
+          },
+          "material": {
+            "color": "#D3D3D3",
+            "roughness": 0.5,
+            "metalness": 0.8
+          },
+          "prefabInstanceOrigin": null,
+          "collider": true,
+          "castShadow": true,
+          "receiveShadow": true
+        },
+        {
+          "id": "prefab-part-moequ0xa-wvo8z",
+          "name": "fridge_bottom-copy-copy",
+          "type": "box",
+          "position": {
+            "x": 0,
+            "y": 0.367,
+            "z": 0.8
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 2,
+            "y": 0.75,
+            "z": 0.25
+          },
+          "texture": {
+            "atlas": "textures3",
+            "cell": 41,
+            "repeat": {
+              "x": 1,
+              "y": 1
+            },
+            "rotation": 0,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "faceTextures": {
+            "front": {
+              "atlas": "textures3",
+              "cell": 40
+            }
+          },
+          "material": {
+            "color": "#D3D3D3",
+            "roughness": 0.5,
+            "metalness": 0.8
           },
           "prefabInstanceOrigin": null,
           "collider": true,
