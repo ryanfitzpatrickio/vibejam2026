@@ -7,8 +7,10 @@ export const SMACK_RANGE = 2.0;
 export const SMACK_COOLDOWN = 1.5;
 export const SMACK_STUN_DURATION = 1.0;
 export const SMACK_KNOCKBACK = 8.0;
+export const SMACK_LIMP_THROW_WINDOW_SECONDS = 6.0;
+export const LIMP_THROW_BOUNCE_SECONDS = 6.0;
 
-export const CHARGED_SMACK_MIN_HOLD_SECONDS = 0.45;
+export const CHARGED_SMACK_MIN_HOLD_SECONDS = 1.0;
 export const CHARGED_SMACK_MAX_HOLD_SECONDS = 1.6;
 export const CHARGED_SMACK_RANGE = 2.45;
 export const CHARGED_SMACK_CAT_RANGE = 3.15;

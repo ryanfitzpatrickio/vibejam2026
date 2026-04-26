@@ -39,7 +39,7 @@ export function createMouseLaunchWorld() {
   /** @type {import('cannon-es').Body[]} */
   const levelStaticBodies = [];
 
-  /** @type {Map<string, { body: Body, groundedMs: number, flightTime: number }>} */
+  /** @type {Map<string, { body: Body, groundedMs: number, flightTime: number, limp: boolean, limpSeconds: number, pendingBounceHits: number, bounceCooldown: number }>} */
   const flights = new Map();
 
   function setLevelColliders(colliders) {
@@ -74,6 +74,7 @@ export function createMouseLaunchWorld() {
     state.grounded = true;
     state.animState = 'idle';
     state.wallHolding = false;
+    state.limpThrownBounceTimer = 0;
   }
 
   /**
@@ -109,8 +110,35 @@ export function createMouseLaunchWorld() {
     const up = LAUNCH_UP_SPEED * Math.sqrt(scale) * upMultiplier * (jitter ? (0.85 + Math.random() * 0.35) : 1);
     body.velocity.set(nx * hs, up, nz * hs);
 
+    const limp = !!options?.limp;
+    const limpSeconds = Math.max(0, Number(options?.limpSeconds) || 0);
+    if (limp) {
+      state.limpThrownBounceTimer = Math.max(Number(state.limpThrownBounceTimer) || 0, limpSeconds);
+      state.wallHolding = false;
+      state.wallJumpWindowTimer = 0;
+    }
+
+    const entry = {
+      body,
+      groundedMs: 0,
+      flightTime: 0,
+      limp,
+      limpSeconds,
+      pendingBounceHits: 0,
+      bounceCooldown: 0,
+    };
+    if (limp) {
+      body.addEventListener('collide', () => {
+        if (entry.bounceCooldown > 0) return;
+        const impactSpeed = Math.hypot(body.velocity.x, body.velocity.y, body.velocity.z);
+        if (impactSpeed < 3.2) return;
+        entry.pendingBounceHits += 1;
+        entry.bounceCooldown = 0.13;
+      });
+    }
+
     world.addBody(body);
-    flights.set(playerId, { body, groundedMs: 0, flightTime: 0 });
+    flights.set(playerId, entry);
   }
 
   function removePlayer(playerId) {
@@ -147,13 +175,28 @@ export function createMouseLaunchWorld() {
       st.velocity.z = b.velocity.z;
       st.grounded = false;
       st.animState = 'jump';
+      if (entry.limp) {
+        entry.bounceCooldown = Math.max(0, entry.bounceCooldown - maxDt);
+        if (entry.pendingBounceHits > 0) {
+          st.limpBounceHitSeq = (Number(st.limpBounceHitSeq) || 0) + entry.pendingBounceHits;
+          entry.pendingBounceHits = 0;
+        }
+        const currentLimpTimer = Number.isFinite(Number(st.limpThrownBounceTimer))
+          ? Math.max(0, Number(st.limpThrownBounceTimer))
+          : entry.limpSeconds;
+        st.limpThrownBounceTimer = Math.max(0, currentLimpTimer - maxDt);
+        st.wallHolding = false;
+        st.wallJumpWindowTimer = 0;
+        st.wallAttachCooldownTimer = Math.max(st.wallAttachCooldownTimer ?? 0, 0.18);
+      }
 
       if (st.roombaLaunchCooldown > 0) {
         st.roombaLaunchCooldown = Math.max(0, st.roombaLaunchCooldown - maxDt);
       }
 
       entry.flightTime += maxDt;
-      if (entry.flightTime >= MAX_FLIGHT_S) {
+      const maxFlight = entry.limp ? Math.max(MAX_FLIGHT_S, entry.limpSeconds) : MAX_FLIGHT_S;
+      if (entry.flightTime >= maxFlight) {
         finishFlight(playerId, st);
         continue;
       }

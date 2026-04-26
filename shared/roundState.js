@@ -4,7 +4,7 @@
  *
  * Phases:
  *   forage       — free roam, collect cheese, chase tasks, deaths cost a life
- *   extract      — portals open, hold E to escape with carried cheese
+ *   extract      — portals open, stand in one to escape with carried cheese
  *   intermission — round-end score breakdown; next round begins when timer hits 0
  */
 
@@ -16,7 +16,6 @@ export const ROUND_DURATIONS = Object.freeze({
 
 export const LIVES_PER_ROUND = 2;
 export const RESPAWN_SECONDS = 8;
-export const EXTRACT_HOLD_SECONDS = 1.5;
 /** Player must be within this XZ radius of an active portal to extract. */
 export const EXTRACT_TRIGGER_RADIUS = 1.2;
 export const EXTRACT_TRIGGER_RADIUS_SQ = EXTRACT_TRIGGER_RADIUS * EXTRACT_TRIGGER_RADIUS;

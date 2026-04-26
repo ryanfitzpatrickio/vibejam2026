@@ -74,7 +74,7 @@ export function sanitizePlayerInputMessage(data) {
     /** One-shot RB / G press to throw a held mouse or ball with physics. */
     throw: !!data.throw,
     ropeGrab: !!data.ropeGrab,
-    /** Hold E — extraction progress during extract phase. */
+    /** Held interaction key. Extraction no longer consumes this. */
     interactHeld: !!data.interactHeld,
     /** One-shot H press to activate hero mode (server ignores if not offered). */
     heroActivate: !!data.heroActivate,

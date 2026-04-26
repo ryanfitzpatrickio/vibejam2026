@@ -53,6 +53,7 @@ import {
 } from './buildGridSnap.js';
 import {
   isGeneratedBakePrimitiveEnabled,
+  loadGlbAssetById,
   loadGlbModelByAssetId,
   streamGlbModels,
 } from './glbModelSystem.js';
@@ -104,6 +105,7 @@ import {
   isRoomPrimitiveVisible,
   setRoomEditableLayout,
   setRoomExtractionHelpersVisible,
+  setRoomGlbPropHelpersVisible,
   setRoomHotSurfaceHelpersVisible,
   setRoomPortalHelpersVisible,
   setRoomRaidTaskHelpersVisible,
@@ -191,6 +193,7 @@ export class Room {
     this.runnables = []; // Surfaces player can run on
     this.glbLoader = null;
     this.glbModelCache = new Map();
+    this.glbAssetCache = new Map();
     this.glbRegistry = null;
     this.invalidGeneratedBakeAssetIds = new Set();
 
@@ -246,6 +249,7 @@ export class Room {
     this.extractionHelpersVisible = false;
     this.raidTaskHelpersVisible = false;
     this.hotSurfaceHelpersVisible = false;
+    this.glbPropHelpersVisible = false;
     this.editableMeshes = new Map();
     this.editableLightObjects = new Map();
     this.editablePortalObjects = new Map();
@@ -393,6 +397,10 @@ export class Room {
 
   async loadGlbModel(assetId) {
     return loadGlbModelByAssetId(this, assetId);
+  }
+
+  async loadGlbAsset(assetId) {
+    return loadGlbAssetById(this, assetId);
   }
 
   streamGlbModels() {
@@ -1144,6 +1152,10 @@ export class Room {
 
   setHotSurfaceHelpersVisible(visible) {
     return setRoomHotSurfaceHelpersVisible(this, visible);
+  }
+
+  setGlbPropHelpersVisible(visible) {
+    return setRoomGlbPropHelpersVisible(this, visible);
   }
 
   setPortalHelpersVisible(visible) {

@@ -488,6 +488,7 @@ export class Mouse extends THREE.Group {
           this.animateCarry();
           break;
         case 'win':
+        case 'sit':
           this.animateCarry();
           break;
         case 'death':

@@ -126,8 +126,10 @@ const ENABLE_CAT_PREDATOR = true;
 const ENABLE_ROOMBA_PREDATOR = true;
 const ENABLE_HUMAN_PREDATOR = true;
 const MOUSE_CAMERA_ARM_LENGTH = 3.5;
+const MOUNT_CAMERA_ARM_LENGTH = 4.8;
 const HUMAN_CAMERA_ARM_LENGTH = 8.5;
 const MOUSE_CAMERA_SHOULDER_Y = 1.3;
+const MOUNT_CAMERA_SHOULDER_Y = 1.9;
 const HUMAN_CAMERA_SHOULDER_Y = 5.6;
 const HUMAN_NAMEPLATE_OFFSET_Y = 9.35;
 const ACTION_JUICE_MOUSE_OFFSET_Y = 1.14;
@@ -160,7 +162,7 @@ function vacuumPullForPrediction(net, predictionState) {
 const GITHUB_URL = 'https://github.com/ryanfitzpatrickio/vibejam2026';
 
 /** Cat AI states where the hunt target is the local player — drives ambient crossfade. */
-const CAT_AMBIENT_HUNT_AI = new Set(['alert', 'roar', 'chase', 'attack', 'cooldown']);
+const CAT_AMBIENT_HUNT_AI = new Set(['alert', 'roar', 'chase', 'chase_ball', 'attack', 'cooldown']);
 
 export async function createGameSession({
   canvas,
@@ -666,7 +668,9 @@ export async function createGameSession({
 
   /** Track previous smackStunTimer / grabbedTarget per player for audio event detection. */
   const _prevSmackStun = new Map();
+  const _prevChargedSmackHitSeq = new Map();
   const _prevGrabbedTarget = new Map();
+  const _prevLimpBounceHitSeq = new Map();
   const _prevBurnSeq = new Map();
   const _burnEffects = new Map();
   let _prevCatAiState = 'idle';
@@ -686,7 +690,43 @@ export async function createGameSession({
   const _mischiefChains = new Map();
   let occlusionFrameIndex = 0;
 
-  const dynamicWorldItems = createDynamicWorldItems(scene);
+  const dynamicWorldItems = createDynamicWorldItems(scene, { room });
+  const _mountedRiderOffset = new THREE.Vector3();
+  const _mountedRenderPosition = new THREE.Vector3();
+
+  function findMountSnapshot(mountId) {
+    if (!mountId || !Array.isArray(net.mounts)) return null;
+    return net.mounts.find((mount) => mount?.id === mountId) ?? null;
+  }
+
+  function mountSnapshotValue(value, fallback) {
+    if (Number.isFinite(value)) return value;
+    return Number.isFinite(fallback) ? fallback : 0;
+  }
+
+  function applySmoothedMountedRiderVisual() {
+    const ss = net.serverState;
+    const mountId = predictionState.mountId || ss?.mountId;
+    if (!mountId || !ss?.position) return false;
+
+    const mountRender = dynamicWorldItems.getMountRenderState?.(mountId);
+    const mountSnapshot = findMountSnapshot(mountId);
+    if (!mountRender?.position || !mountSnapshot) return false;
+
+    _mountedRiderOffset.set(
+      ss.position.x - mountSnapshotValue(mountSnapshot.x, mountRender.targetPosition?.x),
+      ss.position.y - mountSnapshotValue(mountSnapshot.y, mountRender.targetPosition?.y),
+      ss.position.z - mountSnapshotValue(mountSnapshot.z, mountRender.targetPosition?.z),
+    );
+    _mountedRenderPosition.set(
+      mountRender.position.x + _mountedRiderOffset.x,
+      mountRender.position.y + _mountedRiderOffset.y + mouse.groundOffset,
+      mountRender.position.z + _mountedRiderOffset.z,
+    );
+    mouse.position.copy(_mountedRenderPosition);
+    renderPositionSmoother.snapToWorld(_mountedRenderPosition);
+    return true;
+  }
 
   const ropeSystem = new RopeSystem({
     resolveTexture: (atlasId, cellIndex) => room._createAtlasTexture(cellIndex, atlasId),
@@ -837,6 +877,26 @@ export async function createGameSession({
     });
   }
 
+  const CHARGE_SFX_INTERVAL_MS = 260;
+  const CHARGE_SFX_PITCHES = [0.88, 1.04, 1.22, 1.42];
+
+  function resetChargeSfxLoop(loop) {
+    loop.nextAt = 0;
+    loop.step = 0;
+  }
+
+  function updateChargeSfxLoop(loop, active, soundType, position, nowMs) {
+    if (!active) {
+      resetChargeSfxLoop(loop);
+      return;
+    }
+    if (nowMs < loop.nextAt) return;
+    const pitch = CHARGE_SFX_PITCHES[Math.min(loop.step, CHARGE_SFX_PITCHES.length - 1)];
+    audioManager.playSoundAtPosition(soundType, position, { playbackRate: pitch });
+    loop.step += 1;
+    loop.nextAt = nowMs + CHARGE_SFX_INTERVAL_MS;
+  }
+
   // Visual smoothing: render position lerps toward prediction to hide small corrections.
   const renderPositionSmoother = createRenderPositionSmoother();
   const PHYSICS_STEP = 1 / 30;
@@ -845,8 +905,11 @@ export async function createGameSession({
   let previousJumpHeld = false;
   let jumpHoldMs = 0;
   let jumpChargeProgress = 0;
-  let jumpAutoFiredForHold = false;
+  const jumpChargeSfxLoop = { nextAt: 0, step: 0 };
+  const chargedSmackSfxLoop = { nextAt: 0, step: 0 };
   let chargedThrowSfxAt = 0;
+  let prevLocalMountId = null;
+  let nextBirdIdleChirpAt = 0;
   let localChargedThrowSpinAngle = 0;
   let localChargedThrowWasSpinning = false;
   let ropePoseGraceUntil = 0;
@@ -872,6 +935,7 @@ export async function createGameSession({
     const dt = 1 / 30;
     const colliders = getCollisionCollidersWithRoomba();
     for (const input of net.pendingInputs) {
+      if (predictionState.mountId) break;
       const vPull = vacuumPullForPrediction(net, predictionState);
       simulateTick(predictionState, input, dt, CLIENT_BOUNDS, colliders, vPull);
     }
@@ -889,7 +953,8 @@ export async function createGameSession({
     previousJumpHeld = false;
     jumpHoldMs = 0;
     jumpChargeProgress = 0;
-    jumpAutoFiredForHold = false;
+    resetChargeSfxLoop(jumpChargeSfxLoop);
+    resetChargeSfxLoop(chargedSmackSfxLoop);
     physicsAccum = 0;
     net.pendingInputs.length = 0;
     renderPositionSmoother.snapToPrediction(predictionState, mouse.groundOffset);
@@ -1230,36 +1295,46 @@ export async function createGameSession({
       const keys = controller.keys;
       const kb = controller.keyBindings;
 
+      const localMounted = !!(predictionState.mountId || net.serverState?.mountId);
       const jumpHeld = !!keys[kb.jump];
       const jumpReleased = !jumpHeld && previousJumpHeld;
       if (jumpHeld && !previousJumpHeld) {
         jumpHoldMs = 0;
         jumpChargeProgress = 0;
-        jumpAutoFiredForHold = false;
+        resetChargeSfxLoop(jumpChargeSfxLoop);
       }
       const canGroundedChargedJump = predictionState.grounded
         || (Number(predictionState.groundedGraceTimer) || 0) > 0;
+      updateChargeSfxLoop(
+        jumpChargeSfxLoop,
+        !!(
+          jumpHeld
+          && !localMounted
+          && jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS
+          && (canGroundedChargedJump || jumpChargeSfxLoop.step > 0)
+          && predictionState.alive !== false
+          && !predictionState.extracted
+          && !predictionState.spectator
+        ),
+        'jumpcharge',
+        predictionState.position,
+        timeMs,
+      );
       let jumpPressed = false;
       let jumpCharge = 0;
-      if (jumpHeld && !jumpAutoFiredForHold) {
+      if (jumpHeld) {
         jumpHoldMs += PHYSICS_STEP * 1000;
-        jumpChargeProgress = Math.max(0, Math.min(1, jumpHoldMs / CHARGED_JUMP_FULL_HOLD_MS));
-        if (jumpHoldMs >= CHARGED_JUMP_FULL_HOLD_MS && canGroundedChargedJump) {
-          jumpPressed = true;
-          jumpCharge = 1;
-          jumpAutoFiredForHold = true;
-          jumpHoldMs = 0;
-          jumpChargeProgress = 0;
-        }
+        jumpChargeProgress = Math.max(0, Math.min(
+          1,
+          (jumpHoldMs - CHARGED_JUMP_MIN_HOLD_MS) / (CHARGED_JUMP_FULL_HOLD_MS - CHARGED_JUMP_MIN_HOLD_MS),
+        ));
       }
       if (jumpReleased) {
-        if (!jumpAutoFiredForHold) {
-          jumpPressed = true;
-          jumpCharge = jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS ? jumpChargeProgress : 0;
-        }
+        jumpPressed = true;
+        jumpCharge = jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS ? jumpChargeProgress : 0;
         jumpHoldMs = 0;
         jumpChargeProgress = 0;
-        jumpAutoFiredForHold = false;
+        resetChargeSfxLoop(jumpChargeSfxLoop);
       }
       previousJumpHeld = jumpHeld;
 
@@ -1305,7 +1380,7 @@ export async function createGameSession({
         jumpPressed,
         jumpHeld,
         jumpCharge,
-        crouch: !!keys[kb.crouch],
+        crouch: !!keys[kb.crouch] || !!keys.ControlLeft || !!keys.ControlRight || !!keys.Control,
         rotation: mouse.getYaw(),
       };
 
@@ -1329,21 +1404,30 @@ export async function createGameSession({
       }
 
       const colliders = getCollisionCollidersWithRoomba();
-      const vyBeforeJump = predictionState.velocity.y;
       const vPull = vacuumPullForPrediction(net, predictionState);
-      simulateTick(predictionState, input, PHYSICS_STEP, CLIENT_BOUNDS, colliders, vPull);
-      if (
-        jumpPressed
+      const jumpSoundAllowed = jumpPressed
         && predictionState.alive
         && !predictionState.isAdversary
-        && predictionState.velocity.y > vyBeforeJump + 1.2
-      ) {
+        && !localMounted
+        && (
+          predictionState.grounded
+          || (Number(predictionState.groundedGraceTimer) || 0) > 0
+          || predictionState.wallHolding
+          || (predictionState.canDoubleJump && !predictionState.hasDoubleJumped)
+        );
+      if (jumpSoundAllowed) {
         _physicsJumpSoundPos.set(
           predictionState.position.x,
           predictionState.position.y + mouse.groundOffset,
           predictionState.position.z,
         );
-        audioManager.playSoundAtPosition('jump', _physicsJumpSoundPos);
+        audioManager.playSoundAtPosition(jumpCharge >= 0.45 ? 'bigjump' : 'jump', _physicsJumpSoundPos);
+      }
+      if (localMounted && net.serverState) {
+        copyServerToPrediction(predictionState, net.serverState);
+        predictionState.animState = 'sit';
+      } else {
+        simulateTick(predictionState, input, PHYSICS_STEP, CLIENT_BOUNDS, colliders, vPull);
       }
 
       const renderPos = renderPositionSmoother.updateFromPrediction(
@@ -1355,6 +1439,9 @@ export async function createGameSession({
       mouse.position.x = renderPos.x;
       mouse.position.y = renderPos.y;
       mouse.position.z = renderPos.z;
+      if (localMounted) {
+        applySmoothedMountedRiderVisual();
+      }
 
       controller.velocity.set(
         predictionState.velocity.x,
@@ -1369,12 +1456,12 @@ export async function createGameSession({
       controller.stamina = predictionState.stamina;
       controller.health = predictionState.health;
       controller.alive = predictionState.alive;
-      controller.chargedJumpHeld = !jumpAutoFiredForHold && jumpHoldMs > 0 && (
+      controller.chargedJumpHeld = jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS && (
         predictionState.grounded
         || (Number(predictionState.groundedGraceTimer) || 0) > 0
       );
       controller.jumpChargeProgress = jumpChargeProgress;
-      controller.forcedAnimationState = predictionState.extracted ? 'win' : null;
+      controller.forcedAnimationState = predictionState.extracted ? 'win' : (localMounted ? 'sit' : null);
       if (controller.forcedAnimationState) {
         emoteManager.cancel();
       }
@@ -1396,8 +1483,8 @@ export async function createGameSession({
       controller.grabLocked = localGrabAnimTimer > 0;
       mouse.rotation.x = net.serverState?.grabbedBy ? Math.PI : 0;
       const cameraHumanMode = !!predictionState.isAdversary;
-      const cameraArm = cameraHumanMode ? HUMAN_CAMERA_ARM_LENGTH : MOUSE_CAMERA_ARM_LENGTH;
-      const cameraShoulderY = cameraHumanMode ? HUMAN_CAMERA_SHOULDER_Y : MOUSE_CAMERA_SHOULDER_Y;
+      const cameraArm = cameraHumanMode ? HUMAN_CAMERA_ARM_LENGTH : (localMounted ? MOUNT_CAMERA_ARM_LENGTH : MOUSE_CAMERA_ARM_LENGTH);
+      const cameraShoulderY = cameraHumanMode ? HUMAN_CAMERA_SHOULDER_Y : (localMounted ? MOUNT_CAMERA_SHOULDER_Y : MOUSE_CAMERA_SHOULDER_Y);
       thirdPersonCamera.setArmLength(dampValue(thirdPersonCamera.armLength, cameraArm, 7, PHYSICS_STEP));
       thirdPersonCamera.shoulderOffset.y = dampValue(
         thirdPersonCamera.shoulderOffset.y,
@@ -1409,25 +1496,26 @@ export async function createGameSession({
       controller._updateAnimation(PHYSICS_STEP);
       controller._updateCamera(PHYSICS_STEP);
       controller._handleAbilities();
-      const localExtractHoldActive = !!(
-        net.round?.phase === 'extract'
-        && controller.interactHeld
-        && !controller.chargedThrowHeld
+      const localHeldForChargedThrow = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
+      const localChargingSmackForSfx = !!(
+        controller.smackHeld
+        && controller.smackHoldMs >= CHARGED_SMACK_INDICATOR_HOLD_MS
+        && !localHeldForChargedThrow
+        && predictionState.alive !== false
         && !predictionState.extracted
         && !predictionState.spectator
       );
-      if (localExtractHoldActive) {
-        controller.smackHeld = false;
-        controller.smackHoldMs = 0;
-        controller.smackChargeProgress = 0;
-        controller.smackPressed = false;
-        controller.chargedSmackReleasePressed = false;
-      }
+      updateChargeSfxLoop(
+        chargedSmackSfxLoop,
+        localChargingSmackForSfx,
+        'chargehit',
+        predictionState.position,
+        timeMs,
+      );
       emoteManager.update(PHYSICS_STEP);
 
       if (net.connected) {
         const inputWithEmote = { ...input };
-        const localHeldForChargedThrow = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
         const localChargingThrow = localHeldForChargedThrow
           && (controller.chargedThrowHeld || controller.chargedThrowReleasePressed);
         const localQuickTossActive = !!(controller.quickTossHeld || controller.quickTossReleasePressed);
@@ -1469,13 +1557,13 @@ export async function createGameSession({
           inputWithEmote.grab = true;
           inputWithEmote.ropeGrab = true;
         }
-        if (!localExtractHoldActive && controller.smackPressed) {
+        if (controller.smackPressed) {
           inputWithEmote.smack = true;
           controller.smackPressed = false;
           _smackFiredThisFrame = true;
         }
-        inputWithEmote.smackHeld = !localExtractHoldActive && !!controller.smackHeld;
-        if (!localExtractHoldActive && controller.chargedSmackReleasePressed) {
+        inputWithEmote.smackHeld = !!controller.smackHeld;
+        if (controller.chargedSmackReleasePressed) {
           inputWithEmote.chargedSmackRelease = true;
           controller.chargedSmackReleasePressed = false;
           _smackFiredThisFrame = true;
@@ -1515,6 +1603,7 @@ export async function createGameSession({
     const frameKeys = controller.keys;
     const frameKb = controller.keyBindings;
     const frameCameraHumanMode = !!predictionState.isAdversary;
+    const frameLocalMounted = !!(predictionState.mountId || net.serverState?.mountId);
     const frameLocalHeldTarget = !!(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId);
     const throwAimCameraActive = !!(
       !frameCameraHumanMode
@@ -1524,8 +1613,8 @@ export async function createGameSession({
       && !predictionState.extracted
       && !predictionState.spectator
     );
-    const frameCameraArm = frameCameraHumanMode ? HUMAN_CAMERA_ARM_LENGTH : MOUSE_CAMERA_ARM_LENGTH;
-    const frameCameraShoulderY = frameCameraHumanMode ? HUMAN_CAMERA_SHOULDER_Y : MOUSE_CAMERA_SHOULDER_Y;
+    const frameCameraArm = frameCameraHumanMode ? HUMAN_CAMERA_ARM_LENGTH : (frameLocalMounted ? MOUNT_CAMERA_ARM_LENGTH : MOUSE_CAMERA_ARM_LENGTH);
+    const frameCameraShoulderY = frameCameraHumanMode ? HUMAN_CAMERA_SHOULDER_Y : (frameLocalMounted ? MOUNT_CAMERA_SHOULDER_Y : MOUSE_CAMERA_SHOULDER_Y);
     thirdPersonCamera.setArmLength(dampValue(thirdPersonCamera.armLength, frameCameraArm, 7, deltaSeconds));
     thirdPersonCamera.sideOffset = dampValue(
       thirdPersonCamera.sideOffset ?? 0,
@@ -1549,6 +1638,11 @@ export async function createGameSession({
         cat.applyServerState(serverCat);
         // Play cat sound on attack/roar transitions
         const catAi = serverCat.ai ?? 'idle';
+        if (catAi === 'stunned' && _prevCatAiState !== 'stunned') {
+          audioManager.playSoundAtPosition('catstun', new THREE.Vector3(
+            serverCat.px ?? 0, (serverCat.py ?? 0) + 0.5, serverCat.pz ?? 0,
+          ));
+        }
         if ((catAi === 'attack' || catAi === 'roar') && _prevCatAiState !== catAi) {
           audioManager.playSoundAtPosition('cat', new THREE.Vector3(
             serverCat.px ?? 0, (serverCat.py ?? 0) + 0.5, serverCat.pz ?? 0,
@@ -1599,6 +1693,14 @@ export async function createGameSession({
         }
         _prevSmackStun.set(pid, curStun);
 
+        const chargedHitSeq = Number(pState.chargedSmackHitSeq) || 0;
+        const prevChargedHitSeq = _prevChargedSmackHitSeq.get(pid) ?? 0;
+        if (chargedHitSeq > prevChargedHitSeq && pState.position) {
+          _spatialEventPos.set(pState.position.x, pState.position.y + 0.5, pState.position.z);
+          audioManager.playSoundAtPosition('bighit', _spatialEventPos);
+        }
+        _prevChargedSmackHitSeq.set(pid, chargedHitSeq);
+
         const prevGrab = _prevGrabbedTarget.get(pid) ?? null;
         const curGrab = pState.grabbedTarget ?? null;
         if (curGrab && !prevGrab) {
@@ -1607,6 +1709,14 @@ export async function createGameSession({
           audioManager.playSoundAtPosition('grab', _spatialEventPos);
         }
         _prevGrabbedTarget.set(pid, curGrab);
+
+        const bounceSeq = Number(pState.limpBounceHitSeq) || 0;
+        const prevBounceSeq = _prevLimpBounceHitSeq.get(pid) ?? 0;
+        if (bounceSeq > prevBounceSeq && pState.position) {
+          _spatialEventPos.set(pState.position.x, pState.position.y + 0.4, pState.position.z);
+          audioManager.playSoundAtPosition('bouncehit', _spatialEventPos);
+        }
+        _prevLimpBounceHitSeq.set(pid, bounceSeq);
 
         const burnSeq = Number(pState.burnEffectSeq) || 0;
         const prevBurnSeq = _prevBurnSeq.get(pid) ?? 0;
@@ -1724,9 +1834,7 @@ export async function createGameSession({
     mobileControls?.setHumanSwitchState?.(humanRolePatch);
 
     roundRaid.updatePhaseBanner(net.connected ? net.round : null, Date.now() / 1000, {
-      subtitle: (net.round?.phase === 'extract' && (net.serverState?.extractProgress ?? 0) > 0.02)
-        ? `Extract ${Math.round((net.serverState?.extractProgress ?? 0) * 100)}%`
-        : '',
+      subtitle: '',
     });
     mischiefMeter.update(net.connected ? net.serverState : predictionState, Date.now() / 1000);
 
@@ -1768,20 +1876,12 @@ export async function createGameSession({
     _prevExtractProgress = extractProgress;
     _wasExtracted = !!net.serverState?.extracted;
 
-    const showExtractRing = !!(
-      perfFlags.gameplayUi
-      && net.connected
-      && net.round?.phase === 'extract'
-      && extractProgress > 0.02
-      && !net.serverState?.extracted
-    );
-    updateExtractHoldRing(extractRing, showExtractRing, extractProgress);
+    updateExtractHoldRing(extractRing, false, extractProgress);
 
     const showChargedSmackReticle = !!(
       perfFlags.gameplayUi
       && controller.smackHeld
       && !(net.serverState?.grabbedTarget || net.serverState?.grabbedBallId)
-      && !(net.round?.phase === 'extract' && controller.interactHeld)
       && controller.smackHoldMs >= CHARGED_SMACK_INDICATOR_HOLD_MS
       && predictionState.alive !== false
       && !predictionState.extracted
@@ -1795,7 +1895,6 @@ export async function createGameSession({
     });
     const showChargedJumpReticle = !!(
       perfFlags.gameplayUi
-      && !jumpAutoFiredForHold
       && jumpHoldMs >= CHARGED_JUMP_INDICATOR_HOLD_MS
       && (
         predictionState.grounded
@@ -1847,8 +1946,8 @@ export async function createGameSession({
       groundOffset: mouse.groundOffset,
     });
     if (showChargedThrowReticle && timeMs >= chargedThrowSfxAt) {
-      audioManager.playSoundAtPosition('beep', predictionState.position);
-      chargedThrowSfxAt = timeMs + 260;
+      audioManager.playSoundAtPosition('spin', predictionState.position);
+      chargedThrowSfxAt = timeMs + 420;
     } else if (!showChargedThrowReticle) {
       chargedThrowSfxAt = 0;
     }
@@ -1902,6 +2001,39 @@ export async function createGameSession({
       connected: net.connected,
       balls,
     });
+    dynamicWorldItems.updateMounts({
+      connected: net.connected,
+      mounts: net.mounts,
+      deltaSeconds,
+    });
+    applySmoothedMountedRiderVisual();
+    const localMountId = net.serverState?.mountId ?? predictionState.mountId ?? null;
+    if (localMountId && localMountId !== prevLocalMountId) {
+      const mount = findMountSnapshot(localMountId);
+      if (mount) {
+        audioManager.playSoundAtPosition('birdhappy', {
+          x: mount.x ?? predictionState.position.x,
+          y: (mount.y ?? predictionState.position.y) + 0.45,
+          z: mount.z ?? predictionState.position.z,
+        });
+      }
+      nextBirdIdleChirpAt = nowSeconds + 4.5;
+    } else if (!localMountId) {
+      nextBirdIdleChirpAt = 0;
+    } else if (nowSeconds >= nextBirdIdleChirpAt) {
+      const mount = findMountSnapshot(localMountId);
+      if (mount && (mount.animState === 'idle' || mount.animState === 'glide')) {
+        audioManager.playSoundAtPosition('birdidle', {
+          x: mount.x ?? predictionState.position.x,
+          y: (mount.y ?? predictionState.position.y) + 0.45,
+          z: mount.z ?? predictionState.position.z,
+        });
+        nextBirdIdleChirpAt = nowSeconds + 5.5 + Math.random() * 2.5;
+      } else {
+        nextBirdIdleChirpAt = nowSeconds + 1.5;
+      }
+    }
+    prevLocalMountId = localMountId;
 
     // Context-aware hints for held objects, ropes, and ball handling.
     const hintResult = buildGameplayHint({

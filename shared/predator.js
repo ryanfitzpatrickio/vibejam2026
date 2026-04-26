@@ -161,6 +161,7 @@ export function createPredatorState(config) {
     chaseBallPos: { x: 0, y: 0, z: 0 },
     chaseBallTimer: 0,
     chaseBallStillTimer: 0,
+    chaseBallFavoriteToy: false,
 
     /** null | 'look_hop' | 'look_hold' | 'drop_prep' | 'drop_air' */
     elevationSearchPhase: null,
@@ -1084,6 +1085,40 @@ function findDistractingBall(state, balls) {
   return best;
 }
 
+function findHeldFavoriteToy(balls) {
+  if (!Array.isArray(balls) || balls.length === 0) return null;
+  return balls.find((b) => b?.favoriteToy === true && b.grabbedBy) ?? null;
+}
+
+function favoriteToyHolder(players, toy) {
+  if (!toy?.grabbedBy) return null;
+  const player = players?.[toy.grabbedBy] ?? null;
+  if (!player?.alive || player.spectator || player.extracted) return null;
+  return player;
+}
+
+function beginFavoriteToyChase(state, toy) {
+  if (!toy?.id || !toy.grabbedBy) return;
+  if (state.aiState !== PREDATOR_AI.CHASE_BALL || state.chaseBallTargetId !== toy.id || !state.chaseBallFavoriteToy) {
+    clearPredatorNavPath(state);
+  }
+  state.chaseTargetId = toy.grabbedBy;
+  state.aggroTargetId = toy.grabbedBy;
+  state.aggroTargetThreat = 999;
+  state.aiState = PREDATOR_AI.CHASE_BALL;
+  state.chaseBallFavoriteToy = true;
+  state.chaseBallTimer = BALL_CHASE_MAX_TIME;
+  state.chaseBallStillTimer = 0;
+  state.chaseBallTargetId = toy.id;
+  state.chaseBallPos.x = toy.x;
+  state.chaseBallPos.y = toy.y;
+  state.chaseBallPos.z = toy.z;
+  state.chaseVerticalPhase = null;
+  state.chasePrepTimer = 0;
+  state.chaseAirTimer = 0;
+  state.chaseJumpHasTarget = false;
+}
+
 export function simulatePredatorTick(state, players, dt, colliders, navMesh = null, balls = null) {
   if (!state.alive) return null;
 
@@ -1104,6 +1139,8 @@ export function simulatePredatorTick(state, players, dt, colliders, navMesh = nu
   const huntEligibleMice = huntEligibleMiceSorted(state, sortedMice, colliders);
   const aggroPrey = firstHuntEligibleMouseInAggro(state, sortedMice, colliders);
   const preyInAggro = aggroPrey != null;
+  const favoriteToy = findHeldFavoriteToy(balls);
+  const favoriteToyActive = !!favoriteToyHolder(players, favoriteToy);
 
   const ambientGroundStates = new Set([
     PREDATOR_AI.IDLE,
@@ -1132,7 +1169,13 @@ export function simulatePredatorTick(state, players, dt, colliders, navMesh = nu
     && state.chaseVerticalPhase !== 'prep_jump'
     && state.chaseVerticalPhase !== 'prep_drop'
     && state.chaseVerticalPhase !== 'air';
-  if (ballDistractionAllowed) {
+  const favoriteToyChaseAllowed = state.aiState !== PREDATOR_AI.ATTACK
+    && state.aiState !== PREDATOR_AI.STUNNED
+    && state.aiState !== PREDATOR_AI.DEATH
+    && state.aiState !== PREDATOR_AI.COOLDOWN;
+  if (favoriteToyActive && favoriteToyChaseAllowed) {
+    beginFavoriteToyChase(state, favoriteToy);
+  } else if (ballDistractionAllowed) {
     const distractor = findDistractingBall(state, balls);
     if (distractor) {
       if (state.aiState === PREDATOR_AI.CHASE) {
@@ -1147,6 +1190,7 @@ export function simulatePredatorTick(state, players, dt, colliders, navMesh = nu
         state.chaseBallStillTimer = 0;
       }
       state.chaseBallTargetId = distractor.id;
+      state.chaseBallFavoriteToy = false;
       state.chaseBallPos.x = distractor.x;
       state.chaseBallPos.y = distractor.y;
       state.chaseBallPos.z = distractor.z;
@@ -1931,6 +1975,14 @@ export function simulatePredatorTick(state, players, dt, colliders, navMesh = nu
       const target = Array.isArray(balls)
         ? balls.find((b) => b.id === state.chaseBallTargetId)
         : null;
+      const favoriteActive = !!favoriteToyHolder(players, target?.favoriteToy === true ? target : null);
+      if (favoriteActive) {
+        state.chaseTargetId = target.grabbedBy;
+        state.aggroTargetId = target.grabbedBy;
+        state.aggroTargetThreat = 999;
+        state.chaseBallFavoriteToy = true;
+        state.chaseBallTimer = BALL_CHASE_MAX_TIME;
+      }
       const targetSpeed = target
         ? Math.sqrt((target.vx || 0) * (target.vx || 0) + (target.vz || 0) * (target.vz || 0))
         : 0;
@@ -1942,9 +1994,11 @@ export function simulatePredatorTick(state, players, dt, colliders, navMesh = nu
       state.chaseBallTimer -= dt;
       const dist = distXZ(state.position, state.chaseBallPos);
 
-      if (!target || state.chaseBallTimer <= 0 || dist > BALL_GIVEUP_DIST) {
+      if (!target || (!favoriteActive && (state.chaseBallTimer <= 0 || dist > BALL_GIVEUP_DIST))) {
         state.chaseBallTargetId = null;
+        state.chaseBallFavoriteToy = false;
         state.chaseBallStillTimer = 0;
+        clearPredatorAggroTarget(state);
         clearPredatorNavPath(state);
         state.aiState = PREDATOR_AI.PATROL;
         state.patrolTarget.x = state.spawnPoint.x;
@@ -1953,11 +2007,13 @@ export function simulatePredatorTick(state, players, dt, colliders, navMesh = nu
         break;
       }
 
-      if (targetSpeed < BALL_NOTICE_SPEED * 0.5 && dist < 2.4) {
+      if (!favoriteActive && targetSpeed < BALL_NOTICE_SPEED * 0.5 && dist < 2.4) {
         state.chaseBallStillTimer += dt;
         if (state.chaseBallStillTimer >= BALL_STILL_GIVEUP_TIME) {
           state.chaseBallTargetId = null;
+          state.chaseBallFavoriteToy = false;
           state.chaseBallStillTimer = 0;
+          clearPredatorAggroTarget(state);
           clearPredatorNavPath(state);
           state.aiState = PREDATOR_AI.IDLE;
           state.aiTimer = initialIdleDelay();
@@ -1974,7 +2030,18 @@ export function simulatePredatorTick(state, players, dt, colliders, navMesh = nu
         z: state.chaseBallPos.z,
       };
       const ballChaseSpeed = state.chaseSpeed * 0.9;
-      const movedBall = navSteerMove(state, ballDest, navMesh, ballChaseSpeed, dt);
+      let movedBall = false;
+      if (favoriteActive) {
+        const dir = normalizeXZ({
+          x: ballDest.x - state.position.x,
+          z: ballDest.z - state.position.z,
+        });
+        moveToward(state, dir, ballChaseSpeed, dt);
+        faceDirection(state, dir, dt);
+        movedBall = true;
+      } else {
+        movedBall = navSteerMove(state, ballDest, navMesh, ballChaseSpeed, dt);
+      }
       if (!movedBall) {
         const dir = normalizeXZ({
           x: ballDest.x - state.position.x,

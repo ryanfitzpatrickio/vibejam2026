@@ -2,7 +2,7 @@ import { PHYSICS } from '../shared/physics.js';
 import { simulatePredatorTick } from '../shared/predator.js';
 import { simulateRoombaTick } from '../shared/roomba.js';
 import { playerChaseRecordSeconds, tickPlayerChaseScores } from '../shared/chaseScore.js';
-import { EXTRACT_HOLD_SECONDS, LIVES_PER_ROUND } from '../shared/roundState.js';
+import { LIVES_PER_ROUND } from '../shared/roundState.js';
 import { MISCHIEF_POINTS } from './interactionTuning.js';
 
 const HOT_SURFACE_COOLDOWN_SECONDS = 0.85;
@@ -75,7 +75,7 @@ function stepPredators(runtime, dt, mousePlayersObj) {
       dt,
       runtime.levelColliders,
       runtime.levelNavMesh,
-      runtime.pushBallWorld.getBallsForAi(),
+      runtime.pushBallWorld.getBallsForAi(runtime.players),
     );
     if (!hit) continue;
     const target = runtime.players.get(hit.playerId);
@@ -164,27 +164,28 @@ function applyHotSurfaces(runtime, dt) {
 
 function updateExtraction(runtime, dt, now) {
   if (runtime.round.phase === 'extract') {
-    for (const [, state] of runtime.players) {
+    for (const [pid, state] of runtime.players) {
       if (!state.alive || state.spectator || state.extracted || state.isAdversary) {
         if (!state.extracted) state.extractProgress = 0;
         continue;
       }
-      const held = !!state._interactHeld;
       const near = isNearExtractionPortal(state.position.x, state.position.z, runtime.extractionPortalDefs);
-      if (held && near) {
-        state.extractProgress = Math.min(1, (state.extractProgress ?? 0) + dt / EXTRACT_HOLD_SECONDS);
-        if (state.extractProgress >= 1) {
-          state.extracted = true;
-          state.extractProgress = 1;
-          state.animState = 'win';
-          state.emote = null;
-          state.velocity.x = 0;
-          state.velocity.z = 0;
-          runtime._awardMischief(state, MISCHIEF_POINTS.extract, now);
-        }
-      } else {
-        state.extractProgress = Math.max(0, (state.extractProgress ?? 0) - dt * 1.15);
+      if (!near) {
+        state.extractProgress = 0;
+        continue;
       }
+      state.extracted = true;
+      state.extractProgress = 1;
+      state.animState = 'win';
+      state.emote = null;
+      state.velocity.x = 0;
+      state.velocity.z = 0;
+      state.ropeSwing = null;
+      runtime.mouseLaunchWorld.removePlayer(pid);
+      runtime.ropeWorld.removePlayer(pid);
+      runtime.fanWorld.removePlayer(pid);
+      runtime.mountWorld?.clearPlayer?.(pid, state);
+      runtime._awardMischief(state, MISCHIEF_POINTS.extract, now);
     }
   } else {
     for (const state of runtime.players.values()) {
@@ -217,6 +218,7 @@ export function stepWorldAndScore(runtime, dt, now) {
   runtime.mouseLaunchWorld.step(dt, (pid) => runtime.players.get(pid));
   runtime.ropeWorld.step(dt, (pid) => runtime.players.get(pid));
   runtime.fanWorld.step(dt, runtime.players);
+  runtime.mountWorld?.stepCelebrations?.(dt, undefined, runtime.levelColliders);
   updateCheeseAndRoundStats(runtime, dt, now);
   applyHotSurfaces(runtime, dt);
   updateExtraction(runtime, dt, now);

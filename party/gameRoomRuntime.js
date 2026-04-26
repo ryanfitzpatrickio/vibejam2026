@@ -16,6 +16,7 @@ import { collectSpawnPointsFromLayout } from '../shared/spawnPoints.js';
 import { collectVibePortalPlacementsFromLayout } from '../shared/vibePortal.js';
 import { StatsTracker } from './stats.js';
 import { createPushBallWorld } from './pushBallWorld.js';
+import { createMountWorld } from './mountWorld.js';
 import { createRoombaCannonWorld } from './roombaCannonWorld.js';
 import { createMouseLaunchWorld } from './mouseLaunchWorld.js';
 import { createRopeWorld } from './ropeWorld.js';
@@ -233,6 +234,7 @@ export default class GameRoomRuntime {
     });
     this.predators = [];
     this.pushBallWorld = createPushBallWorld();
+    this.mountWorld = createMountWorld();
     this.roombaCannonWorld = createRoombaCannonWorld();
     this.mouseLaunchWorld = createMouseLaunchWorld();
     this.ropeWorld = createRopeWorld({ ropes: Array.isArray(kitchenLayout?.ropes) ? kitchenLayout.ropes : null });
@@ -282,6 +284,8 @@ export default class GameRoomRuntime {
       this.ropeWorld?.setRopes?.(layout.ropes);
     }
     this.fanWorld?.setFans?.(layout?.fans);
+    this.pushBallWorld?.setGlbProps?.(layout);
+    this.mountWorld?.setMounts?.(layout);
     this.cheeseWorld.setNavMesh(this.levelMouseNavMesh);
     if (resetPredators) {
       this.predators = [];
@@ -406,6 +410,7 @@ export default class GameRoomRuntime {
       this.mouseLaunchWorld?.removePlayer?.(id);
       this.ropeWorld?.removePlayer?.(id);
       this.fanWorld?.removePlayer?.(id);
+      this.mountWorld?.clearPlayer?.(id, botState);
       this._lastRopeGrab?.delete(id);
       this._lastRopeJump?.delete(id);
       this.players.delete(id);
@@ -564,6 +569,7 @@ export default class GameRoomRuntime {
       this.mouseLaunchWorld?.removePlayer?.(conn.id);
       this.ropeWorld?.removePlayer?.(conn.id);
       this.fanWorld?.removePlayer?.(conn.id);
+      this.mountWorld?.clearPlayer?.(conn.id, leaving);
       this._lastRopeGrab?.delete(conn.id);
       this._lastRopeJump?.delete(conn.id);
       this.players.delete(conn.id);
@@ -785,7 +791,26 @@ export default class GameRoomRuntime {
 
       if (this.round.phase === 'intermission') {
         state.emote = null;
-        if (state.extracted && state.alive && !state.isAdversary) {
+        const celebrationTimer = Math.max(0, Number(state._roundEndMountCelebrationTimer) || 0);
+        if (celebrationTimer > 0) {
+          state._roundEndMountCelebrationTimer = Math.max(0, celebrationTimer - dt);
+          state.velocity.y += PHYSICS.gravity * dt;
+          state.position.y += state.velocity.y * dt;
+          const groundY = Number.isFinite(Number(state._roundEndMountCelebrationGroundY))
+            ? Number(state._roundEndMountCelebrationGroundY)
+            : 0;
+          if (state.position.y <= groundY && state.velocity.y <= 0) {
+            state.position.y = groundY;
+            state.velocity.y = 0;
+            state.grounded = true;
+            state._roundEndMountCelebrationTimer = 0;
+            state._roundEndMountCelebrationGroundY = null;
+            state.animState = state.extracted && state.alive && !state.isAdversary ? 'win' : 'idle';
+          } else {
+            state.grounded = false;
+            state.animState = 'jump';
+          }
+        } else if (state.extracted && state.alive && !state.isAdversary) {
           state.animState = 'win';
         }
         state.velocity.x = 0;
@@ -807,6 +832,7 @@ export default class GameRoomRuntime {
       }
 
       if (state.extracted && state.alive) {
+        if (state.mountId) this.mountWorld?.clearPlayer?.(id, state);
         state.emote = null;
         state.animState = 'win';
         state.velocity.x = 0;
@@ -833,6 +859,9 @@ export default class GameRoomRuntime {
 
       // --- Smack stun recovery ---
       if (state.smackStunTimer > 0) {
+        if (state.smackLimpThrowWindowTimer > 0) {
+          state.smackLimpThrowWindowTimer = Math.max(0, state.smackLimpThrowWindowTimer - dt);
+        }
         state.smackStunTimer = Math.max(0, state.smackStunTimer - dt);
         if (state.smackStunTimer <= 0) {
           // Recover from smack stun
@@ -857,6 +886,7 @@ export default class GameRoomRuntime {
       }
 
       if (!state.alive) {
+        if (state.mountId) this.mountWorld?.clearPlayer?.(id, state);
         if (state.spectator) {
           seqs[id] = this._lastSeq?.get(id) ?? 0;
           if (isHuman) {
@@ -876,6 +906,7 @@ export default class GameRoomRuntime {
           this.mouseLaunchWorld.removePlayer(id);
           this.ropeWorld.removePlayer(id);
           this.fanWorld.removePlayer(id);
+          this.mountWorld?.clearPlayer?.(id, state);
           this._lastRopeGrab.delete(id);
           this._lastRopeJump.delete(id);
           const spawn = this._pickRespawnPoint();
@@ -975,6 +1006,182 @@ export default class GameRoomRuntime {
         continue;
       }
 
+      if (state.mountId) {
+        if (this.ropeWorld.isSwinging(id)) this.ropeWorld.removePlayer(id);
+        if (this.fanWorld.isAttached(id)) this.fanWorld.removePlayer(id);
+        if (isHuman) {
+          const queue = this.inputQueues.get(id);
+          let latestInput = null;
+          let lastGrab = !!state._grabHeldInput;
+          let lastQuickToss = !!state._quickTossHeldInput;
+          let anyJumpPressed = false;
+          let dismountPressed = false;
+          let didSmack = false;
+          let didThrow = false;
+          let chargedSmackReleaseReq = false;
+          let chargedThrowReleaseReq = false;
+          let quickTossReleaseReq = false;
+          if (queue && queue.length > 0) {
+            for (const input of queue) {
+              latestInput = input;
+              seqs[id] = input.seq;
+              lastGrab = !!input.grab;
+              if (input.jumpPressed || input.jump) anyJumpPressed = true;
+              if (input.smack) didSmack = true;
+              if (input.chargedSmackRelease) chargedSmackReleaseReq = true;
+              if (input.throw) didThrow = true;
+              if (input.chargedThrowRelease) chargedThrowReleaseReq = true;
+              if (input.quickTossRelease) quickTossReleaseReq = true;
+              lastQuickToss = !!input.quickTossHeld;
+            }
+            queue.length = 0;
+            if (!this._lastSeq) this._lastSeq = new Map();
+            this._lastSeq.set(id, seqs[id]);
+          } else {
+            seqs[id] = this._lastSeq?.get(id) ?? 0;
+          }
+          const hasMountedInput = !!latestInput;
+          const mountedInput = latestInput ?? {
+            moveX: 0,
+            moveZ: 0,
+            jump: false,
+            jumpHeld: false,
+            crouch: false,
+            rotation: state.rotation,
+            interactHeld: !!state._interactHeld,
+          };
+          const canChargeThrow = !!(state.grabbedTarget || state.grabbedBallId);
+          const throwInputActive = canChargeThrow && !!(
+            mountedInput.chargedThrowHeld
+            || chargedThrowReleaseReq
+            || lastQuickToss
+            || quickTossReleaseReq
+            || didThrow
+          );
+          if (state._suppressMountReleaseSmack) {
+            didSmack = false;
+            chargedSmackReleaseReq = false;
+            mountedInput.smackHeld = false;
+            state._chargedSmackHoldSeconds = 0;
+            if (hasMountedInput && !mountedInput.interactHeld) state._suppressMountReleaseSmack = false;
+          }
+          dismountPressed = didSmack && !chargedSmackReleaseReq && !throwInputActive && !lastGrab;
+          mountedInput.jumpPressed = anyJumpPressed;
+          mountedInput.dismountPressed = dismountPressed;
+          mountedInput.dismountBlocked = throwInputActive || lastGrab;
+          state._interactHeld = !!mountedInput.interactHeld;
+          const rotBeforeMountUpdate = state.rotation ?? 0;
+          this.mountWorld.updateMountedPlayer(id, state, mountedInput, dt, BOUNDS, this.levelColliders);
+          if ((state.grabbedTarget || state.grabbedBallId) && throwInputActive) {
+            const spinGain = Math.max(0, yawDeltaAbs(state.rotation, rotBeforeMountUpdate) - 0.035);
+            state._throwSpinCharge = Math.min(1.5, Math.max(0, Number(state._throwSpinCharge) || 0) + spinGain * 2.6);
+          } else {
+            state._throwSpinCharge = Math.max(0, (Number(state._throwSpinCharge) || 0) - dt * 2.2);
+          }
+          if (chargedSmackReleaseReq) {
+            chargedSmackRequests.push({ id, chargeSeconds: Number(state._chargedSmackHoldSeconds) || 0 });
+            state._chargedSmackHoldSeconds = 0;
+          } else if (mountedInput?.smackHeld && state.alive && !canChargeThrow) {
+            state._chargedSmackHoldSeconds = Math.min(
+              CHARGED_SMACK_MAX_HOLD_SECONDS,
+              (Number(state._chargedSmackHoldSeconds) || 0) + dt,
+            );
+          } else if (!mountedInput?.smackHeld) {
+            state._chargedSmackHoldSeconds = 0;
+          }
+          if (canChargeThrow && (mountedInput?.chargedThrowHeld || chargedThrowReleaseReq)) {
+            const aimX = Number(mountedInput?.chargedThrowAimX) || 0;
+            const aimZ = Number(mountedInput?.chargedThrowAimZ) || 0;
+            const aimLen = Math.hypot(aimX, aimZ);
+            if (aimLen > 0.001) {
+              state._chargedThrowAimX = aimX / aimLen;
+              state._chargedThrowAimZ = aimZ / aimLen;
+            }
+          }
+          if (canChargeThrow && (mountedInput?.chargedThrowHeld || chargedThrowReleaseReq || didThrow)) {
+            state._suppressSmackUntil = Math.max(
+              Number(state._suppressSmackUntil) || 0,
+              now + THROW_SMACK_SUPPRESS_SECONDS,
+            );
+          }
+          if (chargedThrowReleaseReq && canChargeThrow) {
+            chargedThrowRequests.push({ id, chargeSeconds: Number(state._chargedThrowHoldSeconds) || 0 });
+            state._chargedThrowHoldSeconds = 0;
+          } else if (mountedInput?.chargedThrowHeld && state.alive && canChargeThrow) {
+            state._chargedThrowHoldSeconds = Math.min(
+              CHARGED_THROW_MIN_HOLD_SECONDS,
+              (Number(state._chargedThrowHoldSeconds) || 0) + dt,
+            );
+          } else {
+            state._chargedThrowHoldSeconds = 0;
+          }
+          if (lastQuickToss || quickTossReleaseReq) {
+            const aimX = Number(mountedInput?.quickTossAimX) || 0;
+            const aimZ = Number(mountedInput?.quickTossAimZ) || 0;
+            const aimLen = Math.hypot(aimX, aimZ);
+            if (aimLen > 0.001) {
+              state._quickTossAimX = aimX / aimLen;
+              state._quickTossAimZ = aimZ / aimLen;
+            }
+            state._suppressSmackUntil = Math.max(
+              Number(state._suppressSmackUntil) || 0,
+              now + THROW_SMACK_SUPPRESS_SECONDS,
+            );
+          }
+          if (quickTossReleaseReq) {
+            quickTossReleaseIds.add(id);
+            quickTossRequests.push({ id, chargeSeconds: Number(state._quickTossHoldSeconds) || 0 });
+            state._quickTossHoldSeconds = 0;
+            state._quickTossHeldInput = false;
+          } else if (lastQuickToss && state.alive) {
+            if (state.grabbedTarget && state._quickTossActive) {
+              state._quickTossHoldSeconds = Math.min(
+                QUICK_TOSS_FULL_HOLD_SECONDS,
+                (Number(state._quickTossHoldSeconds) || 0) + dt,
+              );
+            }
+          } else {
+            state._quickTossHoldSeconds = 0;
+            state._quickTossHeldInput = false;
+            state._quickTossActive = false;
+          }
+          state._grabHeldInput = lastGrab;
+          if (lastGrab) {
+            grabHeld.add(id);
+            const retryAt = Number(state._nextGrabAttemptAt) || 0;
+            if (!state.grabbedTarget && !state.grabbedBallId && retryAt <= now) {
+              grabAttempts.add(id);
+              state._nextGrabAttemptAt = now + GRAB_RETRY_INTERVAL_SECONDS;
+            }
+          } else {
+            state._nextGrabAttemptAt = 0;
+          }
+          if (lastQuickToss) {
+            grabHeld.add(id);
+            const retryAt = Number(state._nextQuickTossAttemptAt) || 0;
+            if (!state.grabbedTarget && !state.grabbedBallId && retryAt <= now) {
+              quickTossAttempts.add(id);
+              state._nextQuickTossAttemptAt = now + GRAB_RETRY_INTERVAL_SECONDS;
+            }
+          } else {
+            state._nextQuickTossAttemptAt = 0;
+          }
+          if (didThrow) throwRequests.add(id);
+        } else {
+          this.mountWorld.updateMountedPlayer(id, state, {
+            moveX: 0,
+            moveZ: 0,
+            jump: false,
+            jumpHeld: false,
+            crouch: false,
+            rotation: state.rotation,
+            interactHeld: false,
+          }, dt, BOUNDS, this.levelColliders);
+          seqs[id] = 0;
+        }
+        continue;
+      }
+
       if (isHuman) {
         const queue = this.inputQueues.get(id);
         if (!queue || queue.length === 0) {
@@ -1015,6 +1222,7 @@ export default class GameRoomRuntime {
           }, dt, BOUNDS, this.levelColliders, vacuumPull);
           state._chargedJumpHoldSeconds = 0;
           state.emote = null;
+          state._prevMountInteractHeld = false;
           seqs[id] = this._lastSeq?.get(id) ?? 0;
         } else {
           let didSmack = false;
@@ -1082,10 +1290,20 @@ export default class GameRoomRuntime {
             runningJump = jumpNow;
           }
           state._interactHeld = !!(latestInput?.interactHeld);
-          const suppressSmackForExtract = this.round.phase === 'extract' && state._interactHeld;
-          if (suppressSmackForExtract) {
+          const mountInteractPressed = state._interactHeld && !state._prevMountInteractHeld;
+          state._prevMountInteractHeld = state._interactHeld;
+          const mountedThisTick = mountInteractPressed && this.mountWorld?.tryMountNearest?.(id, state);
+          if (mountedThisTick) {
+            didSmack = false;
+            chargedSmackReleaseReq = false;
+            state._suppressMountReleaseSmack = true;
             state._chargedSmackHoldSeconds = 0;
-          } else if (chargedSmackReleaseReq) {
+            state._chargedThrowHoldSeconds = 0;
+            state._quickTossHoldSeconds = 0;
+            state._quickTossActive = false;
+            lastQuickToss = false;
+          }
+          if (chargedSmackReleaseReq) {
             chargedSmackRequests.push({ id, chargeSeconds: Number(state._chargedSmackHoldSeconds) || 0 });
             state._chargedSmackHoldSeconds = 0;
           } else if (latestInput?.smackHeld && state.alive) {
@@ -1285,6 +1503,7 @@ export default class GameRoomRuntime {
             reservedGoalPositions,
             roundPhase: this.round.phase,
             extractionPortals: this.extractionPortalDefs,
+            hotSurfaceZones: this.hotSurfaceZones,
           },
         );
         const vacuumPull = roombaForVacuum?.phase === 'vacuuming'
@@ -1293,9 +1512,6 @@ export default class GameRoomRuntime {
         simulatePlayerTick(state, input, dt, BOUNDS, this.levelColliders, vacuumPull);
         state.emote = input.emote ?? null;
         state._interactHeld = !!input.interactHeld;
-        if (this.round.phase === 'extract' && state._interactHeld) {
-          state._chargedSmackHoldSeconds = 0;
-        }
         seqs[id] = 0;
       }
     }

@@ -44,6 +44,10 @@ export function copyServerToPrediction(predictionState, ss) {
   predictionState.extracted = !!ss.extracted;
   predictionState.extractProgress = ss.extractProgress ?? 0;
   predictionState.animState = ss.animState ?? predictionState.animState;
+  predictionState.mountId = ss.mountId ?? null;
+  predictionState.smackLimpThrowWindowTimer = ss.smackLimpThrowWindowTimer ?? 0;
+  predictionState.limpThrownBounceTimer = ss.limpThrownBounceTimer ?? 0;
+  predictionState.limpBounceHitSeq = ss.limpBounceHitSeq ?? 0;
   predictionState.isAdversary = !!ss.isAdversary;
   predictionState.adversaryRole = ss.adversaryRole ?? null;
   predictionState.adversarySafeSeconds = ss.adversarySafeSeconds ?? 0;
@@ -88,6 +92,12 @@ export function createRenderPositionSmoother() {
     return position;
   }
 
+  function snapToWorld(worldPosition) {
+    position.copy(worldPosition);
+    initialized = true;
+    return position;
+  }
+
   function updateFromPrediction(predictionState, groundOffset = 0, deltaSeconds = 1 / 30) {
     const targetX = predictionState.position.x;
     const targetY = predictionState.position.y + groundOffset;
@@ -120,6 +130,7 @@ export function createRenderPositionSmoother() {
     position,
     isInitialized: () => initialized,
     snapToPrediction,
+    snapToWorld,
     updateFromPrediction,
   };
 }

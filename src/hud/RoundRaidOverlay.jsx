@@ -412,7 +412,7 @@ function RoundRaidView(props) {
               'letter-spacing': '0.08em',
             }}
           >
-            Hold {actionLabel('interact')} in a glowing hole
+            Stand in a glowing hole
           </div>
         </div>
       </div>
@@ -917,7 +917,7 @@ export class RoundRaidOverlay {
     const label = round.phase === 'forage'
       ? `FORAGE  ·  ${formatClock(remain)}`
       : round.phase === 'extract'
-        ? `EXTRACT  ·  ${formatClock(remain)}  ·  Hold ${actionLabel('interact')} in a glowing hole`
+        ? `EXTRACT  ·  ${formatClock(remain)}  ·  Stand in a glowing hole`
         : `ROUND END  ·  ${formatClock(remain)}`;
     const sub = hints.subtitle ? `\n${hints.subtitle}` : '';
     const text = `${label}${sub}`;

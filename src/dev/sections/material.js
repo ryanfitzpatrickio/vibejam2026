@@ -1,8 +1,10 @@
 import { clamp } from '../editorShared.js';
 import {
   createSection,
+  createCheckbox,
   createNumberField,
   createRangeField,
+  createVectorInputs,
   createVector2Inputs,
   styleField,
 } from '../ui/fields.js';
@@ -143,5 +145,72 @@ export function installMaterialSection(editor) {
     editor._updateSelected((primitive) => {
       primitive.material.metalness = value;
     });
+  });
+
+  editor.glbPropPhysicsRadiusInput = createNumberField(section, 'Physics Radius', {
+    step: 0.05,
+    min: 0.12,
+    max: 2.5,
+  }, (value) => {
+    editor._updateSelected((primitive) => {
+      primitive.physicsRadius = Number.isFinite(value) ? Math.max(0.12, Math.min(2.5, value)) : primitive.physicsRadius;
+    }, { snapPosition: false, snapScale: false });
+  });
+
+  const shapeWrap = document.createElement('label');
+  shapeWrap.textContent = 'Physics Shape';
+  Object.assign(shapeWrap.style, {
+    display: 'grid',
+    gap: '4px',
+    color: '#d7c5a7',
+    marginTop: '8px',
+  });
+  editor.glbPropPhysicsShapeSelect = document.createElement('select');
+  styleField(editor.glbPropPhysicsShapeSelect);
+  [
+    ['sphere', 'Sphere'],
+    ['box', 'Box / square'],
+    ['openBox', 'Open box / bag'],
+    ['cylinder', 'Cylinder / polygon'],
+  ].forEach(([value, labelText]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = labelText;
+    editor.glbPropPhysicsShapeSelect.appendChild(option);
+  });
+  editor.glbPropPhysicsShapeSelect.addEventListener('change', () => {
+    editor._updateSelected((primitive) => {
+      primitive.physicsShape = editor.glbPropPhysicsShapeSelect.value;
+    }, { snapPosition: false, snapScale: false });
+  });
+  shapeWrap.appendChild(editor.glbPropPhysicsShapeSelect);
+  section.appendChild(shapeWrap);
+  editor.glbPropPhysicsShapeSelect._wrap = shapeWrap;
+
+  editor.glbPropPhysicsSizeInputs = createVectorInputs(section, 'Physics Size', {
+    step: 0.05,
+    min: 0.05,
+    max: 5,
+  }, (axis, value) => {
+    editor._updateSelected((primitive) => {
+      primitive.physicsSize = primitive.physicsSize ?? { x: 1, y: 1, z: 1 };
+      primitive.physicsSize[axis] = Number.isFinite(value) ? Math.max(0.05, Math.min(5, value)) : primitive.physicsSize[axis];
+    }, { snapPosition: false, snapScale: false });
+  });
+
+  editor.glbPropPhysicsMassInput = createNumberField(section, 'Physics Mass', {
+    step: 0.25,
+    min: 0.2,
+    max: 80,
+  }, (value) => {
+    editor._updateSelected((primitive) => {
+      primitive.physicsMass = Number.isFinite(value) ? Math.max(0.2, Math.min(80, value)) : primitive.physicsMass;
+    }, { snapPosition: false, snapScale: false });
+  });
+
+  editor.glbPropCatFavoriteToyToggle = createCheckbox('Cat favorite toy', section, (checked) => {
+    editor._updateSelected((primitive) => {
+      primitive.catFavoriteToy = checked === true;
+    }, { snapPosition: false, snapScale: false });
   });
 }

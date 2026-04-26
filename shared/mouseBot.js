@@ -52,6 +52,12 @@ const TEASE_EMOTE_MIN_INTERVAL = 3.4;
 const TEASE_EMOTE_MAX_INTERVAL = 6.2;
 const TEASE_EMOTE_DURATION = 0.75;
 const TEASE_EMOTES = ['laugh', 'dance', 'wave', 'thumbsup', 'scream'];
+const HOT_SURFACE_AVOID_MARGIN = 0.42;
+const HOT_SURFACE_NEAR_MARGIN = 1.15;
+const HOT_SURFACE_PATH_SAMPLE_STEP = 0.55;
+const HOT_SURFACE_STEER_LOOKAHEAD = 0.85;
+const HOT_SURFACE_STEER_PUSH = 1.45;
+const HOT_SURFACE_GOAL_PENALTY = 80;
 
 /** Prefer goals at least this far from other alive players (reduces clumping). */
 const PEER_GOAL_SEPARATION = 3.8;
@@ -122,6 +128,176 @@ function clampXZ(x, z, bounds, pad) {
     y: 0,
     z: Math.min(bounds.maxZ - r, Math.max(bounds.minZ + r, z)),
   };
+}
+
+function hasHotSurfaceZones(hotSurfaceZones) {
+  return Array.isArray(hotSurfaceZones) && hotSurfaceZones.length > 0;
+}
+
+function hotZoneVerticalOverlaps(zone, point, yMargin = 0.4) {
+  if (!Number.isFinite(zone?.minY) || !Number.isFinite(zone?.maxY)) return true;
+  const y = Number(point?.y);
+  if (!Number.isFinite(y)) return true;
+  return y >= zone.minY - yMargin && y <= zone.maxY + yMargin;
+}
+
+function hotZoneContainsPoint(zone, point, margin = 0, yMargin = 0.4) {
+  if (!zone || !point || !hotZoneVerticalOverlaps(zone, point, yMargin)) return false;
+  return point.x >= zone.minX - margin
+    && point.x <= zone.maxX + margin
+    && point.z >= zone.minZ - margin
+    && point.z <= zone.maxZ + margin;
+}
+
+function hotZoneDistanceSqXZ(zone, point, margin = 0) {
+  const minX = zone.minX - margin;
+  const maxX = zone.maxX + margin;
+  const minZ = zone.minZ - margin;
+  const maxZ = zone.maxZ + margin;
+  const dx = point.x < minX ? minX - point.x : (point.x > maxX ? point.x - maxX : 0);
+  const dz = point.z < minZ ? minZ - point.z : (point.z > maxZ ? point.z - maxZ : 0);
+  return dx * dx + dz * dz;
+}
+
+function isGoalInsideHotSurface(goal, hotSurfaceZones, margin = HOT_SURFACE_AVOID_MARGIN) {
+  if (!hasHotSurfaceZones(hotSurfaceZones)) return false;
+  return hotSurfaceZones.some((zone) => hotZoneContainsPoint(zone, goal, margin, 0.45));
+}
+
+function pathCrossesHotSurface(from, to, hotSurfaceZones, margin = HOT_SURFACE_AVOID_MARGIN) {
+  if (!hasHotSurfaceZones(hotSurfaceZones) || !from || !to) return false;
+  const distance = Math.sqrt(distSqXZ(from, to));
+  const steps = Math.max(1, Math.ceil(distance / HOT_SURFACE_PATH_SAMPLE_STEP));
+
+  for (const zone of hotSurfaceZones) {
+    if (hotZoneContainsPoint(zone, from, margin, 0.45) && !hotZoneContainsPoint(zone, to, margin, 0.45)) {
+      continue;
+    }
+    for (let i = 1; i <= steps; i += 1) {
+      const t = i / steps;
+      const sample = {
+        x: from.x + (to.x - from.x) * t,
+        y: (from.y ?? 0) + ((to.y ?? from.y ?? 0) - (from.y ?? 0)) * t,
+        z: from.z + (to.z - from.z) * t,
+      };
+      if (hotZoneContainsPoint(zone, sample, margin, 0.45)) return true;
+    }
+  }
+
+  return false;
+}
+
+function navResultCrossesHotSurface(from, navResult, hotSurfaceZones) {
+  if (!hasHotSurfaceZones(hotSurfaceZones) || !Array.isArray(navResult?.path)) return false;
+  let prev = from;
+  for (const point of navResult.path) {
+    const next = {
+      x: point.position?.[0] ?? prev.x,
+      y: point.position?.[1] ?? prev.y,
+      z: point.position?.[2] ?? prev.z,
+    };
+    if (pathCrossesHotSurface(prev, next, hotSurfaceZones)) return true;
+    prev = next;
+  }
+  return false;
+}
+
+function hotSurfacePenaltyForGoal(state, goal, hotSurfaceZones) {
+  if (!hasHotSurfaceZones(hotSurfaceZones) || !goal) return 0;
+  if (isGoalInsideHotSurface(goal, hotSurfaceZones)) return HOT_SURFACE_GOAL_PENALTY * 8;
+  let penalty = pathCrossesHotSurface(state.position, goal, hotSurfaceZones)
+    ? HOT_SURFACE_GOAL_PENALTY
+    : 0;
+  for (const zone of hotSurfaceZones) {
+    if (!hotZoneVerticalOverlaps(zone, goal, 0.55)) continue;
+    const nearSq = hotZoneDistanceSqXZ(zone, goal, HOT_SURFACE_NEAR_MARGIN);
+    if (nearSq <= 0) penalty += HOT_SURFACE_GOAL_PENALTY * 0.5;
+  }
+  return penalty;
+}
+
+function hotSurfaceAvoidanceVector(position, hotSurfaceZones) {
+  if (!hasHotSurfaceZones(hotSurfaceZones) || !position) return null;
+  let pushX = 0;
+  let pushZ = 0;
+
+  for (const zone of hotSurfaceZones) {
+    if (!hotZoneVerticalOverlaps(zone, position, 0.55)) continue;
+    const inside = hotZoneContainsPoint(zone, position, HOT_SURFACE_AVOID_MARGIN, 0.55);
+    const nearSq = hotZoneDistanceSqXZ(zone, position, HOT_SURFACE_NEAR_MARGIN);
+    if (!inside && nearSq > 0) continue;
+
+    let awayX = position.x - Math.min(zone.maxX, Math.max(zone.minX, position.x));
+    let awayZ = position.z - Math.min(zone.maxZ, Math.max(zone.minZ, position.z));
+    let len = Math.hypot(awayX, awayZ);
+
+    if (len < 1e-4) {
+      const left = Math.abs(position.x - zone.minX);
+      const right = Math.abs(zone.maxX - position.x);
+      const front = Math.abs(position.z - zone.minZ);
+      const back = Math.abs(zone.maxZ - position.z);
+      const edge = Math.min(left, right, front, back);
+      if (edge === left) awayX = -1;
+      else if (edge === right) awayX = 1;
+      else if (edge === front) awayZ = -1;
+      else awayZ = 1;
+      len = 1;
+    }
+
+    const strength = inside ? 1.8 : Math.max(0.15, 1 - Math.sqrt(nearSq) / HOT_SURFACE_NEAR_MARGIN);
+    pushX += (awayX / len) * strength;
+    pushZ += (awayZ / len) * strength;
+  }
+
+  const push = normalizeXZ(pushX, pushZ);
+  if (Math.abs(push.x) < 1e-4 && Math.abs(push.z) < 1e-4) return null;
+  return push;
+}
+
+function adjustMoveForHotSurfaces(state, moveX, moveZ, hotSurfaceZones) {
+  if (!hasHotSurfaceZones(hotSurfaceZones)) return { x: moveX, z: moveZ };
+  const predicted = {
+    x: state.position.x + moveX * HOT_SURFACE_STEER_LOOKAHEAD,
+    y: state.position.y,
+    z: state.position.z + moveZ * HOT_SURFACE_STEER_LOOKAHEAD,
+  };
+  const currentPush = hotSurfaceAvoidanceVector(state.position, hotSurfaceZones);
+  const predictedPush = hotSurfaceAvoidanceVector(predicted, hotSurfaceZones);
+  const pushX = (currentPush?.x ?? 0) * 1.15 + (predictedPush?.x ?? 0);
+  const pushZ = (currentPush?.z ?? 0) * 1.15 + (predictedPush?.z ?? 0);
+  if (Math.hypot(pushX, pushZ) < 1e-4) return { x: moveX, z: moveZ };
+  return normalizeXZ(moveX + pushX * HOT_SURFACE_STEER_PUSH, moveZ + pushZ * HOT_SURFACE_STEER_PUSH);
+}
+
+function pickSafeFleeGoal(state, away, bounds, hotSurfaceZones) {
+  const baseAngle = Math.atan2(away.z, away.x);
+  const offsets = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, Math.PI * 0.75, -Math.PI * 0.75];
+  let fallback = null;
+  let fallbackPenalty = Infinity;
+
+  for (const offset of offsets) {
+    const angle = baseAngle + offset;
+    const candidate = clampXZ(
+      state.position.x + Math.cos(angle) * FLEE_RUN_DISTANCE,
+      state.position.z + Math.sin(angle) * FLEE_RUN_DISTANCE,
+      bounds,
+      0.35,
+    );
+    candidate.y = state.position.y;
+    const penalty = hotSurfacePenaltyForGoal(state, candidate, hotSurfaceZones);
+    if (penalty <= 0) return candidate;
+    if (penalty < fallbackPenalty) {
+      fallbackPenalty = penalty;
+      fallback = candidate;
+    }
+  }
+
+  return fallback ?? clampXZ(
+    state.position.x + away.x * FLEE_RUN_DISTANCE,
+    state.position.z + away.z * FLEE_RUN_DISTANCE,
+    bounds,
+    0.35,
+  );
 }
 
 function idleInput(rotation, emote = null) {
@@ -235,7 +411,8 @@ function randomMouseNavPoint(navMesh, rand) {
   };
 }
 
-function canPathToGoal(state, goal, navMesh) {
+function canPathToGoal(state, goal, navMesh, hotSurfaceZones = null) {
+  if (isGoalInsideHotSurface(goal, hotSurfaceZones)) return false;
   const result = findPath(
     navMesh,
     [state.position.x, state.position.y, state.position.z],
@@ -243,7 +420,10 @@ function canPathToGoal(state, goal, navMesh) {
     MOUSE_HALF_EXTENTS,
     MOUSE_NAV_FILTER,
   );
-  return result.success && Array.isArray(result.path) && result.path.length > 0;
+  return result.success
+    && Array.isArray(result.path)
+    && result.path.length > 0
+    && !navResultCrossesHotSurface(state.position, result, hotSurfaceZones);
 }
 
 function asGoalFromCheese(cheese) {
@@ -284,6 +464,7 @@ function pickCheeseGoal(
   peerPositions,
   reservedCheeseIds,
   reservedGoalPositions,
+  hotSurfaceZones,
 ) {
   if (!Array.isArray(cheesePickups) || cheesePickups.length === 0) return null;
 
@@ -315,15 +496,16 @@ function pickCheeseGoal(
   const scored = [];
   for (const candidate of candidates) {
     const goal = candidate.goal;
-    if (!canPathToGoal(state, goal, navMesh)) continue;
+    if (!canPathToGoal(state, goal, navMesh, hotSurfaceZones)) continue;
     const peerPenalty = isGoalTooCloseToPeers(goal, peerPositions) ? CHEESE_PEER_GOAL_PENALTY : 0;
     const reservedGoalPenalty = isGoalTooCloseToReservedGoals(goal, reservedGoalPositions)
       ? CHEESE_PEER_GOAL_PENALTY
       : 0;
     const reservedPenalty = isReservedCheese(goal, reservedCheeseIds) ? CHEESE_RESERVED_TARGET_PENALTY : 0;
     const catTooClosePenalty = candidate.catDist < 3.2 ? 8 * personality.catRiskAvoidance : 0;
+    const hotPenalty = hotSurfacePenaltyForGoal(state, goal, hotSurfaceZones);
     const score = candidate.roughScore - peerPenalty - catTooClosePenalty;
-    scored.push({ goal, score: score - reservedPenalty - reservedGoalPenalty });
+    scored.push({ goal, score: score - reservedPenalty - reservedGoalPenalty - hotPenalty });
   }
   return chooseWeightedScored(scored, Math.random);
 }
@@ -399,7 +581,16 @@ function isSupportedVerticalEscapeGoal(candidate, colliders) {
   return false;
 }
 
-function pickVerticalEscapeGoal(state, brain, navMesh, nearestCat, rand, colliders, reservedGoalPositions) {
+function pickVerticalEscapeGoal(
+  state,
+  brain,
+  navMesh,
+  nearestCat,
+  rand,
+  colliders,
+  reservedGoalPositions,
+  hotSurfaceZones,
+) {
   let best = null;
   let bestScore = -Infinity;
   const personality = ensureBotPersonality(brain);
@@ -426,7 +617,7 @@ function pickVerticalEscapeGoal(state, brain, navMesh, nearestCat, rand, collide
     const distSelfSq = distSqXZ(state.position, candidate);
     if (distSelfSq < 1.0 || distSelfSq > 14 * 14) continue;
 
-    const pathOk = canPathToGoal(state, candidate, navMesh);
+    const pathOk = canPathToGoal(state, candidate, navMesh, hotSurfaceZones);
     if (!pathOk) continue;
     const catDist = catPos ? Math.sqrt(distSqXZ(candidate, catPos)) : 0;
     const selfDist = Math.sqrt(distSelfSq);
@@ -436,12 +627,14 @@ function pickVerticalEscapeGoal(state, brain, navMesh, nearestCat, rand, collide
     const peerGoalPenalty = isGoalTooCloseToReservedGoals(candidate, reservedGoalPositions)
       ? VERTICAL_ESCAPE_PEER_GOAL_PENALTY
       : 0;
+    const hotPenalty = hotSurfacePenaltyForGoal(state, candidate, hotSurfaceZones);
     const score = candidate.y * 1.4
       + practicalRise * (2.4 + personality.heightInterest * 1.2)
       + catDist * (0.28 + personality.catRiskAvoidance * 0.28)
       - selfDist * (0.68 + personality.distancePatience * 0.35)
       + jitter
-      - peerGoalPenalty;
+      - peerGoalPenalty
+      - hotPenalty;
 
     if (score > bestScore) {
       bestScore = score;
@@ -484,7 +677,7 @@ function nextTeaseEmote(brain, now, rand = Math.random) {
 /**
  * Pick a walkable exploration point spread across the navmesh, with mild separation from peers.
  */
-function pickExploreGoal(state, navMesh, bounds, spawnPoints, peerPositions, rand) {
+function pickExploreGoal(state, navMesh, bounds, spawnPoints, peerPositions, rand, hotSurfaceZones) {
   for (let attempt = 0; attempt < 18; attempt += 1) {
     let pos = null;
 
@@ -550,16 +743,28 @@ function pickExploreGoal(state, navMesh, bounds, spawnPoints, peerPositions, ran
       pos.y = state.position.y;
     }
 
-    if (!isGoalTooCloseToPeers(pos, peerPositions)) return pos;
+    if (
+      !isGoalTooCloseToPeers(pos, peerPositions)
+      && !isGoalInsideHotSurface(pos, hotSurfaceZones, HOT_SURFACE_NEAR_MARGIN)
+      && (!navMesh || canPathToGoal(state, pos, navMesh, hotSurfaceZones))
+    ) {
+      return pos;
+    }
   }
 
   const g = navMesh && findRandomPoint(navMesh, MOUSE_NAV_FILTER, rand);
   if (g?.success) {
-    return {
+    const pos = {
       x: g.position[0],
       y: g.position[1],
       z: g.position[2],
     };
+    if (
+      !isGoalInsideHotSurface(pos, hotSurfaceZones, HOT_SURFACE_NEAR_MARGIN)
+      && canPathToGoal(state, pos, navMesh, hotSurfaceZones)
+    ) {
+      return pos;
+    }
   }
 
   const sp = spawnPoints?.player?.[0];
@@ -638,7 +843,7 @@ export function resetMouseBotBrain(brain) {
  * @param {{ player?: { x: number, y: number, z: number }[] }} spawnPoints
  * @param {object} bounds { minX, maxX, minZ, maxZ }
  * @param {number} now Wall-clock seconds
- * @param {{ peerPositions?: { x: number, z: number }[], cheesePickups?: object[], reservedCheeseIds?: Set<string> | string[], reservedGoalPositions?: { x: number, z: number }[] }} [options] Other alive players and cheese pickups
+ * @param {{ peerPositions?: { x: number, z: number }[], cheesePickups?: object[], reservedCheeseIds?: Set<string> | string[], reservedGoalPositions?: { x: number, z: number }[], hotSurfaceZones?: object[] }} [options] Other alive players and hazard-aware goals
  */
 export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPoints, bounds, now, options = {}) {
   const personality = ensureBotPersonality(brain);
@@ -647,6 +852,7 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
   const cheesePickups = options.cheesePickups;
   const reservedCheeseIds = options.reservedCheeseIds;
   const reservedGoalPositions = options.reservedGoalPositions;
+  const hotSurfaceZones = options.hotSurfaceZones;
   if (!navMesh) {
     return idleInput(state.rotation);
   }
@@ -684,10 +890,12 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
 
   if (extractMode) {
     let nearestP = portals[0];
-    let bestD = distSqXZ(state.position, nearestP);
+    let bestD = distSqXZ(state.position, nearestP)
+      + hotSurfacePenaltyForGoal(state, nearestP, hotSurfaceZones) * 4;
     for (let i = 1; i < portals.length; i += 1) {
       const ep = portals[i];
-      const d = distSqXZ(state.position, ep);
+      const d = distSqXZ(state.position, ep)
+        + hotSurfacePenaltyForGoal(state, ep, hotSurfaceZones) * 4;
       if (d < bestD) {
         bestD = d;
         nearestP = ep;
@@ -762,6 +970,7 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
         Math.random,
         colliders,
         reservedGoalPositions,
+        hotSurfaceZones,
       );
       if (verticalGoal) {
         brain.verticalEscapeActive = true;
@@ -799,6 +1008,7 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
           Math.random,
           colliders,
           reservedGoalPositions,
+          hotSurfaceZones,
         )
         : null;
       if (verticalGoal) {
@@ -825,12 +1035,7 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
       state.position.x - nearestCat.position.x,
       state.position.z - nearestCat.position.z,
     );
-    goal = clampXZ(
-      state.position.x + away.x * FLEE_RUN_DISTANCE,
-      state.position.z + away.z * FLEE_RUN_DISTANCE,
-      bounds,
-      0.35,
-    );
+    goal = pickSafeFleeGoal(state, away, bounds, hotSurfaceZones);
     goal.y = state.position.y;
     brain.goal = goal;
     brain.goalKind = 'flee';
@@ -853,7 +1058,12 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
       brain.wanderTimer = Math.min(brain.wanderTimer, 0.15);
     }
 
-    if (currentCheese && brain.goalKind === 'cheese' && brain.wanderTimer > 0) {
+    if (
+      currentCheese
+      && brain.goalKind === 'cheese'
+      && brain.wanderTimer > 0
+      && canPathToGoal(state, asGoalFromCheese(currentCheese), navMesh, hotSurfaceZones)
+    ) {
       brain.goal = asGoalFromCheese(currentCheese);
       goal = brain.goal;
     } else if (brain.wanderTimer <= 0 || !brain.goal || brain.goalKind !== 'cheese') {
@@ -866,6 +1076,7 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
         peerPositions,
         reservedCheeseIds,
         reservedGoalPositions,
+        hotSurfaceZones,
       );
       if (cheeseGoal) {
         brain.wanderTimer = CHEESE_TARGET_REFRESH_MIN
@@ -878,7 +1089,7 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
       } else if (brain.wanderTimer <= 0 || !brain.goal) {
         brain.wanderTimer = WANDER_TIMER_MIN + Math.random() * (WANDER_TIMER_MAX - WANDER_TIMER_MIN);
         const rand = Math.random;
-        brain.goal = pickExploreGoal(state, navMesh, bounds, spawnPoints, peerPositions, rand);
+        brain.goal = pickExploreGoal(state, navMesh, bounds, spawnPoints, peerPositions, rand, hotSurfaceZones);
         brain.goalKind = 'explore';
         brain.cheeseTargetId = null;
         goal = brain.goal;
@@ -904,12 +1115,30 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
         jumpHeld: false,
         crouch: false,
         rotation: state.rotation,
-        interactHeld: true,
+        interactHeld: false,
       };
     }
   }
 
   if (!goal) {
+    const avoid = adjustMoveForHotSurfaces(state, 0, 0, hotSurfaceZones);
+    if (Math.hypot(avoid.x, avoid.z) > 0.06) {
+      return {
+        moveX: avoid.x,
+        moveZ: avoid.z,
+        sprint: true,
+        jump: false,
+        jumpPressed: false,
+        jumpHeld: false,
+        crouch: false,
+        rotation: Math.atan2(avoid.x, avoid.z),
+      };
+    }
+    return idleInput(state.rotation);
+  }
+
+  if (brain.goalKind !== 'flee' && isGoalInsideHotSurface(goal, hotSurfaceZones)) {
+    clearBotGoal(brain);
     return idleInput(state.rotation);
   }
 
@@ -926,6 +1155,23 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
     }
     steer = w;
     break;
+  }
+
+  if (pathCrossesHotSurface(state.position, steer, hotSurfaceZones)) {
+    clearBotPath(brain);
+    const avoid = adjustMoveForHotSurfaces(state, 0, 0, hotSurfaceZones);
+    if (Math.hypot(avoid.x, avoid.z) > 0.06) {
+      return {
+        moveX: avoid.x,
+        moveZ: avoid.z,
+        sprint: true,
+        jump: false,
+        jumpPressed: false,
+        jumpHeld: false,
+        crouch: false,
+        rotation: Math.atan2(avoid.x, avoid.z),
+      };
+    }
   }
 
   if (
@@ -951,6 +1197,19 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
   const shouldClimb = verticalClimb && (heightToGain > 0.18 || !state.grounded || state.wallHolding);
 
   if (len < 0.06) {
+    const avoid = adjustMoveForHotSurfaces(state, 0, 0, hotSurfaceZones);
+    if (Math.hypot(avoid.x, avoid.z) > 0.06) {
+      return {
+        moveX: avoid.x,
+        moveZ: avoid.z,
+        sprint: true,
+        jump: false,
+        jumpPressed: false,
+        jumpHeld: false,
+        crouch: false,
+        rotation: Math.atan2(avoid.x, avoid.z),
+      };
+    }
     let jumpPressed = Math.random() < 0.004 && state.grounded;
     let jumpHeld = false;
     if (shouldClimb) {
@@ -980,8 +1239,9 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
     };
   }
 
-  const mx = dx / len;
-  const mz = dz / len;
+  const adjustedMove = adjustMoveForHotSurfaces(state, dx / len, dz / len, hotSurfaceZones);
+  const mx = adjustedMove.x;
+  const mz = adjustedMove.z;
   const rotation = Math.atan2(mx, mz);
   let jumpPressed = Math.random() < 0.0025 && state.grounded;
   let jumpHeld = false;

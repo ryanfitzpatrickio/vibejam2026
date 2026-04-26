@@ -314,6 +314,7 @@ export function buildRoomCollidersFromLayout(layout, {
 
   for (const primitive of primitives) {
     if (!primitive || primitive.deleted === true) continue;
+    if (primitive.glbProp === true) continue;
 
     const colliderType = colliderTypeForPrimitive(primitive);
     // Outer room shells are often plane primitives with collider: false (visual-only in editor).

@@ -34,7 +34,7 @@ function OnboardingView(props) {
     { label: 'Grab cheese', detail: `Press ${actionLabel('interact')} near cheese and tasks.` },
     { label: 'Avoid predators', detail: 'Cat and roomba contact can ruin the raid.' },
     { label: 'Cause mischief', detail: `Smack with ${actionLabel('smack')}, grab with ${actionLabel('grab')}, chain combos.` },
-    { label: 'Extract in panic time', detail: `When EXIT OPEN appears, hold ${actionLabel('interact')} in a glowing hole.` },
+    { label: 'Extract in panic time', detail: 'When EXIT OPEN appears, stand in a glowing mouse hole.' },
     { label: 'Brag after', detail: 'Grades and awards score cheese, chaos, chases, tasks, and escape.' },
   ];
 

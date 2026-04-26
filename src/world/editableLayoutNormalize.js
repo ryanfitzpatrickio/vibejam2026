@@ -82,6 +82,18 @@ function normalizeLightType(value) {
   return value === 'spot' || value === 'directional' ? value : 'point';
 }
 
+function normalizeGlbPropPhysicsShape(value) {
+  return value === 'box' || value === 'openBox' || value === 'cylinder' ? value : 'sphere';
+}
+
+function normalizePhysicsSize(value = {}) {
+  return {
+    x: THREE.MathUtils.clamp(Number(value.x ?? 1) || 1, 0.05, 5),
+    y: THREE.MathUtils.clamp(Number(value.y ?? 1) || 1, 0.05, 5),
+    z: THREE.MathUtils.clamp(Number(value.z ?? 1) || 1, 0.05, 5),
+  };
+}
+
 export function normalizeTextureSettings(texture = {}) {
   if (typeof texture === 'number') {
     return {
@@ -198,6 +210,23 @@ export function normalizeEditablePrimitive(entry = {}) {
       },
     } : {}),
     glbAssetId: entry.glbAssetId ?? null,
+    glbProp: type === 'glb' && entry.glbProp === true,
+    catFavoriteToy: type === 'glb' && entry.glbProp === true && entry.catFavoriteToy === true,
+    mount: type === 'glb' && entry.mount === true,
+    mountKind: typeof entry.mountKind === 'string' && entry.mountKind ? entry.mountKind : null,
+    mountSocketName: typeof entry.mountSocketName === 'string' && entry.mountSocketName ? entry.mountSocketName : 'spine',
+    mountRiderOffset: entry.mountRiderOffset ? cloneVectorLike(entry.mountRiderOffset, { x: 0, y: 0.42, z: 0.12 }) : null,
+    mountGrabOffset: entry.mountGrabOffset ? cloneVectorLike(entry.mountGrabOffset, { x: 0, y: -0.38, z: 0.24 }) : null,
+    physicsShape: type === 'glb' && entry.glbProp === true
+      ? normalizeGlbPropPhysicsShape(entry.physicsShape)
+      : 'sphere',
+    physicsRadius: Number.isFinite(entry.physicsRadius)
+      ? THREE.MathUtils.clamp(Number(entry.physicsRadius), 0.12, 2.5)
+      : null,
+    physicsSize: normalizePhysicsSize(entry.physicsSize),
+    physicsMass: Number.isFinite(entry.physicsMass)
+      ? THREE.MathUtils.clamp(Number(entry.physicsMass), 0.2, 80)
+      : null,
     prefabId: entry.prefabId ?? null,
     navArea: normalizeNavArea(entry.navArea),
     prefabInstanceId: entry.prefabInstanceId ?? null,

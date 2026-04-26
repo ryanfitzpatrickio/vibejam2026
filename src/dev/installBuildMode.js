@@ -158,6 +158,7 @@ class BuildModeEditor {
     this.app.room.setPortalHelpersVisible(this.visible);
     this.app.room.setExtractionHelpersVisible?.(this.visible);
     this.app.room.setHotSurfaceHelpersVisible?.(this.visible);
+    this.app.room.setGlbPropHelpersVisible?.(this.visible);
     // Raid task helpers double as gameplay markers — keep them on.
     this.app.room.setRaidTaskHelpersVisible?.(true);
     this.app.room.setRopeHelpersVisible?.(this.visible);
@@ -610,15 +611,15 @@ class BuildModeEditor {
     this._glbFileInput.value = '';
   }
 
-  async _placeSelectedGlb() {
+  async _createSelectedGlbPrimitive({ asPhysicsProp = false, asMount = false } = {}) {
     const asset = this._selectedGlbAsset();
-    if (!asset) return;
+    if (!asset) return null;
     this._setStatus(`Loading ${asset.name}...`);
 
     const model = await this.app.room.loadGlbModel(asset.id);
     if (!model) {
       this._setStatus(`Failed to load GLB: ${asset.name}`, true);
-      return;
+      return null;
     }
 
     const box = new THREE.Box3().setFromObject(model);
@@ -626,6 +627,24 @@ class BuildModeEditor {
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z, 0.001);
     const autoScale = 1 / maxDim;
+    const physicsSize = {
+      x: Number(Math.max(0.05, size.x * autoScale).toFixed(3)),
+      y: Number(Math.max(0.05, size.y * autoScale).toFixed(3)),
+      z: Number(Math.max(0.05, size.z * autoScale).toFixed(3)),
+    };
+    const assetName = String(asset.name ?? asset.filename ?? '').toLowerCase();
+    const defaultPhysicsShape = assetName.includes('bag')
+      ? 'openBox'
+      : assetName.includes('fries')
+      ? 'box'
+      : assetName.includes('cup') || assetName.includes('burger')
+        ? 'cylinder'
+        : 'sphere';
+    const radius = defaultPhysicsShape === 'box' || defaultPhysicsShape === 'openBox'
+      ? Math.hypot(physicsSize.x, physicsSize.y, physicsSize.z) * 0.5
+      : defaultPhysicsShape === 'cylinder'
+        ? Math.hypot(Math.max(physicsSize.x, physicsSize.z) * 0.5, physicsSize.y * 0.5)
+        : Math.max(physicsSize.x, physicsSize.y, physicsSize.z) * 0.48;
 
     const grid = this.app.room.getBuildGridConfig();
     const forward = new THREE.Vector3();
@@ -636,14 +655,25 @@ class BuildModeEditor {
     const spawn = this.app.mouse.position.clone().add(forward.multiplyScalar(2.25));
     spawn.y = Math.max(this.app.mouse.position.y, 0);
 
-    const primitive = {
+    return {
       id: createPrimitiveId(),
-      name: asset.name,
+      name: asMount ? `${asset.name}-mount` : (asPhysicsProp ? `${asset.name}-prop` : asset.name),
       type: 'glb',
       glbAssetId: asset.id,
+      glbProp: asPhysicsProp,
+      catFavoriteToy: false,
+      mount: asMount,
+      mountKind: asMount ? 'love-bird' : null,
+      mountSocketName: asMount ? 'spine' : null,
+      mountRiderOffset: asMount ? { x: 0, y: 0.42, z: 0.12 } : null,
+      mountGrabOffset: asMount ? { x: 0, y: -0.38, z: 0.24 } : null,
+      physicsShape: asPhysicsProp ? defaultPhysicsShape : 'sphere',
+      physicsRadius: asPhysicsProp ? Number(Math.max(0.16, Math.min(2.5, radius)).toFixed(3)) : null,
+      physicsSize: asPhysicsProp ? physicsSize : { x: 1, y: 1, z: 1 },
+      physicsMass: asPhysicsProp ? 5 : null,
       position: {
         x: Number(spawn.x.toFixed(4)),
-        y: Number(spawn.y.toFixed(4)),
+        y: Number((asPhysicsProp ? Math.max(spawn.y, radius + 0.08) : spawn.y).toFixed(4)),
         z: Number(spawn.z.toFixed(4)),
       },
       rotation: { x: 0, y: 0, z: 0 },
@@ -656,18 +686,52 @@ class BuildModeEditor {
         offset: { x: 0, y: 0 },
       },
       material: { color: '#ffffff', roughness: 0.88, metalness: 0.04 },
-      collider: true,
+      collider: !asPhysicsProp && !asMount,
       colliderClearance: 0,
       castShadow: true,
       receiveShadow: true,
     };
+  }
+
+  async _placeSelectedGlb() {
+    const asset = this._selectedGlbAsset();
+    const primitive = await this._createSelectedGlbPrimitive({ asPhysicsProp: false });
+    if (!primitive) return;
 
     this.app.room.upsertEditablePrimitive(primitive);
     this.layout = this.app.room.getEditableLayout();
     this.selectedId = primitive.id;
     this._syncForm();
     this._attachTransformControls();
-    this._setStatus(`Placed ${asset.name} (auto-scaled ${autoScale.toFixed(3)}x).`);
+    this._setStatus(`Placed ${asset?.name ?? primitive.name} (auto-scaled ${Number(primitive.scale.x).toFixed(3)}x).`);
+  }
+
+  async _placeSelectedGlbProp() {
+    const asset = this._selectedGlbAsset();
+    const primitive = await this._createSelectedGlbPrimitive({ asPhysicsProp: true });
+    if (!primitive) return;
+
+    this.app.room.upsertEditablePrimitive(primitive);
+    this.app.room.setGlbPropHelpersVisible?.(this.visible);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = primitive.id;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Placed physics GLB prop: ${asset?.name ?? primitive.name}.`);
+  }
+
+  async _placeSelectedMount() {
+    const asset = this._selectedGlbAsset();
+    const primitive = await this._createSelectedGlbPrimitive({ asMount: true });
+    if (!primitive) return;
+
+    this.app.room.upsertEditablePrimitive(primitive);
+    this.app.room.setGlbPropHelpersVisible?.(this.visible);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = primitive.id;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Placed rideable mount: ${asset?.name ?? primitive.name}.`);
   }
 
   async _deleteSelectedGlb() {
@@ -1098,6 +1162,7 @@ class BuildModeEditor {
     const disabled = !entry;
     const primitiveDisabled = !primitive;
     const propSelected = primitive?.type === 'prop';
+    const glbPropSelected = primitive?.type === 'glb' && primitive.glbProp === true;
     const lightDisabled = !light;
     const portalDisabled = !portal;
     const ropeDisabled = !rope;
@@ -1127,6 +1192,11 @@ class BuildModeEditor {
       this.chromaFeatherInput,
       this.roughnessInput,
       this.metalnessInput,
+      this.glbPropPhysicsShapeSelect,
+      this.glbPropPhysicsRadiusInput,
+      this.glbPropPhysicsMassInput,
+      this.glbPropCatFavoriteToyToggle,
+      ...Object.values(this.glbPropPhysicsSizeInputs ?? {}),
       this.receiveShadowToggle,
       this.clearanceInput,
       this.planeZIndexInput,
@@ -1242,6 +1312,21 @@ class BuildModeEditor {
     this.clearanceInput._wrap.style.display = primitive && !propSelected ? 'grid' : 'none';
     this.chromaSimilarityInput._wrap.style.display = propSelected ? 'grid' : 'none';
     this.chromaFeatherInput._wrap.style.display = propSelected ? 'grid' : 'none';
+    if (this.glbPropPhysicsRadiusInput?._wrap) {
+      this.glbPropPhysicsRadiusInput._wrap.style.display = glbPropSelected ? 'grid' : 'none';
+    }
+    if (this.glbPropPhysicsShapeSelect?._wrap) {
+      this.glbPropPhysicsShapeSelect._wrap.style.display = glbPropSelected ? 'grid' : 'none';
+    }
+    if (this.glbPropPhysicsSizeInputs?._wrap) {
+      this.glbPropPhysicsSizeInputs._wrap.style.display = glbPropSelected ? 'block' : 'none';
+    }
+    if (this.glbPropPhysicsMassInput?._wrap) {
+      this.glbPropPhysicsMassInput._wrap.style.display = glbPropSelected ? 'grid' : 'none';
+    }
+    if (this.glbPropCatFavoriteToyToggle?._wrap) {
+      this.glbPropCatFavoriteToyToggle._wrap.style.display = glbPropSelected ? 'flex' : 'none';
+    }
     if (this.planeZIndexInput?._wrap) {
       this.planeZIndexInput._wrap.style.display = primitive?.type === 'plane' ? 'grid' : 'none';
     }
@@ -1299,6 +1384,24 @@ class BuildModeEditor {
       this.roughnessInput._output.textContent = Number(primitive.material.roughness).toFixed(2);
       this.metalnessInput.value = primitive.material.metalness;
       this.metalnessInput._output.textContent = Number(primitive.material.metalness).toFixed(2);
+      if (this.glbPropPhysicsRadiusInput) {
+        this.glbPropPhysicsRadiusInput.value = primitive.physicsRadius ?? 0.48;
+      }
+      if (this.glbPropPhysicsShapeSelect) {
+        this.glbPropPhysicsShapeSelect.value = primitive.physicsShape ?? 'sphere';
+      }
+      if (this.glbPropPhysicsSizeInputs) {
+        const size = primitive.physicsSize ?? { x: 1, y: 1, z: 1 };
+        this.glbPropPhysicsSizeInputs.x.value = size.x;
+        this.glbPropPhysicsSizeInputs.y.value = size.y;
+        this.glbPropPhysicsSizeInputs.z.value = size.z;
+      }
+      if (this.glbPropPhysicsMassInput) {
+        this.glbPropPhysicsMassInput.value = primitive.physicsMass ?? 5;
+      }
+      if (this.glbPropCatFavoriteToyToggle) {
+        this.glbPropCatFavoriteToyToggle.checked = primitive.catFavoriteToy === true;
+      }
       this.colliderToggle.checked = primitive.collider;
       this.receiveShadowToggle.checked = primitive.receiveShadow;
       this.clearanceInput.value = primitive.colliderClearance ?? 0;

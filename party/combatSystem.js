@@ -20,6 +20,7 @@ import {
   CHARGED_THROW_ORBIT_UP,
   GRAB_COOLDOWN,
   GRAB_INITIATOR_ADVANTAGE,
+  LIMP_THROW_BOUNCE_SECONDS,
   MISCHIEF_POINTS,
   QUICK_TOSS_BACK_LAUNCH_SCALE,
   QUICK_TOSS_BACK_UP_MULTIPLIER,
@@ -28,10 +29,30 @@ import {
   QUICK_TOSS_MOUSE_UP_MULTIPLIER,
   SMACK_COOLDOWN,
   SMACK_KNOCKBACK,
+  SMACK_LIMP_THROW_WINDOW_SECONDS,
   SMACK_RANGE,
   SMACK_STUN_DURATION,
   THROW_SMACK_SUPPRESS_SECONDS,
 } from './interactionTuning.js';
+
+function startThrownMouseFlight(runtime, playerId, target, nx, nz, speedScale, options = null) {
+  const limp = (Number(target?.smackLimpThrowWindowTimer) || 0) > 0;
+  if (limp) {
+    target.smackLimpThrowWindowTimer = 0;
+    target.limpThrownBounceTimer = Math.max(
+      Number(target.limpThrownBounceTimer) || 0,
+      LIMP_THROW_BOUNCE_SECONDS,
+    );
+    target.wallHolding = false;
+    target.wallJumpWindowTimer = 0;
+    target.ropeSwing = null;
+  }
+  runtime.mouseLaunchWorld.startFlight(playerId, target, nx, nz, speedScale, {
+    ...options,
+    limp,
+    limpSeconds: LIMP_THROW_BOUNCE_SECONDS,
+  });
+}
 
 export function processThrowRequests(runtime, { quickTossRequests, chargedThrowRequests, throwRequests, now }) {
   const THROW_BALL_SPEED = 14;
@@ -68,7 +89,8 @@ export function processThrowRequests(runtime, { quickTossRequests, chargedThrowR
       target.velocity.z = 0;
       target.grabbedBy = null;
       target.grabCooldown = GRAB_COOLDOWN;
-      runtime.mouseLaunchWorld.startFlight(
+      startThrownMouseFlight(
+        runtime,
         target.id ?? targetId,
         target,
         fx,
@@ -122,7 +144,8 @@ export function processThrowRequests(runtime, { quickTossRequests, chargedThrowR
         target.velocity.z = 0;
         target.grabbedBy = null;
         target.grabCooldown = GRAB_COOLDOWN;
-        runtime.mouseLaunchWorld.startFlight(
+        startThrownMouseFlight(
+          runtime,
           target.id ?? thrower.grabbedTarget,
           target,
           fx,
@@ -177,7 +200,7 @@ export function processThrowRequests(runtime, { quickTossRequests, chargedThrowR
         target.position.y = thrower.position.y + 0.9;
         target.grabbedBy = null;
         target.grabCooldown = GRAB_COOLDOWN;
-        runtime.mouseLaunchWorld.startFlight(target.id ?? thrower.grabbedTarget, target, fx, fz, spinBoost);
+        startThrownMouseFlight(runtime, target.id ?? thrower.grabbedTarget, target, fx, fz, spinBoost);
         if (thrower.roundStats) {
           thrower.roundStats.throwsLanded = (thrower.roundStats.throwsLanded ?? 0) + 1;
         }
@@ -220,6 +243,36 @@ export function processSmackRequests(runtime, { chargedSmackRequests, smackReque
       continue;
     }
 
+    const chargeT = Math.max(0, Math.min(
+      1,
+      (chargeSeconds - CHARGED_SMACK_MIN_HOLD_SECONDS)
+        / (CHARGED_SMACK_MAX_HOLD_SECONDS - CHARGED_SMACK_MIN_HOLD_SECONDS),
+    ));
+    const smackRot = attacker.rotation ?? 0;
+    const smackFx = Math.sin(smackRot);
+    const smackFz = Math.cos(smackRot);
+    const ballsHit = runtime.pushBallWorld.smackBallsInFront(
+      attacker.position,
+      smackFx,
+      smackFz,
+      {
+        range: CHARGED_SMACK_RANGE,
+        speed: 18 + 14 * chargeT,
+        upSpeed: 4.8 + 3.2 * chargeT,
+      },
+    );
+    if (ballsHit > 0) {
+      attacker.smackCooldown = CHARGED_SMACK_COOLDOWN;
+      attacker._chargedSmackHoldSeconds = 0;
+      attacker.chargedSmackHitSeq = (Number(attacker.chargedSmackHitSeq) || 0) + 1;
+      if (attacker.roundStats) {
+        attacker.roundStats.smacksLanded = (attacker.roundStats.smacksLanded ?? 0) + 1;
+      }
+      runtime._awardMischief(attacker, MISCHIEF_POINTS.ballSmack * 2 * Math.min(3, ballsHit));
+      runtime._emitNoise(attacker, 17, 240);
+      continue;
+    }
+
     let bestId = null;
     let bestCat = null;
     let bestDist = CHARGED_SMACK_RANGE;
@@ -252,6 +305,7 @@ export function processSmackRequests(runtime, { chargedSmackRequests, smackReque
     if (bestCat) {
       attacker.smackCooldown = CHARGED_SMACK_COOLDOWN;
       attacker._chargedSmackHoldSeconds = 0;
+      attacker.chargedSmackHitSeq = (Number(attacker.chargedSmackHitSeq) || 0) + 1;
       if (attacker.roundStats) {
         attacker.roundStats.smacksLanded = (attacker.roundStats.smacksLanded ?? 0) + 1;
       }
@@ -282,11 +336,6 @@ export function processSmackRequests(runtime, { chargedSmackRequests, smackReque
     const fallbackRot = attacker.rotation ?? 0;
     const nx = len > 0.001 ? dx / len : Math.sin(fallbackRot);
     const nz = len > 0.001 ? dz / len : Math.cos(fallbackRot);
-    const chargeT = Math.max(0, Math.min(
-      1,
-      (chargeSeconds - CHARGED_SMACK_MIN_HOLD_SECONDS)
-        / (CHARGED_SMACK_MAX_HOLD_SECONDS - CHARGED_SMACK_MIN_HOLD_SECONDS),
-    ));
     const gusResist = target.isHero && target.heroAvatar === 'gus';
     const launchScale = (
       CHARGED_SMACK_LAUNCH_MIN_SCALE
@@ -304,6 +353,9 @@ export function processSmackRequests(runtime, { chargedSmackRequests, smackReque
     runtime.cheeseWorld.onDeathDropCarried(target);
     target.grabCooldown = Math.max(target.grabCooldown ?? 0, GRAB_COOLDOWN);
     target.smackCooldown = Math.max(target.smackCooldown ?? 0, 0.35);
+    target.smackLimpThrowWindowTimer = SMACK_LIMP_THROW_WINDOW_SECONDS;
+    target.limpThrownBounceTimer = 0;
+    target.chargedSmackHitSeq = (Number(target.chargedSmackHitSeq) || 0) + 1;
     target.animState = 'jump';
     target.position.x = attacker.position.x + nx * 0.7;
     target.position.z = attacker.position.z + nz * 0.7;
@@ -363,6 +415,8 @@ export function processSmackRequests(runtime, { chargedSmackRequests, smackReque
       attacker.smackCooldown = SMACK_COOLDOWN;
       const gusResist = target.isHero && target.heroAvatar === 'gus';
       target.smackStunTimer = gusResist ? SMACK_STUN_DURATION * 0.45 : SMACK_STUN_DURATION;
+      target.smackLimpThrowWindowTimer = SMACK_LIMP_THROW_WINDOW_SECONDS;
+      target.limpThrownBounceTimer = 0;
       target.alive = false;
       target.animState = 'death';
       target.deathTime = 0;
@@ -403,9 +457,10 @@ export function applyGrabCoupling(runtime, dt) {
       const ox = Math.sin(angle) * CHARGED_THROW_ORBIT_RADIUS;
       const oz = Math.cos(angle) * CHARGED_THROW_ORBIT_RADIUS;
       const faceTarget = Math.atan2(ox, oz);
-      target.position.x = state.position.x + ox;
-      target.position.z = state.position.z + oz;
-      target.position.y = state.position.y + CHARGED_THROW_ORBIT_UP;
+      const origin = runtime.mountWorld?.getGrabPointForPlayer?.(id, state) ?? state.position;
+      target.position.x = origin.x + ox;
+      target.position.z = origin.z + oz;
+      target.position.y = origin.y + CHARGED_THROW_ORBIT_UP;
       target.velocity.x = 0;
       target.velocity.y = 0;
       target.velocity.z = 0;
@@ -427,9 +482,10 @@ export function applyGrabCoupling(runtime, dt) {
     const rot = state.rotation ?? 0;
     const fx = Math.sin(rot);
     const fz = Math.cos(rot);
-    target.position.x = state.position.x + fx * 0.15;
-    target.position.z = state.position.z + fz * 0.15;
-    target.position.y = state.position.y + 1.0;
+    const origin = runtime.mountWorld?.getGrabPointForPlayer?.(id, state) ?? state.position;
+    target.position.x = origin.x + fx * 0.15;
+    target.position.z = origin.z + fz * 0.15;
+    target.position.y = origin.y + 0.45;
     target.rotation = rot;
 
     if ((state.grabAnimTimer ?? 0) > 0) {
@@ -444,7 +500,7 @@ export function applyGrabCoupling(runtime, dt) {
 }
 
 export function pinHeldBalls(runtime, dt) {
-  for (const [, state] of runtime.players) {
+  for (const [id, state] of runtime.players) {
     if (!state.grabbedBallId || !state.alive) {
       if (state.grabbedBallId && !state.alive) state.grabbedBallId = null;
       continue;
@@ -457,17 +513,19 @@ export function pinHeldBalls(runtime, dt) {
     const rot = state.rotation ?? 0;
     const fx = Math.sin(rot);
     const fz = Math.cos(rot);
-    let hx = state.position.x;
-    let hz = state.position.z;
-    let hy = state.position.y + 1.05 + entry.radius;
+    const origin = runtime.mountWorld?.getGrabPointForPlayer?.(id, state) ?? null;
+    let hx = origin?.x ?? state.position.x;
+    let hz = origin?.z ?? state.position.z;
+    let hy = (origin?.y ?? (state.position.y + 1.05)) + entry.radius;
     if ((Number(state._chargedThrowHoldSeconds) || 0) > 0) {
       state._chargedThrowOrbitAngle = (Number(state._chargedThrowOrbitAngle) || 0) + CHARGED_THROW_ORBIT_SPEED * dt;
       const angle = state._chargedThrowOrbitAngle;
       const ox = Math.sin(angle) * CHARGED_THROW_ORBIT_RADIUS;
       const oz = Math.cos(angle) * CHARGED_THROW_ORBIT_RADIUS;
-      hx = state.position.x + ox;
-      hz = state.position.z + oz;
-      hy = state.position.y + CHARGED_THROW_ORBIT_UP + entry.radius;
+      const orbitOrigin = origin ?? state.position;
+      hx = orbitOrigin.x + ox;
+      hz = orbitOrigin.z + oz;
+      hy = orbitOrigin.y + CHARGED_THROW_ORBIT_UP + entry.radius;
       state.rotation = Math.atan2(ox, oz);
       state.animState = 'grab';
     } else {

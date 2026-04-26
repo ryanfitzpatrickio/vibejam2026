@@ -13,7 +13,7 @@ export function installGlbSection(editor) {
   const uploadRow = document.createElement('div');
   Object.assign(uploadRow.style, {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
     gap: '8px',
   });
   section.appendChild(uploadRow);
@@ -26,7 +26,17 @@ export function installGlbSection(editor) {
   editor.glbSelect.style.marginTop = '8px';
   section.appendChild(editor.glbSelect);
 
-  addInlineButton(section, 'Place GLB', () => editor._placeSelectedGlb(), '#23472d');
+  const placeRow = document.createElement('div');
+  Object.assign(placeRow.style, {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '8px',
+    marginTop: '8px',
+  });
+  section.appendChild(placeRow);
+  addInlineButton(placeRow, 'Place GLB', () => editor._placeSelectedGlb(), '#23472d');
+  addInlineButton(placeRow, 'Place GLB Prop', () => editor._placeSelectedGlbProp(), '#2d4d23');
+  addInlineButton(placeRow, 'Place Mount', () => editor._placeSelectedMount(), '#27475c');
   addInlineButton(section, 'Delete Asset', () => editor._deleteSelectedGlb(), '#5d221f');
 
   editor.glbStatus = document.createElement('div');

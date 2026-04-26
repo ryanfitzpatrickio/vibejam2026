@@ -46,6 +46,15 @@ const JUMP_SFX_STEMS = ['assets/jump', 'assets/Jump'];
 const JUMP_SFX_GAIN = 0.62;
 const GRAB_SFX_STEMS = ['assets/grab', 'assets/Grab'];
 const SMACK_SFX_STEMS = ['assets/smack', 'assets/Smack'];
+const SPIN_SFX_STEMS = ['assets/spin', 'assets/Spin'];
+const BIG_JUMP_SFX_STEMS = ['assets/bigjump', 'assets/BigJump', 'assets/big jump', 'assets/Big Jump'];
+const BIRD_HAPPY_SFX_STEMS = ['assets/birdhappy', 'assets/BirdHappy', 'assets/bird happy', 'assets/Bird Happy'];
+const BIRD_IDLE_SFX_STEMS = ['assets/birdidle', 'assets/BirdIdle', 'assets/bird idle', 'assets/Bird Idle'];
+const CAT_STUN_SFX_STEMS = ['assets/catstun', 'assets/CatStun', 'assets/cat stun', 'assets/Cat Stun'];
+const BIG_HIT_SFX_STEMS = ['assets/bighit', 'assets/BigHit', 'assets/big hit', 'assets/Big Hit'];
+const CHARGE_HIT_SFX_STEMS = ['assets/chargehit', 'assets/ChargeHit', 'assets/charge hit', 'assets/Charge Hit'];
+const JUMP_CHARGE_SFX_STEMS = ['assets/jumpcharge', 'assets/JumpCharge', 'assets/jump charge', 'assets/Jump Charge'];
+const BOUNCE_HIT_SFX_STEMS = ['assets/bouncehit', 'assets/BounceHit', 'assets/bounce hit', 'assets/Bounce Hit'];
 const CAT_SFX_STEMS = [['assets/cat1', 'assets/Cat1'], ['assets/cat2', 'assets/Cat2']];
 const VACUUM_SFX_STEMS = ['assets/vacuum', 'assets/Vacuum'];
 const VACUUM2_SFX_STEMS = ['assets/vacuum2', 'assets/Vacuum2'];
@@ -53,6 +62,38 @@ const MEME_SFX_STEMS = ['assets/meme', 'assets/Meme', 'assets/MEME'];
 const MOVE_LOOP_FADE_RATE = 5.5;
 const MOVE_LOOP_GAIN = 0.55;
 const WALL_RUN_GAIN = 0.5;
+const SFX_GAIN = Object.freeze({
+  spin: 0.58,
+  bigjump: 0.9,
+  birdhappy: 0.82,
+  birdidle: 0.52,
+  catstun: 0.9,
+  bighit: 0.92,
+  chargehit: 0.95,
+  jumpcharge: 0.62,
+  bouncehit: 0.82,
+});
+const SFX_START_OFFSET = Object.freeze({
+  bigjump: 0.02,
+  birdhappy: 0.12,
+  birdidle: 0.12,
+  catstun: 0.12,
+  bighit: 1.02,
+  chargehit: 0.345,
+  jumpcharge: 0.54,
+  bouncehit: 0.12,
+});
+const FILE_SFX_STEMS = Object.freeze({
+  spin: SPIN_SFX_STEMS,
+  bigjump: BIG_JUMP_SFX_STEMS,
+  birdhappy: BIRD_HAPPY_SFX_STEMS,
+  birdidle: BIRD_IDLE_SFX_STEMS,
+  catstun: CAT_STUN_SFX_STEMS,
+  bighit: BIG_HIT_SFX_STEMS,
+  chargehit: CHARGE_HIT_SFX_STEMS,
+  jumpcharge: JUMP_CHARGE_SFX_STEMS,
+  bouncehit: BOUNCE_HIT_SFX_STEMS,
+});
 /** Sprint uses the same run loop, sped up (1 = walk/move clip at normal pitch). */
 const RUN_SPRINT_PLAYBACK_RATE = 1.32;
 
@@ -608,7 +649,7 @@ export class AudioManager {
   /**
    * Play sound effect at world position
    */
-  playSoundAtPosition(type, position) {
+  playSoundAtPosition(type, position, options = null) {
     if (this._sfxMuted) return;
 
     const panner = this._createSpatialPanner(position);
@@ -633,6 +674,22 @@ export class AudioManager {
     }
     if (type === 'meme') {
       void this._playSfxBufferAtPanner('meme', MEME_SFX_STEMS, panner);
+      return;
+    }
+    if (FILE_SFX_STEMS[type]) {
+      void this._playSfxBufferAtPanner(
+        type,
+        FILE_SFX_STEMS[type],
+        panner,
+        SFX_GAIN[type] ?? 1,
+        SFX_START_OFFSET[type] ?? 0,
+        options?.playbackRate ?? 1,
+      )
+        .then((ok) => {
+          if (!ok) {
+            try { panner.disconnect(); } catch { /* already gone */ }
+          }
+        });
       return;
     }
     if (type === 'cat') {
@@ -749,6 +806,9 @@ export class AudioManager {
     void this._loadSfxBuffer('vacuum', VACUUM_SFX_STEMS);
     void this._loadSfxBuffer('vacuum2', VACUUM2_SFX_STEMS);
     void this._loadSfxBuffer('meme', MEME_SFX_STEMS);
+    for (const [name, stems] of Object.entries(FILE_SFX_STEMS)) {
+      void this._loadSfxBuffer(name, stems);
+    }
   }
 
   /**
@@ -758,7 +818,7 @@ export class AudioManager {
    * @param {PannerNode} panner
    * @param {number} [gain=1]
    */
-  async _playSfxBufferAtPanner(name, stems, panner, gain = 1) {
+  async _playSfxBufferAtPanner(name, stems, panner, gain = 1, startOffset = 0, playbackRate = 1) {
     let buf = this._sfxBuffers.get(name);
     if (buf === undefined) buf = await this._loadSfxBuffer(name, stems);
     if (!buf) return false;
@@ -767,6 +827,7 @@ export class AudioManager {
     g.gain.value = gain;
     const src = this.audioContext.createBufferSource();
     src.buffer = buf;
+    src.playbackRate.value = Math.max(0.25, Math.min(3, Number(playbackRate) || 1));
     src.connect(g);
     g.connect(panner);
     src.onended = () => {
@@ -774,7 +835,8 @@ export class AudioManager {
       try { g.disconnect(); } catch { /* already gone */ }
       try { panner.disconnect(); } catch { /* already gone */ }
     };
-    src.start();
+    const offset = Math.max(0, Math.min(Number(startOffset) || 0, Math.max(0, buf.duration - 0.01)));
+    src.start(0, offset);
     return true;
   }
 
@@ -817,7 +879,7 @@ export class AudioManager {
         try { gain.disconnect(); } catch { /* already gone */ }
         try { panner.disconnect(); } catch { /* already gone */ }
       };
-      src.start();
+      src.start(0, Math.min(0.04, Math.max(0, buf.duration - 0.01)));
       return;
     }
     const dur = 0.07;

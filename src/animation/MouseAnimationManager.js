@@ -9,6 +9,7 @@ const STATE_TO_CLIP = Object.freeze({
   carry: 'Idle Alert',
   grab: 'Idle Alert',
   death: 'Death',
+  sit: 'Sit',
   win: 'Sit',
 });
 

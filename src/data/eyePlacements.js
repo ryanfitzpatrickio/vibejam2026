@@ -9,7 +9,7 @@
 
 // Bump the suffix whenever you bake new defaults into DEFAULT_TARGETS so
 // stale localStorage overrides don't shadow them.
-const STORAGE_KEY = 'dressingRoom:eyePlacements:v8';
+const STORAGE_KEY = 'dressingRoom:eyePlacements:v9';
 
 /**
  * @typedef {Object} EyePlacement
@@ -25,7 +25,7 @@ const STORAGE_KEY = 'dressingRoom:eyePlacements:v8';
  * @typedef {Object} EyeTargetDef
  * @property {string} key
  * @property {string} label
- * @property {string} kind            'mouse' | 'hero' | 'predator'
+ * @property {string} kind            'mouse' | 'hero' | 'predator' | 'mount'
  * @property {string} modelPath       Asset path (relative)
  * @property {string} [defaultSocket] Bone name commonly present on this model
  * @property {EyePlacement} placement Default placement
@@ -138,6 +138,21 @@ const DEFAULT_TARGETS = Object.freeze({
       rotation: v3(-0.22088, -0.02463, 0.02165),
       scale: v3(2, 2, 2),
       eyeSize: 5,
+    },
+  },
+  bird: {
+    key: 'bird',
+    label: 'Love Bird (mount)',
+    kind: 'mount',
+    modelPath: 'models/bird.glb',
+    defaultSocket: 'head',
+    previewWorldHeight: 1.2,
+    placement: {
+      socket: 'head',
+      position: v3(0.00017500532376880001, 0.06077240521370369, -0.08864301810865419),
+      rotation: v3(-2.320547885549613, 0.0005672320068981572, 0.0016720254234105676),
+      scale: v3(1, 1, 1),
+      eyeSize: 0.098,
     },
   },
 });

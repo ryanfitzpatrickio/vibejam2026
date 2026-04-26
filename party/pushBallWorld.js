@@ -6,7 +6,7 @@
  * get a real dynamic sphere without vendoring WASM; swap this module for Ammo later if needed.
  */
 
-import { World, Vec3, Sphere, Box, Body } from 'cannon-es';
+import { World, Vec3, Sphere, Box, Body, Cylinder } from 'cannon-es';
 import { PHYSICS } from '../shared/physics.js';
 
 const BALL_RADIUS = 0.38;
@@ -21,6 +21,7 @@ const DEFAULT_BALL_COLOR = '#e8945c';
 const PLAYER_PROXY_RADIUS = 0.34;
 /** Foot Y + this ≈ torso center for a rough push proxy */
 const PLAYER_PROXY_CENTER_Y = PHYSICS.playerHeight * 0.45;
+const GLB_PROP_DEFAULT_RADIUS = 0.48;
 
 /** Cannon needs non-zero thickness; wall AABBs from layout can be paper-thin. */
 const MIN_STATIC_HALF_EXTENT = 0.05;
@@ -89,6 +90,97 @@ function massForRadius(radius) {
   return Math.max(0.35, Math.min(22, m));
 }
 
+function radiusForGlbProp(primitive) {
+  const shape = physicsShapeForGlbProp(primitive);
+  if (shape === 'box' || shape === 'openBox') {
+    const size = physicsSizeForGlbProp(primitive);
+    return Math.max(0.16, Math.min(2.5, Math.hypot(size.x, size.y, size.z) * 0.5));
+  }
+  if (shape === 'cylinder') {
+    const size = physicsSizeForGlbProp(primitive);
+    return Math.max(0.16, Math.min(2.5, Math.hypot(Math.max(size.x, size.z) * 0.5, size.y * 0.5)));
+  }
+  if (Number.isFinite(primitive?.physicsRadius) && primitive.physicsRadius > 0) {
+    return Math.max(0.12, Math.min(2.5, primitive.physicsRadius));
+  }
+  const scale = primitive?.scale ?? {};
+  const maxScale = Math.max(
+    Number(scale.x) || 0,
+    Number(scale.y) || 0,
+    Number(scale.z) || 0,
+    0,
+  );
+  return Math.max(0.16, Math.min(1.4, maxScale * 0.48 || GLB_PROP_DEFAULT_RADIUS));
+}
+
+function physicsShapeForGlbProp(primitive) {
+  return primitive?.physicsShape === 'box'
+    || primitive?.physicsShape === 'openBox'
+    || primitive?.physicsShape === 'cylinder'
+    ? primitive.physicsShape
+    : 'sphere';
+}
+
+function physicsSizeForGlbProp(primitive) {
+  const size = primitive?.physicsSize ?? {};
+  const scale = primitive?.scale ?? {};
+  return {
+    x: Math.max(0.05, Math.min(5, Number(size.x ?? scale.x ?? 1) || 1)),
+    y: Math.max(0.05, Math.min(5, Number(size.y ?? scale.y ?? 1) || 1)),
+    z: Math.max(0.05, Math.min(5, Number(size.z ?? scale.z ?? 1) || 1)),
+  };
+}
+
+function massForGlbProp(primitive, radius) {
+  if (Number.isFinite(primitive?.physicsMass) && primitive.physicsMass > 0) {
+    return Math.max(0.2, Math.min(80, primitive.physicsMass));
+  }
+  return Math.max(0.4, Math.min(36, massForRadius(radius)));
+}
+
+function serializeScale(scale = {}) {
+  return {
+    sx: +(Number(scale.x ?? 1)).toFixed(4),
+    sy: +(Number(scale.y ?? 1)).toFixed(4),
+    sz: +(Number(scale.z ?? 1)).toFixed(4),
+  };
+}
+
+function serializePhysicsSize(size = {}) {
+  return {
+    psx: +(Number(size.x ?? 1)).toFixed(4),
+    psy: +(Number(size.y ?? 1)).toFixed(4),
+    psz: +(Number(size.z ?? 1)).toFixed(4),
+  };
+}
+
+function addOpenBoxShapes(body, size) {
+  const thickness = Math.max(0.04, Math.min(0.18, Math.min(size.x, size.y, size.z) * 0.08));
+  const hx = size.x * 0.5;
+  const hy = size.y * 0.5;
+  const hz = size.z * 0.5;
+  body.addShape(
+    new Box(new Vec3(hx, thickness * 0.5, hz)),
+    new Vec3(0, -hy + thickness * 0.5, 0),
+  );
+  body.addShape(
+    new Box(new Vec3(thickness * 0.5, hy, hz)),
+    new Vec3(-hx + thickness * 0.5, 0, 0),
+  );
+  body.addShape(
+    new Box(new Vec3(thickness * 0.5, hy, hz)),
+    new Vec3(hx - thickness * 0.5, 0, 0),
+  );
+  body.addShape(
+    new Box(new Vec3(hx, hy, thickness * 0.5)),
+    new Vec3(0, 0, -hz + thickness * 0.5),
+  );
+  body.addShape(
+    new Box(new Vec3(hx, hy, thickness * 0.5)),
+    new Vec3(0, 0, hz - thickness * 0.5),
+  );
+}
+
 export function createPushBallWorld({
   ballSpawnX = 2.2,
   ballSpawnY = BALL_RADIUS + 0.08,
@@ -125,6 +217,8 @@ export function createPushBallWorld({
   /** @type {Map<string, { body: Body, radius: number, color: string, spawnedAtMs: number }>} */
   const extraBalls = new Map();
   let nextExtraBallId = 0;
+  /** @type {Map<string, { body: Body, radius: number, glbAssetId: string, scale: {x:number,y:number,z:number}, spawn: object }>} */
+  const glbProps = new Map();
 
   /** @type {Map<string, Body>} */
   const playerProxies = new Map();
@@ -134,6 +228,112 @@ export function createPushBallWorld({
     body.velocity.set(0, 0, 0);
     body.angularVelocity.set(0, 0, 0);
     body.quaternion.set(0, 0, 0, 1);
+  }
+
+  function clearExtraBalls() {
+    for (const { body } of extraBalls.values()) {
+      world.removeBody(body);
+    }
+    extraBalls.clear();
+  }
+
+  function createGlbPropBody(primitive, radius) {
+    const shapeMode = physicsShapeForGlbProp(primitive);
+    const size = physicsSizeForGlbProp(primitive);
+    const shape = shapeMode === 'openBox'
+      ? null
+      : shapeMode === 'box'
+      ? new Box(new Vec3(size.x * 0.5, size.y * 0.5, size.z * 0.5))
+      : shapeMode === 'cylinder'
+        ? new Cylinder(
+          Math.max(size.x, size.z) * 0.5,
+          Math.max(size.x, size.z) * 0.5,
+          size.y,
+          10,
+        )
+        : new Sphere(radius);
+    const body = new Body({
+      mass: massForGlbProp(primitive, radius),
+      linearDamping: 0.08,
+      angularDamping: 0.16,
+      material: world.defaultContactMaterial,
+    });
+    if (shapeMode === 'openBox') {
+      addOpenBoxShapes(body, size);
+    } else {
+      body.addShape(shape);
+    }
+    const pos = primitive.position ?? {};
+    body.position.set(
+      Number(pos.x) || 0,
+      Number(pos.y) || radius + 0.1,
+      Number(pos.z) || 0,
+    );
+    const rot = primitive.rotation ?? {};
+    body.quaternion.setFromEuler(
+      Number(rot.x) || 0,
+      Number(rot.y) || 0,
+      Number(rot.z) || 0,
+      'XYZ',
+    );
+    return body;
+  }
+
+  function setGlbProps(layout) {
+    for (const entry of glbProps.values()) {
+      world.removeBody(entry.body);
+    }
+    glbProps.clear();
+
+    const primitives = Array.isArray(layout?.primitives) ? layout.primitives : [];
+    const next = primitives.filter((primitive) => (
+      primitive
+      && primitive.deleted !== true
+      && primitive.type === 'glb'
+      && primitive.glbProp === true
+      && primitive.glbAssetId
+    ));
+
+    for (const primitive of next) {
+      const id = primitive.id;
+      const radius = radiusForGlbProp(primitive);
+      const scale = {
+        x: Number(primitive.scale?.x ?? 1),
+        y: Number(primitive.scale?.y ?? 1),
+        z: Number(primitive.scale?.z ?? 1),
+      };
+      const physicsShape = physicsShapeForGlbProp(primitive);
+      const physicsSize = physicsSizeForGlbProp(primitive);
+      const spawn = {
+        x: Number(primitive.position?.x ?? 0),
+        y: Number(primitive.position?.y ?? radius + 0.1),
+        z: Number(primitive.position?.z ?? 0),
+      };
+      const body = createGlbPropBody(primitive, radius);
+      world.addBody(body);
+      glbProps.set(id, {
+        body,
+        radius,
+        glbAssetId: primitive.glbAssetId,
+        favoriteToy: primitive.catFavoriteToy === true,
+        scale,
+        physicsShape,
+        physicsSize,
+        spawn,
+      });
+    }
+  }
+
+  function resetRound(layout = null) {
+    resetBallBody(ball, ballSpawnX, ballSpawnY, ballSpawnZ);
+    clearExtraBalls();
+    if (layout) {
+      setGlbProps(layout);
+      return;
+    }
+    for (const { body, spawn } of glbProps.values()) {
+      resetBallBody(body, spawn.x, spawn.y, spawn.z);
+    }
   }
 
   /**
@@ -253,6 +453,11 @@ export function createPushBallWorld({
         resetBallBody(body, ox, radius + 0.1, oz);
       }
     }
+    for (const [, { body, spawn }] of glbProps) {
+      if (body.position.y < -5) {
+        resetBallBody(body, spawn.x, spawn.y, spawn.z);
+      }
+    }
   }
 
   function getBallsState() {
@@ -262,15 +467,46 @@ export function createPushBallWorld({
     for (const [id, { body, radius, color }] of extraBalls) {
       list.push(serializeBallBody(body, id, radius, color));
     }
+    for (const [id, {
+      body,
+      radius,
+      glbAssetId,
+      favoriteToy,
+      scale,
+      physicsShape,
+      physicsSize,
+    }] of glbProps) {
+      list.push({
+        ...serializeBallBody(body, id, radius, '#ffffff'),
+        kind: 'glb-prop',
+        glbAssetId,
+        catFavoriteToy: favoriteToy === true,
+        physicsShape,
+        ...serializeScale(scale),
+        ...serializePhysicsSize(physicsSize),
+      });
+    }
     return list;
   }
 
-  function getBallsForAi() {
+  function getGrabbedBallOwners(playersMap) {
+    const owners = new Map();
+    if (!playersMap?.entries) return owners;
+    for (const [playerId, state] of playersMap) {
+      const ballId = state?.grabbedBallId;
+      if (ballId) owners.set(ballId, playerId);
+    }
+    return owners;
+  }
+
+  function getBallsForAi(playersMap = null) {
+    const grabbedBy = getGrabbedBallOwners(playersMap);
     const list = [{
       id: 'push-ball',
       x: ball.position.x, y: ball.position.y, z: ball.position.z,
       vx: ball.velocity.x, vy: ball.velocity.y, vz: ball.velocity.z,
       radius: BALL_RADIUS,
+      grabbedBy: grabbedBy.get('push-ball') ?? null,
     }];
     for (const [id, { body, radius }] of extraBalls) {
       list.push({
@@ -278,6 +514,17 @@ export function createPushBallWorld({
         x: body.position.x, y: body.position.y, z: body.position.z,
         vx: body.velocity.x, vy: body.velocity.y, vz: body.velocity.z,
         radius,
+        grabbedBy: grabbedBy.get(id) ?? null,
+      });
+    }
+    for (const [id, { body, radius, favoriteToy }] of glbProps) {
+      list.push({
+        id,
+        x: body.position.x, y: body.position.y, z: body.position.z,
+        vx: body.velocity.x, vy: body.velocity.y, vz: body.velocity.z,
+        radius,
+        grabbedBy: grabbedBy.get(id) ?? null,
+        favoriteToy: favoriteToy === true,
       });
     }
     return list;
@@ -294,6 +541,7 @@ export function createPushBallWorld({
   } = {}) {
     const entries = [[ball, BALL_RADIUS]];
     for (const [, { body, radius }] of extraBalls) entries.push([body, radius]);
+    for (const [, { body, radius }] of glbProps) entries.push([body, radius]);
     let hit = 0;
     for (const [body, radius] of entries) {
       const dx = body.position.x - origin.x;
@@ -318,13 +566,18 @@ export function createPushBallWorld({
     for (const [id, { body, radius }] of extraBalls) {
       list.push({ id, body, radius });
     }
+    for (const [id, { body, radius }] of glbProps) {
+      list.push({ id, body, radius });
+    }
     return list;
   }
 
   function getBallEntry(id) {
     if (id === 'push-ball') return { id: 'push-ball', body: ball, radius: BALL_RADIUS };
     const entry = extraBalls.get(id);
-    return entry ? { id, body: entry.body, radius: entry.radius } : null;
+    if (entry) return { id, body: entry.body, radius: entry.radius };
+    const glbEntry = glbProps.get(id);
+    return glbEntry ? { id, body: glbEntry.body, radius: glbEntry.radius } : null;
   }
 
   /** Pin a ball at (x,y,z) and zero its velocity — called every tick while held. */
@@ -355,7 +608,9 @@ export function createPushBallWorld({
     getBallsForAi,
     smackBallsInFront,
     spawnExtraBallNear,
+    resetRound,
     setLevelColliders,
+    setGlbProps,
     getBallEntries,
     getBallEntry,
     pinBall,

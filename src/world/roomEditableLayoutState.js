@@ -15,6 +15,7 @@ export function isRoomPrimitiveVisible(room, primitive) {
   if (primitive?.hiddenByGeneratedBake) return false;
   if (primitive?.spawnType) return room.spawnMarkersVisible;
   if (primitive?.gameplayType === 'hot_surface') return room.hotSurfaceHelpersVisible;
+  if (primitive?.glbProp === true || primitive?.mount === true) return room.glbPropHelpersVisible;
   return true;
 }
 
@@ -35,6 +36,18 @@ export function setRoomHotSurfaceHelpersVisible(room, visible) {
 
   for (const primitive of room.editableLayout.primitives) {
     if (primitive?.gameplayType !== 'hot_surface') continue;
+    const mesh = room.editableMeshes.get(primitive.id);
+    if (mesh) {
+      mesh.visible = room._isPrimitiveVisible(primitive);
+    }
+  }
+}
+
+export function setRoomGlbPropHelpersVisible(room, visible) {
+  room.glbPropHelpersVisible = visible === true;
+
+  for (const primitive of room.editableLayout.primitives) {
+    if (primitive?.glbProp !== true && primitive?.mount !== true) continue;
     const mesh = room.editableMeshes.get(primitive.id);
     if (mesh) {
       mesh.visible = room._isPrimitiveVisible(primitive);

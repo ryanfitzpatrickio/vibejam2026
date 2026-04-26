@@ -242,8 +242,9 @@ export function flattenGlbScene(scene) {
   scene.updateMatrixWorld(true);
 }
 
-export async function loadGlbModelByAssetId(room, assetId) {
-  if (room.glbModelCache.has(assetId)) return room.glbModelCache.get(assetId);
+export async function loadGlbAssetById(room, assetId) {
+  if (room.glbAssetCache?.has(assetId)) return room.glbAssetCache.get(assetId);
+  if (!room.glbAssetCache) room.glbAssetCache = new Map();
   const registry = await loadGlbRegistry(room);
   const entry = registry.assets?.find((a) => a.id === assetId);
   if (!entry) return null;
@@ -254,7 +255,7 @@ export async function loadGlbModelByAssetId(room, assetId) {
     const scene = gltf.scene;
     applyGlbChromaKey(scene, entry);
     scene.updateMatrixWorld(true);
-    flattenGlbScene(scene);
+    if (!gltf.animations?.length) flattenGlbScene(scene);
     if (!validateGeneratedBakeScene(room, assetId, scene)) {
       room.invalidGeneratedBakeAssetIds.add(assetId);
       return null;
@@ -264,12 +265,20 @@ export async function loadGlbModelByAssetId(room, assetId) {
       child.geometry.userData.isSharedGlbGeometry = true;
       ensureMeshGeometryBvh(child.geometry);
     });
+    const asset = { scene, animations: gltf.animations ?? [], entry };
     room.glbModelCache.set(assetId, scene);
-    return scene;
+    room.glbAssetCache.set(assetId, asset);
+    return asset;
   } catch (err) {
     console.warn(`Failed to load GLB asset ${assetId}:`, err);
     return null;
   }
+}
+
+export async function loadGlbModelByAssetId(room, assetId) {
+  if (room.glbModelCache.has(assetId)) return room.glbModelCache.get(assetId);
+  const asset = await loadGlbAssetById(room, assetId);
+  return asset?.scene ?? null;
 }
 
 export function isGeneratedBakePrimitiveEnabled(room, primitive) {

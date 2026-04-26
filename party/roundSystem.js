@@ -22,7 +22,7 @@ export function advanceRoundPhase(runtime, wallNow) {
       phase: 'extract',
       phaseEndsAt: runtime.round.phaseEndsAt,
       number: runtime.round.number,
-      message: 'HUMAN COMING HOME! Mouse holes opening — hold E to extract!',
+      message: 'HUMAN COMING HOME! Mouse holes opening — stand in one to extract!',
     }));
     return;
   }
@@ -50,6 +50,13 @@ export function finishRound(runtime) {
   const results = [];
   const adversaryResults = [];
   for (const [id, state] of runtime.players) {
+    if (state.mountId) {
+      runtime.mountWorld?.celebrationDismount?.(id, state);
+    }
+    if (state.extracted && state.alive && !state.isAdversary) {
+      state.animState = 'win';
+      state.emote = null;
+    }
     const br = computePlayerRoundScore(state);
     state.roundStats.finalScore = br.finalScore;
     state.roundStats.xpAwarded = br.xpAwarded;
@@ -103,12 +110,16 @@ export function finishRound(runtime) {
 }
 
 export function startNewRound(runtime) {
+  runtime.pushBallWorld?.resetRound?.(runtime._layout);
+  runtime.mountWorld?.resetRound?.(runtime._layout);
   runtime.cheeseWorld.seedScatter();
   runtime.fanWorld?.resetRound?.();
   runtime.heroClaims = { gus: null, speedy: null };
   runtime.unlockItems = runtime._scatterUnlockItems();
   runtime._claimHeroCooldown.clear();
   runtime._unlockPickupCooldown.clear();
+  runtime._spawnBallCooldown.clear();
+  runtime._playerExtraBallSpawnCount.clear();
   runtime._taskCompleteCooldown.clear();
   runtime._taskCompletionClaims.clear();
   runtime._refreshLevelColliders();
@@ -141,7 +152,12 @@ export function startNewRound(runtime) {
     state.deathTime = 0;
     state.animState = 'idle';
     state.smackStunTimer = 0;
+    state.chargedSmackHitSeq = 0;
+    state.smackLimpThrowWindowTimer = 0;
+    state.limpThrownBounceTimer = 0;
+    state.limpBounceHitSeq = 0;
     state._chargedSmackHoldSeconds = 0;
+    state._suppressMountReleaseSmack = false;
     state._chargedJumpHoldSeconds = 0;
     state._chargedThrowHoldSeconds = 0;
     state._chargedThrowOrbitAngle = 0;
@@ -155,6 +171,12 @@ export function startNewRound(runtime) {
     state._nextQuickTossAttemptAt = 0;
     state._grabHeldInput = false;
     state._nextGrabAttemptAt = 0;
+    state._roundEndMountCelebrationTimer = 0;
+    state._roundEndMountCelebrationGroundY = null;
+    state.grabbedBy = null;
+    state.grabbedTarget = null;
+    state.grabbedBallId = null;
+    state.mountId = null;
     state.roombaLaunch = null;
     state.ropeSwing = null;
     const spawn = runtime._pickPlayerSpawn(idx);
@@ -163,6 +185,7 @@ export function startNewRound(runtime) {
     runtime.mouseLaunchWorld?.removePlayer?.(id);
     runtime.ropeWorld?.removePlayer?.(id);
     runtime.fanWorld?.removePlayer?.(id);
+    runtime.mountWorld?.clearPlayer?.(id, state);
     runtime._lastRopeGrab.delete(id);
     runtime._lastRopeJump?.delete(id);
     if (!runtime.inputQueues.has(id)) {

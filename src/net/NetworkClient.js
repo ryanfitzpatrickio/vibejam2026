@@ -63,6 +63,9 @@ export class NetworkClient {
   /** Authoritative pushable balls (cannon-es on server); empty until init/snapshot */
   pushBalls = [];
 
+  /** Authoritative rideable mounts; empty until init/snapshot */
+  mounts = [];
+
   /** Authoritative rope segment positions (server-authoritative); empty until init/snapshot */
   ropes = [];
 
@@ -146,6 +149,7 @@ export class NetworkClient {
       this.localId = null;
       this.remotePredators.clear();
       this.pushBalls = [];
+      this.mounts = [];
       this.fans = [];
       this.cheesePickups = [];
       this.round = null;
@@ -280,6 +284,12 @@ export class NetworkClient {
     }
   }
 
+  _applyMountsPayload(data) {
+    if (Array.isArray(data.mounts)) {
+      this.mounts = data.mounts;
+    }
+  }
+
   _applyRopesPayload(data) {
     if (Array.isArray(data.ropes)) {
       this.ropes = data.ropes;
@@ -325,6 +335,7 @@ export class NetworkClient {
           }
         }
         this._applyPushBallsPayload(data);
+        this._applyMountsPayload(data);
         this._applyRopesPayload(data);
         this._applyFansPayload(data);
         this._applyCheesePayload(data);
@@ -410,6 +421,7 @@ export class NetworkClient {
           }
         }
         this._applyPushBallsPayload(data);
+        this._applyMountsPayload(data);
         this._applyRopesPayload(data);
         this._applyFansPayload(data);
         this._applyCheesePayload(data);

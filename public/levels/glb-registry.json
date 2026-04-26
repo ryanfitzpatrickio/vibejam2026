@@ -83,6 +83,51 @@
       "generatedFromLayoutId": "kitchen-layout",
       "size": 14926388,
       "uploadedAt": "2026-04-20T16:05:22.266Z"
+    },
+    {
+      "id": "asset-prop-burger-001",
+      "name": "burger",
+      "filename": "burger.glb",
+      "sourcePath": "assets/source/burger.glb",
+      "publicPath": "models/burger.glb",
+      "size": 22433684,
+      "uploadedAt": "2026-04-25T00:00:00.000Z"
+    },
+    {
+      "id": "asset-prop-fries-001",
+      "name": "fries",
+      "filename": "fries.glb",
+      "sourcePath": "assets/source/fries.glb",
+      "publicPath": "models/fries.glb",
+      "size": 21080828,
+      "uploadedAt": "2026-04-25T00:00:00.000Z"
+    },
+    {
+      "id": "asset-prop-cup-001",
+      "name": "cup",
+      "filename": "cup.glb",
+      "sourcePath": "assets/source/cup.glb",
+      "publicPath": "models/cup.glb",
+      "size": 19867620,
+      "uploadedAt": "2026-04-25T00:00:00.000Z"
+    },
+    {
+      "id": "asset-prop-bag-001",
+      "name": "bag",
+      "filename": "bag.glb",
+      "sourcePath": "assets/source/bag.glb",
+      "publicPath": "models/bag.glb",
+      "size": 22739816,
+      "uploadedAt": "2026-04-25T00:00:00.000Z"
+    },
+    {
+      "id": "asset-mount-bird-001",
+      "name": "bird",
+      "filename": "bird.glb",
+      "sourcePath": "assets/source/bird.glb",
+      "publicPath": "models/bird.glb",
+      "size": 6688804,
+      "uploadedAt": "2026-04-26T00:00:00.000Z"
     }
   ]
 }

@@ -121,12 +121,16 @@ function createIcon(name) {
 }
 
 function setButtonActive(button, active) {
+  const restBackground = button._mobileRestBackground
+    || 'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06)), rgba(15,18,18,0.42)';
+  const activeBackground = button._mobileActiveBackground
+    || 'linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0.08)), rgba(192,77,52,0.52)';
+  const restBorder = button._mobileRestBorder || 'rgba(255,255,255,0.28)';
+  const activeBorder = button._mobileActiveBorder || 'rgba(255,236,185,0.56)';
   button.dataset.active = active ? 'true' : 'false';
   button.style.transform = active ? 'translateY(1px) scale(0.97)' : 'translateY(0) scale(1)';
-  button.style.background = active
-    ? 'linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0.08)), rgba(192,77,52,0.52)'
-    : 'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06)), rgba(15,18,18,0.42)';
-  button.style.borderColor = active ? 'rgba(255,236,185,0.56)' : 'rgba(255,255,255,0.28)';
+  button.style.background = active ? activeBackground : restBackground;
+  button.style.borderColor = active ? activeBorder : restBorder;
   button.style.color = active ? '#fff3d4' : '#fff8ef';
 }
 
@@ -180,6 +184,51 @@ function createButton({ label, icon, primary = false, area = '' }) {
     transition: 'transform 80ms ease, background 80ms ease, border-color 80ms ease, color 80ms ease',
   });
   return button;
+}
+
+function styleCircleActionButton(button, {
+  size,
+  left,
+  top,
+  background,
+  activeBackground,
+  border = 'rgba(255,255,255,0.3)',
+  activeBorder = 'rgba(255,241,181,0.72)',
+  primary = false,
+}) {
+  button._mobileRestBackground = background;
+  button._mobileActiveBackground = activeBackground;
+  button._mobileRestBorder = border;
+  button._mobileActiveBorder = activeBorder;
+  Object.assign(button.style, {
+    position: 'absolute',
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${size}px`,
+    height: `${size}px`,
+    minWidth: `${size}px`,
+    minHeight: `${size}px`,
+    padding: primary ? '14px 10px' : '8px 6px',
+    borderRadius: '999px',
+    pointerEvents: 'auto',
+    background,
+    borderColor: border,
+    gap: primary ? '7px' : '4px',
+    boxShadow: primary
+      ? '0 18px 34px rgba(0,0,0,0.42), 0 0 0 6px rgba(255,255,255,0.05), inset 0 2px 0 rgba(255,255,255,0.25)'
+      : '0 12px 24px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.2)',
+  });
+  if (button._labelEl) {
+    Object.assign(button._labelEl.style, {
+      fontSize: primary ? '13px' : '10px',
+      letterSpacing: primary ? '0.02em' : '0',
+    });
+  }
+  const icon = button.querySelector('svg');
+  if (icon) {
+    icon.setAttribute('width', primary ? '30' : '22');
+    icon.setAttribute('height', primary ? '30' : '22');
+  }
 }
 
 export class MobileControls {
@@ -303,14 +352,11 @@ export class MobileControls {
     this.actionPad = document.createElement('div');
     Object.assign(this.actionPad.style, {
       position: 'absolute',
-      right: 'calc(12px + env(safe-area-inset-right))',
-      top: '50%',
-      transform: 'translateY(-50%)',
+      right: 'calc(14px + env(safe-area-inset-right))',
+      bottom: 'calc(18px + env(safe-area-inset-bottom))',
       zIndex: '3',
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, 68px)',
-      gridAutoRows: '68px',
-      gap: '8px',
+      width: '220px',
+      height: '238px',
       pointerEvents: 'none',
       touchAction: 'none',
       WebkitUserSelect: 'none',
@@ -321,8 +367,8 @@ export class MobileControls {
     this.throwDock = document.createElement('div');
     Object.assign(this.throwDock.style, {
       position: 'absolute',
-      left: 'calc(16px + 150px + 18px + env(safe-area-inset-left))',
-      bottom: 'calc(20px + env(safe-area-inset-bottom))',
+      left: 'calc(26px + env(safe-area-inset-left))',
+      bottom: 'calc(180px + env(safe-area-inset-bottom))',
       zIndex: '3',
       pointerEvents: 'none',
       touchAction: 'none',
@@ -352,21 +398,61 @@ export class MobileControls {
       });
     });
 
-    [this._buttons.jump, this._buttons.grab, this._buttons.smack, this._buttons.sprint].forEach((button) => {
-      Object.assign(button.style, {
-        width: '68px',
-        height: '68px',
-        padding: '8px 6px',
-        pointerEvents: 'auto',
-      });
+    styleCircleActionButton(this._buttons.jump, {
+      size: 118,
+      left: 94,
+      top: 4,
+      primary: true,
+      background: 'radial-gradient(circle at 35% 25%, rgba(255,255,255,0.36), rgba(255,255,255,0.08) 42%, rgba(38,116,165,0.82)), rgba(18,51,74,0.78)',
+      activeBackground: 'radial-gradient(circle at 35% 25%, rgba(255,255,255,0.46), rgba(255,255,255,0.12) 40%, rgba(71,166,217,0.92)), rgba(20,74,104,0.9)',
+      border: 'rgba(186,230,253,0.58)',
+      activeBorder: 'rgba(224,242,254,0.9)',
+    });
+
+    styleCircleActionButton(this._buttons.smack, {
+      size: 82,
+      left: 8,
+      top: 68,
+      background: 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.32), rgba(255,255,255,0.08) 40%, rgba(185,54,72,0.76)), rgba(75,20,29,0.72)',
+      activeBackground: 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.43), rgba(255,255,255,0.12) 40%, rgba(237,91,109,0.92)), rgba(96,28,40,0.88)',
+      border: 'rgba(253,164,175,0.58)',
+      activeBorder: 'rgba(255,228,230,0.9)',
+    });
+
+    styleCircleActionButton(this._buttons.sprint, {
+      size: 76,
+      left: 58,
+      top: 158,
+      background: 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.32), rgba(255,255,255,0.08) 40%, rgba(185,116,36,0.78)), rgba(82,46,15,0.72)',
+      activeBackground: 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.44), rgba(255,255,255,0.12) 40%, rgba(238,164,58,0.94)), rgba(112,64,18,0.9)',
+      border: 'rgba(253,186,116,0.6)',
+      activeBorder: 'rgba(254,243,199,0.9)',
+    });
+
+    styleCircleActionButton(this._buttons.grab, {
+      size: 76,
+      left: 138,
+      top: 132,
+      background: 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.32), rgba(255,255,255,0.08) 40%, rgba(93,75,177,0.76)), rgba(38,27,82,0.72)',
+      activeBackground: 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.44), rgba(255,255,255,0.12) 40%, rgba(135,116,230,0.92)), rgba(53,39,111,0.88)',
+      border: 'rgba(196,181,253,0.62)',
+      activeBorder: 'rgba(237,233,254,0.92)',
     });
 
     Object.assign(this._buttons.throw.style, {
-      width: '68px',
-      height: '68px',
+      width: '76px',
+      height: '76px',
       padding: '8px 6px',
+      borderRadius: '999px',
+      background: 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.32), rgba(255,255,255,0.08) 40%, rgba(109,94,74,0.78)), rgba(42,34,25,0.74)',
+      borderColor: 'rgba(255,255,255,0.34)',
+      boxShadow: '0 12px 24px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.2)',
       pointerEvents: 'auto',
     });
+    this._buttons.throw._mobileRestBackground = this._buttons.throw.style.background;
+    this._buttons.throw._mobileActiveBackground = 'radial-gradient(circle at 34% 24%, rgba(255,255,255,0.44), rgba(255,255,255,0.12) 40%, rgba(173,145,100,0.92)), rgba(66,51,35,0.9)';
+    this._buttons.throw._mobileRestBorder = 'rgba(255,255,255,0.34)';
+    this._buttons.throw._mobileActiveBorder = 'rgba(255,241,214,0.86)';
 
     this.topBar.append(
       this._buttons.adversary,
@@ -375,9 +461,9 @@ export class MobileControls {
     );
     this.actionPad.append(
       this._buttons.jump,
-      this._buttons.grab,
       this._buttons.smack,
       this._buttons.sprint,
+      this._buttons.grab,
     );
     this.throwDock.append(this._buttons.throw);
 
@@ -439,13 +525,13 @@ export class MobileControls {
       right: 'auto',
     } : {
       left: 'auto',
-      right: 'calc(12px + env(safe-area-inset-right))',
+      right: 'calc(14px + env(safe-area-inset-right))',
     });
     Object.assign(this.throwDock.style, m ? {
       left: 'auto',
-      right: 'calc(16px + 150px + 18px + env(safe-area-inset-right))',
+      right: 'calc(26px + env(safe-area-inset-right))',
     } : {
-      left: 'calc(16px + 150px + 18px + env(safe-area-inset-left))',
+      left: 'calc(26px + env(safe-area-inset-left))',
       right: 'auto',
     });
     Object.assign(this.topBar.style, m ? {

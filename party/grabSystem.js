@@ -1,14 +1,17 @@
 import { GRAB_RANGE, MISCHIEF_POINTS } from './interactionTuning.js';
 
 function findNearestGrabbablePlayer(runtime, grabberId, grabber) {
+  const origin = runtime.mountWorld?.getGrabPointForPlayer?.(grabberId, grabber) ?? grabber.position;
   let bestId = null;
   let bestDist = GRAB_RANGE;
   for (const [otherId, other] of runtime.players) {
     if (otherId === grabberId || !other.alive || other.smackStunTimer > 0) continue;
     if (other.extracted || other.spectator || other.isAdversary) continue;
     if (runtime.mouseLaunchWorld.isFlying(otherId)) continue;
-    const dx = other.position.x - grabber.position.x;
-    const dz = other.position.z - grabber.position.z;
+    const dx = other.position.x - origin.x;
+    const dz = other.position.z - origin.z;
+    const dy = Math.abs(other.position.y - (origin.y ?? grabber.position.y));
+    if (dy > 1.35) continue;
     const dist = Math.sqrt(dx * dx + dz * dz);
     if (dist < bestDist) {
       bestDist = dist;
@@ -59,14 +62,19 @@ function claimPlayer(runtime, grabberId, targetId, { quickToss }) {
   runtime._emitNoise(grabber, quickToss ? 8 : 7, quickToss ? 100 : 90);
 }
 
-function findNearestGrabbableBall(runtime, grabber, claimedBalls) {
+function findNearestGrabbableBall(runtime, grabberId, grabber, claimedBalls) {
+  const origin = runtime.mountWorld?.getGrabPointForPlayer?.(grabberId, grabber) ?? {
+    x: grabber.position.x,
+    y: grabber.position.y + 0.5,
+    z: grabber.position.z,
+  };
   let bestBall = null;
   let bestBallDist = GRAB_RANGE;
   for (const entry of runtime.pushBallWorld.getBallEntries()) {
     if (claimedBalls.has(entry.id)) continue;
-    const dx = entry.body.position.x - grabber.position.x;
-    const dz = entry.body.position.z - grabber.position.z;
-    const dy = entry.body.position.y - (grabber.position.y + 0.5);
+    const dx = entry.body.position.x - origin.x;
+    const dz = entry.body.position.z - origin.z;
+    const dy = entry.body.position.y - origin.y;
     const distXZ = Math.sqrt(dx * dx + dz * dz);
     if (distXZ - entry.radius > bestBallDist) continue;
     if (Math.abs(dy) > 1.4 + entry.radius) continue;
@@ -120,7 +128,7 @@ export function processGrabAcquisition(runtime, {
       continue;
     }
 
-    const bestBall = findNearestGrabbableBall(runtime, grabber, claimedBalls);
+    const bestBall = findNearestGrabbableBall(runtime, grabberId, grabber, claimedBalls);
     if (bestBall) {
       grabber.grabbedBallId = bestBall.id;
       grabber.grabAnimTimer = 0.6;

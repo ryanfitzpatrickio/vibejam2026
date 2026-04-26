@@ -29,7 +29,7 @@ const PORTRAIT_PREVIEW_SIZE = 84;
 
 /**
  * Dev-only "Dressing Room" dialog. Loads any registered eye-placement target
- * (mouse, brain, jerry, cat, human) into an isolated viewport so eyes can be
+ * (mouse, brain, jerry, cat, human, bird) into an isolated viewport so eyes can be
  * positioned, rotated, and scaled relative to a chosen socket bone. Changes
  * persist via the eyePlacements store and are broadcast live to in-game
  * entities listening for that target.

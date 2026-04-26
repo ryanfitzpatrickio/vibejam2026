@@ -167,8 +167,18 @@ export function createPlayerState(id) {
     grabbedTarget: null,
     /** Push-ball id this player is currently holding above their head (null if none). */
     grabbedBallId: null,
+    /** Rideable mount id while mounted (null if walking normally). */
+    mountId: null,
     /** Seconds remaining of smack stun (plays death anim, recovers when 0). */
     smackStunTimer: 0,
+    /** Monotonic client effect trigger for charged-smack impact sounds. */
+    chargedSmackHitSeq: 0,
+    /** After a smack, the player can be thrown limp instead of latching to walls. */
+    smackLimpThrowWindowTimer: 0,
+    /** While thrown limp, suppress wall/surface latching so collisions knock the player around. */
+    limpThrownBounceTimer: 0,
+    /** Monotonic client effect trigger for limp thrown collision sounds. */
+    limpBounceHitSeq: 0,
     /** Cooldown before this player can grab again (seconds). */
     grabCooldown: 0,
     /** Cooldown before this player can smack again (seconds). */
@@ -184,9 +194,9 @@ export function createPlayerState(id) {
     livesRemaining: LIVES_PER_ROUND,
     /** True when out of lives until round resets. */
     spectator: false,
-    /** Successfully reached an extraction portal with hold-E. */
+    /** Successfully reached an extraction portal. */
     extracted: false,
-    /** 0–1 hold progress while in a portal during extract phase. */
+    /** 0 before extraction, 1 once extracted. Kept for HUD/back-compat. */
     extractProgress: 0,
     /** Per-round scoring / task progress (server). */
     roundStats: createRoundStats(),
@@ -216,7 +226,7 @@ export function createPlayerState(id) {
 
 const FACE_CONTACT_EPSILON = 0.001;
 
-function getColliderBox(collider) {
+export function getColliderBox(collider) {
   return collider?.aabb ?? collider?.box ?? null;
 }
 
@@ -339,7 +349,7 @@ function getSupportHeight(state, colliders, radius, groundSnapDistance, baseGrou
   return supportY;
 }
 
-function resolveAgainstBox(state, box, radius, height, previousPosition = null, options = {}) {
+export function resolveAgainstBox(state, box, radius, height, previousPosition = null, options = {}) {
   const { position: pos, velocity: vel } = state;
   const allowVerticalSupport = options.allowVerticalSupport !== false;
   const capsuleMinY = pos.y;
@@ -634,6 +644,9 @@ export function respawnPlayer(state, spawnX, spawnZ, spawnY = 0) {
   state.grabbedTarget = null;
   state.grabbedBallId = null;
   state.smackStunTimer = 0;
+  state.smackLimpThrowWindowTimer = 0;
+  state.limpThrownBounceTimer = 0;
+  state.limpBounceHitSeq = 0;
   state.grabCooldown = 0;
   state.smackCooldown = 0;
   state.burnTimer = 0;
@@ -663,6 +676,14 @@ export function simulateTick(state, input, dt, bounds, colliders = [], vacuumPul
 
   if (state.roombaLaunchCooldown > 0) {
     state.roombaLaunchCooldown = Math.max(0, state.roombaLaunchCooldown - dt);
+  }
+  if (state.smackLimpThrowWindowTimer > 0) {
+    state.smackLimpThrowWindowTimer = Math.max(0, state.smackLimpThrowWindowTimer - dt);
+  }
+  if (state.limpThrownBounceTimer > 0) {
+    state.limpThrownBounceTimer = Math.max(0, state.limpThrownBounceTimer - dt);
+    state.wallHolding = false;
+    state.wallJumpWindowTimer = 0;
   }
 
   if (state.roombaLaunch?.phase === 'suck' || state.roombaLaunch?.phase === 'flight') {
@@ -841,7 +862,12 @@ export function simulateTick(state, input, dt, bounds, colliders = [], vacuumPul
     state.wallNormalX = 0;
     state.wallNormalZ = 0;
     state.wallJumpWindowTimer = 0;
-  } else if (jumpHeld && state.wallAttachCooldownTimer <= 0 && colliders?.length) {
+  } else if (
+    jumpHeld
+    && state.wallAttachCooldownTimer <= 0
+    && (Number(state.limpThrownBounceTimer) || 0) <= 0
+    && colliders?.length
+  ) {
     const wallContact = findNearbyWallContact(
       state,
       colliders,

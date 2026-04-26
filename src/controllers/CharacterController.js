@@ -19,10 +19,10 @@ const DEFAULT_KEY_BINDINGS = Object.freeze({
   adversaryToggle: 'KeyJ',
 });
 
-export const CHARGED_SMACK_MIN_HOLD_MS = 450;
+export const CHARGED_SMACK_MIN_HOLD_MS = 1000;
 export const CHARGED_SMACK_FULL_HOLD_MS = 1600;
 export const CHARGED_SMACK_INDICATOR_HOLD_MS = 1000;
-export const CHARGED_JUMP_MIN_HOLD_MS = 450;
+export const CHARGED_JUMP_MIN_HOLD_MS = 1000;
 export const CHARGED_JUMP_FULL_HOLD_MS = 1600;
 export const CHARGED_JUMP_INDICATOR_HOLD_MS = 1000;
 export const CHARGED_THROW_MIN_HOLD_MS = 450;
@@ -445,7 +445,7 @@ export class CharacterController {
         this.mouse.update(dt);
         return;
       }
-    } else if (this.smackHeld) {
+    } else if (this.smackHeld && this.smackHoldMs >= CHARGED_SMACK_MIN_HOLD_MS) {
       const scrubbed = this.mouse.animationManager?.scrubReverseClip?.(
         ['Attack', 'Smack', 'Punch', 'Swipe', 'Bite', 'Jump'],
         this.smackChargeProgress,
@@ -455,7 +455,7 @@ export class CharacterController {
         this.mouse.update(dt);
         return;
       }
-    } else if (this.chargedJumpHeld) {
+    } else if (this.chargedJumpHeld && this.jumpChargeProgress > 0) {
       const scrubbed = this.mouse.animationManager?.scrubReverseClip?.(['Jump'], this.jumpChargeProgress);
       if (scrubbed) {
         this._prevAnimState = 'chargeJump';
@@ -590,7 +590,7 @@ export class CharacterController {
     this.smackHeld = !useInteractAsThrow && interactNow;
     this.smackHoldMs = this.smackHeld ? Math.max(0, nowMs - (this._interactDownAt || nowMs)) : 0;
     this.smackChargeProgress = this.smackHeld
-      ? Math.max(0, Math.min(1, this.smackHoldMs / CHARGED_SMACK_FULL_HOLD_MS))
+      ? Math.max(0, Math.min(1, (this.smackHoldMs - CHARGED_SMACK_MIN_HOLD_MS) / (CHARGED_SMACK_FULL_HOLD_MS - CHARGED_SMACK_MIN_HOLD_MS)))
       : 0;
     this.interactHeld = useInteractAsThrow ? false : interactNow;
     this.grabHeld = grabHeldNow;
