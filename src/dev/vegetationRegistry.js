@@ -125,6 +125,20 @@ function normalizeCollisionShape(shape = {}, defaults = {}) {
   };
 }
 
+function normalizePlacementSize(size = null) {
+  if (!size) return null;
+  const widthMin = clamp(Number(size.widthMin ?? 0.18), 0.02, 24);
+  const widthMax = Math.max(widthMin, clamp(Number(size.widthMax ?? widthMin), widthMin, 24));
+  const heightMin = clamp(Number(size.heightMin ?? 0.35), 0.02, 32);
+  const heightMax = Math.max(heightMin, clamp(Number(size.heightMax ?? heightMin), heightMin, 32));
+  return {
+    widthMin: round(widthMin),
+    widthMax: round(widthMax),
+    heightMin: round(heightMin),
+    heightMax: round(heightMax),
+  };
+}
+
 export function createVegetationSpeciesId() {
   return `veg-species-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -197,10 +211,16 @@ export function normalizeVegetationLibrary(library = {}) {
 export function normalizeVegetationPlacement(entry = {}) {
   const mode = normalizePlacementMode(entry.mode);
   const scale = cloneVectorLike(entry.scale, { x: 1, y: 1, z: 1 });
+  const kind = VEGETATION_KINDS.includes(entry.kind) ? entry.kind : null;
+  const collision = VEGETATION_COLLISION_MODES.includes(entry.collision) ? entry.collision : null;
   return {
     id: typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : createVegetationPlacementId(),
     name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'vegetation',
     speciesId: typeof entry.speciesId === 'string' && entry.speciesId.trim() ? entry.speciesId.trim() : null,
+    kind,
+    collision,
+    collisionShape: entry.collisionShape ? normalizeCollisionShape(entry.collisionShape) : null,
+    size: normalizePlacementSize(entry.size),
     mode,
     position: cloneVectorLike(entry.position, { x: 0, y: 0, z: 0 }),
     rotation: cloneVectorLike(entry.rotation, { x: 0, y: 0, z: 0 }),

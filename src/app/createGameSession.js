@@ -591,6 +591,11 @@ export async function createGameSession({
     scene,
     camera,
     getPlayer: () => (predictionState?.isAdversary && human?.playerControlled ? human : mouse),
+    getExtraNonOccluders: () => {
+      const mountId = predictionState?.mountId || net?.serverState?.mountId;
+      const mountObject = dynamicWorldItems?.getMountRenderState?.(mountId)?.object;
+      return mountObject ? [mountObject] : [];
+    },
   });
 
   // --- Multiplayer ---
@@ -1298,6 +1303,7 @@ export async function createGameSession({
       const localMounted = !!(predictionState.mountId || net.serverState?.mountId);
       const jumpHeld = !!keys[kb.jump];
       const jumpReleased = !jumpHeld && previousJumpHeld;
+      const canChargeJump = !localMounted;
       if (jumpHeld && !previousJumpHeld) {
         jumpHoldMs = 0;
         jumpChargeProgress = 0;
@@ -1309,7 +1315,7 @@ export async function createGameSession({
         jumpChargeSfxLoop,
         !!(
           jumpHeld
-          && !localMounted
+          && canChargeJump
           && jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS
           && (canGroundedChargedJump || jumpChargeSfxLoop.step > 0)
           && predictionState.alive !== false
@@ -1322,16 +1328,20 @@ export async function createGameSession({
       );
       let jumpPressed = false;
       let jumpCharge = 0;
-      if (jumpHeld) {
+      if (jumpHeld && canChargeJump) {
         jumpHoldMs += PHYSICS_STEP * 1000;
         jumpChargeProgress = Math.max(0, Math.min(
           1,
           (jumpHoldMs - CHARGED_JUMP_MIN_HOLD_MS) / (CHARGED_JUMP_FULL_HOLD_MS - CHARGED_JUMP_MIN_HOLD_MS),
         ));
+      } else if (!canChargeJump) {
+        jumpHoldMs = 0;
+        jumpChargeProgress = 0;
+        resetChargeSfxLoop(jumpChargeSfxLoop);
       }
       if (jumpReleased) {
         jumpPressed = true;
-        jumpCharge = jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS ? jumpChargeProgress : 0;
+        jumpCharge = canChargeJump && jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS ? jumpChargeProgress : 0;
         jumpHoldMs = 0;
         jumpChargeProgress = 0;
         resetChargeSfxLoop(jumpChargeSfxLoop);
@@ -1456,11 +1466,11 @@ export async function createGameSession({
       controller.stamina = predictionState.stamina;
       controller.health = predictionState.health;
       controller.alive = predictionState.alive;
-      controller.chargedJumpHeld = jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS && (
+      controller.chargedJumpHeld = canChargeJump && jumpHoldMs >= CHARGED_JUMP_MIN_HOLD_MS && (
         predictionState.grounded
         || (Number(predictionState.groundedGraceTimer) || 0) > 0
       );
-      controller.jumpChargeProgress = jumpChargeProgress;
+      controller.jumpChargeProgress = canChargeJump ? jumpChargeProgress : 0;
       controller.forcedAnimationState = predictionState.extracted ? 'win' : (localMounted ? 'sit' : null);
       if (controller.forcedAnimationState) {
         emoteManager.cancel();

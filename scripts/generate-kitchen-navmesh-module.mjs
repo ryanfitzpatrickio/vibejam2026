@@ -194,6 +194,10 @@ function createMeshForPrimitive(primitive, collider) {
     return createMeshFromColliderBox(collider);
   }
 
+  if (collider?.metadata?.glbProxy) {
+    return createMeshFromColliderBox(collider);
+  }
+
   if (primitive.type === 'cylinder') {
     return createWorldMesh(
       createPrimitiveGeometry('cylinder'),

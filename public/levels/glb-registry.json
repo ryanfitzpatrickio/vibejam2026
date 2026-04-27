@@ -128,6 +128,15 @@
       "publicPath": "models/bird.glb",
       "size": 6688804,
       "uploadedAt": "2026-04-26T00:00:00.000Z"
+    },
+    {
+      "id": "asset-moh35067-3xahe",
+      "name": "tree-trunk",
+      "filename": "tree-trunk.glb",
+      "sourcePath": "assets/source/custom/tree-trunk.glb",
+      "publicPath": "models/tree-trunk.glb",
+      "size": 81540,
+      "uploadedAt": "2026-04-27T10:59:43.519Z"
     }
   ]
 }

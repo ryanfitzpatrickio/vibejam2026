@@ -1904,6 +1904,20 @@ class BuildModeEditor {
     this._setStatus(`Placed ${prefab.name}.`);
   }
 
+  _reattachVegetationControlsWhenReady(id = this.selectedId) {
+    const rebuildPromise = this.app.room.lastVegetationRebuildPromise;
+    if (!rebuildPromise?.then) return;
+    rebuildPromise.then(() => {
+      if (!this.visible || this.selectedId !== id) return;
+      if (!this.app.room.getEditableObject(id)) return;
+      this.layout = this.app.room.getEditableLayout();
+      this._syncForm();
+      this._attachTransformControls();
+    }).catch((error) => {
+      console.warn('[build-mode] Vegetation rebuild failed:', error);
+    });
+  }
+
   _placeSelectedVegetation() {
     const species = this._selectedVegetationSpecies();
     if (!species) return;
@@ -1917,6 +1931,7 @@ class BuildModeEditor {
     this.selectedId = vegetation.id;
     this._syncForm();
     this._attachTransformControls();
+    this._reattachVegetationControlsWhenReady(vegetation.id);
     this._setStatus(`Placed ${species.name}.`);
   }
 
@@ -2094,6 +2109,7 @@ class BuildModeEditor {
       this.layout = this.app.room.getEditableLayout();
       this._syncForm();
       this._attachTransformControls();
+      this._reattachVegetationControlsWhenReady(snapped.id);
       return;
     }
 
@@ -2424,6 +2440,7 @@ class BuildModeEditor {
       this.selectedId = snapped.id;
       this._syncForm();
       this._attachTransformControls();
+      this._reattachVegetationControlsWhenReady(snapped.id);
       this._setStatus(`Duplicated ${vegetation.name}.`);
       return;
     }

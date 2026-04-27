@@ -14,7 +14,13 @@ export function installVegetationSection(editor) {
   editor.vegetationSpeciesSelect.addEventListener('change', () => {
     if (editor._selectedVegetation()) {
       editor._updateSelected((entry) => {
-        entry.speciesId = editor.vegetationSpeciesSelect.value || null;
+        const speciesId = editor.vegetationSpeciesSelect.value || null;
+        const species = editor.vegetationLibrary?.species?.find((candidate) => candidate.id === speciesId);
+        entry.speciesId = speciesId;
+        entry.kind = species?.kind ?? null;
+        entry.collision = species?.collision ?? null;
+        entry.collisionShape = species?.collisionShape ? { ...species.collisionShape } : null;
+        entry.size = species?.size ? { ...species.size } : null;
       }, { snapPosition: true, snapScale: false, snapY: true });
     }
     editor._syncVegetationSection();

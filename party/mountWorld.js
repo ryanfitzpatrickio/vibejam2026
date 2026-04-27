@@ -5,6 +5,10 @@ import {
   sortCollidersForPlaneZIndex,
   tryAutoStepUp,
 } from '../shared/physics.js';
+import {
+  sampleWedgeCeilingY,
+  sampleWedgeSupportY,
+} from '../shared/wedgeCollision.js';
 
 const DEFAULT_RIDER_OFFSET = Object.freeze({ x: 0, y: 0.42, z: 0.12 });
 const DEFAULT_GRAB_OFFSET = Object.freeze({ x: 0, y: -0.38, z: 0.24 });
@@ -76,6 +80,21 @@ function getMountSupportHeight(mount, colliders, baseGroundY = 0) {
   let foundSupport = false;
 
   for (const collider of colliders ?? []) {
+    const wedge = collider?.metadata?.wedge;
+    if (wedge) {
+      if (collider?.metadata?.nonWalkable === true) continue;
+      const wedgeY = sampleWedgeSupportY(wedge, mount.position.x, mount.position.z, MOUNT_RADIUS);
+      if (wedgeY == null) continue;
+      const snapWindow = (collider.type === 'surface' || collider.metadata?.runnable)
+        ? MOUNT_GROUND_SNAP_DISTANCE
+        : MOUNT_GROUND_SNAP_DISTANCE * 1.5;
+      if (mount.position.y >= wedgeY - snapWindow && mount.velocity.y <= 0.01) {
+        supportY = Math.max(supportY, wedgeY);
+        foundSupport = true;
+      }
+      continue;
+    }
+
     const box = getColliderBox(collider);
     if (!box) continue;
 
@@ -110,6 +129,16 @@ function probeMountFloorBelow(mount, colliders, maxDistance = MOUNT_FLOOR_PROBE_
 
   for (const collider of colliders ?? []) {
     if (collider?.metadata?.nonWalkable === true) continue;
+    const wedge = collider?.metadata?.wedge;
+    if (wedge) {
+      const wedgeY = sampleWedgeSupportY(wedge, mount.position.x, mount.position.z, MOUNT_RADIUS);
+      if (wedgeY != null && wedgeY <= mount.position.y + MOUNT_GROUND_SNAP_DISTANCE && wedgeY >= probeBottom) {
+        supportY = Math.max(supportY, wedgeY);
+        foundSupport = true;
+      }
+      continue;
+    }
+
     const box = getColliderBox(collider);
     if (!box) continue;
 
@@ -134,10 +163,41 @@ function probeMountFloorBelow(mount, colliders, maxDistance = MOUNT_FLOOR_PROBE_
   return { supportY, foundSupport };
 }
 
-function resolveMountCollisions(mount, colliders, previousPosition) {
+function resolveMountCollisions(mount, colliders, previousPosition, options = {}) {
   const ordered = sortCollidersForPlaneZIndex(colliders);
+  const allowVerticalSupport = options.allowVerticalSupport !== false;
 
   for (const collider of ordered) {
+    const wedge = collider?.metadata?.wedge;
+    if (wedge) {
+      const supportY = sampleWedgeSupportY(wedge, mount.position.x, mount.position.z, MOUNT_RADIUS);
+      if (allowVerticalSupport && supportY != null) {
+        const landedFromAbove = (previousPosition?.y ?? mount.position.y) >= supportY - 0.001
+          && mount.position.y <= supportY + 0.001
+          && mount.velocity.y <= 0;
+        const closeToSurface = mount.position.y >= supportY - MOUNT_GROUND_SNAP_DISTANCE * 1.5
+          && mount.position.y <= supportY + MOUNT_GROUND_SNAP_DISTANCE * 1.5
+          && mount.velocity.y <= 0.01;
+        if (landedFromAbove || closeToSurface) {
+          mount.position.y = supportY;
+          mount.velocity.y = Math.max(mount.velocity.y, 0);
+          continue;
+        }
+      }
+
+      const ceilingY = sampleWedgeCeilingY(wedge, mount.position.x, mount.position.z, MOUNT_RADIUS);
+      if (ceilingY != null) {
+        const previousTop = (previousPosition?.y ?? mount.position.y) + MOUNT_HEIGHT;
+        const currentTop = mount.position.y + MOUNT_HEIGHT;
+        if (previousTop <= ceilingY + 0.001 && currentTop >= ceilingY - 0.001 && mount.velocity.y >= 0) {
+          mount.position.y = ceilingY - MOUNT_HEIGHT;
+          mount.velocity.y = Math.min(mount.velocity.y, 0);
+          continue;
+        }
+      }
+      continue;
+    }
+
     const box = getColliderBox(collider);
     if (!box) continue;
 
@@ -152,7 +212,7 @@ function resolveMountCollisions(mount, colliders, previousPosition) {
     if (shouldSkipSurfaceCollider(collider, mount.groundY)) continue;
 
     resolveAgainstBox(mount, box, MOUNT_RADIUS, MOUNT_HEIGHT, previousPosition, {
-      allowVerticalSupport: collider?.metadata?.nonWalkable !== true,
+      allowVerticalSupport: allowVerticalSupport && collider?.metadata?.nonWalkable !== true,
     });
   }
 
@@ -424,7 +484,9 @@ export function createMountWorld() {
       const baseGroundY = 0;
       const minFlightY = (descending || mount._ledgeDropUntilGround) ? baseGroundY : baseGroundY + MIN_FLIGHT_HEIGHT;
       mount.position.y = Math.max(minFlightY, Math.min(MAX_FLIGHT_HEIGHT, mount.position.y));
-      const { supportY, foundSupport } = resolveMountCollisions(mount, colliders, previousPosition);
+      const { supportY, foundSupport } = resolveMountCollisions(mount, colliders, previousPosition, {
+        allowVerticalSupport: false,
+      });
       const landingY = supportY;
       if (foundSupport && mount.position.y <= landingY + 0.08 && !jumpHeld) {
         mount.position.y = landingY;

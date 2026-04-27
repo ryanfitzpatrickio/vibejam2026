@@ -26,6 +26,13 @@
       "lineSpacing": 0.32,
       "shadow": "nearOnly",
       "collision": "none",
+      "collisionShape": {
+        "width": 0.19,
+        "depth": 0.19,
+        "radius": 0.095,
+        "height": 0.475,
+        "offsetY": 0.2375
+      },
       "assetId": null
     },
     {
@@ -55,6 +62,13 @@
       "lineSpacing": 0.45,
       "shadow": "nearOnly",
       "collision": "none",
+      "collisionShape": {
+        "width": 0.5,
+        "depth": 0.5,
+        "radius": 0.25,
+        "height": 1.025,
+        "offsetY": 0.5125
+      },
       "assetId": null
     },
     {
@@ -81,6 +95,13 @@
       "lineSpacing": 1.5,
       "shadow": "none",
       "collision": "box",
+      "collisionShape": {
+        "width": 0.56,
+        "depth": 0.56,
+        "radius": 0.28,
+        "height": 2.55,
+        "offsetY": 1.275
+      },
       "assetId": "asset-veg-tree-tree-glb-a",
       "treeBuilder": {
         "trunkAssetName": "tree-trunk",
@@ -125,6 +146,96 @@
           "widthMin": 0.35,
           "widthMax": 0.68,
           "heightMin": 0.02,
+          "heightMax": 0.85,
+          "pitchJitter": 0.35,
+          "tiltJitter": 0.18,
+          "brightnessMin": 0.88,
+          "brightnessMax": 1.08
+        }
+      }
+    },
+    {
+      "id": "veg-species-moh2ros3-9lu5s",
+      "name": "newtree",
+      "kind": "tree",
+      "renderMode": "glb",
+      "atlas": "props2",
+      "cells": [
+        25,
+        26,
+        27,
+        28,
+        35,
+        36,
+        37,
+        46
+      ],
+      "cardCount": 1,
+      "size": {
+        "widthMin": 0.3,
+        "widthMax": 0.3,
+        "heightMin": 0.35,
+        "heightMax": 0.6
+      },
+      "wind": {
+        "amp": 0.16,
+        "freq": 1.55,
+        "stiffness": 0.5
+      },
+      "lineSpacing": 2,
+      "shadow": "none",
+      "collision": "cylinder",
+      "collisionShape": {
+        "width": 0.84,
+        "depth": 0.84,
+        "radius": 0.42,
+        "height": 3.25,
+        "offsetY": 1.625
+      },
+      "assetId": "asset-moh35067-3xahe",
+      "treeBuilder": {
+        "trunkAssetName": "tree-trunk",
+        "trunk": {
+          "height": 3.25,
+          "radiusBase": 0.42,
+          "radiusTop": 0.1392,
+          "radialSegments": 8,
+          "heightSegments": 4,
+          "leanX": 0.32,
+          "leanZ": 0.14,
+          "color": "#503b2b",
+          "roughness": 0.94,
+          "metalness": 0.02
+        },
+        "branches": {
+          "startY": 1.9,
+          "zoneHeight": 0.95,
+          "count": 5,
+          "levels": 3,
+          "childrenMin": 2,
+          "childrenMax": 3,
+          "lengthMin": 1,
+          "lengthMax": 1.15,
+          "pitch": 0.15,
+          "droop": 0.4,
+          "radiusScale": 0.43,
+          "tipScale": 0.34,
+          "childLengthScale": 0.77,
+          "childRadiusScale": 0.66,
+          "forkStart": 0.82,
+          "spread": 0.72,
+          "twist": 0.38
+        },
+        "canopy": {
+          "radius": 8.05,
+          "height": 5.45,
+          "offsetY": 5.1
+        },
+        "leaves": {
+          "count": 128,
+          "widthMin": 0.4,
+          "widthMax": 0.65,
+          "heightMin": 0.45,
           "heightMax": 0.85,
           "pitchJitter": 0.35,
           "tiltJitter": 0.18,

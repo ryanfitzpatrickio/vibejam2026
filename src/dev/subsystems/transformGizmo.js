@@ -324,6 +324,9 @@ export function attachTransformControls(editor) {
   const object = editor.app.room.getEditableObject(editor.selectedId);
   if (!object || object.visible === false) {
     editor.transformControls.detach();
+    if (!object && editor._selectedVegetation?.()) {
+      editor._reattachVegetationControlsWhenReady?.(editor.selectedId);
+    }
     return;
   }
   if (editor._selectedRope?.() && editor.transformControls.mode !== 'translate') {

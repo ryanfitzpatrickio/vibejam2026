@@ -399,7 +399,7 @@ export default class GameRoomRuntime {
    */
   _syncBots() {
     const humanCount = this.inputQueues.size;
-    const desiredBots = Math.max(0, BOT_FILL_TARGET - humanCount);
+    const desiredBots = humanCount > 0 ? Math.max(0, BOT_FILL_TARGET - humanCount) : 0;
     const botIds = this._listBotIdsSorted();
 
     while (botIds.length > desiredBots) {

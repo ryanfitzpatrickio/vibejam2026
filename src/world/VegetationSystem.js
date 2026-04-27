@@ -432,16 +432,14 @@ export class VegetationSystem {
     return trunk;
   }
 
-  _createTreeCollisionProxy(species) {
-    const shape = species?.collisionShape ?? {};
-    const height = Math.max(0.05, Number(shape.height ?? 1));
-    const radius = Math.max(0.025, Number(shape.radius ?? 0.15));
-    const width = Math.max(0.05, Number(shape.width ?? (radius * 2)));
-    const depth = Math.max(0.05, Number(shape.depth ?? (radius * 2)));
-    const offsetY = Number.isFinite(shape.offsetY) ? shape.offsetY : (height * 0.5);
-    const geometry = species?.collision === 'box'
-      ? new THREE.BoxGeometry(width, height, depth)
-      : new THREE.CylinderGeometry(radius, radius, height, 12, 1, false);
+  _createTreeCollisionProxyMesh({
+    name = 'TreeCollisionProxy',
+    width,
+    height,
+    depth,
+    offsetY,
+  }) {
+    const geometry = new THREE.BoxGeometry(width, height, depth);
     const material = new THREE.MeshBasicMaterial({
       color: 0xff8a1f,
       transparent: true,
@@ -450,7 +448,7 @@ export class VegetationSystem {
       toneMapped: false,
     });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = 'TreeCollisionProxy';
+    mesh.name = name;
     mesh.position.y = offsetY;
     mesh.visible = false;
     mesh.castShadow = false;
@@ -458,6 +456,58 @@ export class VegetationSystem {
     mesh.userData.colliderAlwaysActive = true;
     mesh.userData.skipOutline = true;
     return mesh;
+  }
+
+  _createTreeCollisionProxies(species) {
+    const shape = species?.collisionShape ?? {};
+    const treeBuilder = species?.kind === 'tree' ? normalizeTreeBuilder(species.treeBuilder) : null;
+    const trunk = treeBuilder?.trunk ?? {};
+    const height = Math.max(0.05, Number(shape.height ?? 1));
+    const radius = Math.max(
+      0.025,
+      Number(shape.radius ?? Math.max(trunk.radiusBase ?? 0, trunk.radiusTop ?? 0, 0.15)),
+    );
+    const width = Math.max(0.05, Number(shape.width ?? (radius * 2)));
+    const depth = Math.max(0.05, Number(shape.depth ?? (radius * 2)));
+    const offsetY = Number.isFinite(shape.offsetY) ? shape.offsetY : (height * 0.5);
+    if (species?.kind !== 'tree') {
+      return [this._createTreeCollisionProxyMesh({
+        width,
+        height,
+        depth,
+        offsetY,
+      })];
+    }
+
+    // Runtime vegetation collision resolves AABBs. A few thin boxes behave much
+    // closer to a trunk than one square block without adding a new collider type.
+    const coreWidth = Math.max(0.05, width * 0.55);
+    const coreDepth = Math.max(0.05, depth * 0.55);
+    const armWidth = Math.max(0.05, width);
+    const armDepth = Math.max(0.05, depth * 0.32);
+    return [
+      this._createTreeCollisionProxyMesh({
+        name: 'TreeCollisionProxyCore',
+        width: coreWidth,
+        height,
+        depth: coreDepth,
+        offsetY,
+      }),
+      this._createTreeCollisionProxyMesh({
+        name: 'TreeCollisionProxyX',
+        width: armWidth,
+        height,
+        depth: armDepth,
+        offsetY,
+      }),
+      this._createTreeCollisionProxyMesh({
+        name: 'TreeCollisionProxyZ',
+        width: armDepth,
+        height,
+        depth,
+        offsetY,
+      }),
+    ];
   }
 
   _buildInstancedCards(entry, species) {
@@ -559,17 +609,21 @@ export class VegetationSystem {
       group.add(clone);
 
       if (colliderProxyGroup) {
-        const colliderMesh = this._createTreeCollisionProxy(species);
-        // Preserve the authored trunk lift so the proxy sits on the ground
-        // instead of getting re-centered at the placement origin.
-        colliderMesh.position.set(
-          position.x,
-          position.y + colliderMesh.position.y,
-          position.z,
-        );
-        colliderMesh.quaternion.copy(quaternion);
-        colliderMesh.scale.setScalar(scalar);
-        colliderProxyGroup.add(colliderMesh);
+        this._createTreeCollisionProxies(species).forEach((colliderMesh) => {
+          const authoredOffsetY = colliderMesh.position.y;
+          // Preserve the authored trunk lift so the proxy sits on the ground
+          // instead of getting re-centered at the placement origin. The proxy
+          // uses the same per-instance visual scalar as the GLB, and the outer
+          // vegetation placement scale applies to both visual and collision.
+          colliderMesh.position.set(
+            position.x,
+            position.y + (authoredOffsetY * scalar),
+            position.z,
+          );
+          colliderMesh.quaternion.copy(quaternion);
+          colliderMesh.scale.setScalar(scalar);
+          colliderProxyGroup.add(colliderMesh);
+        });
       }
     });
 

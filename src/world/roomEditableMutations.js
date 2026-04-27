@@ -326,12 +326,14 @@ export function upsertRoomEditableVegetation(room, definition) {
   } else {
     list.push(vegetation);
   }
-  void room.vegetationSystem.rebuild(list);
+  room.lastVegetationRebuildPromise = room.vegetationSystem.rebuild(list);
+  void room.lastVegetationRebuildPromise;
   return vegetation;
 }
 
 export function purgeRoomEditableVegetation(room, id) {
   room.editableLayout.vegetation = (room.editableLayout.vegetation ?? []).filter((entry) => entry.id !== id);
   room.loadedEditableLayout.vegetation = (room.loadedEditableLayout.vegetation ?? []).filter((entry) => entry.id !== id);
-  void room.vegetationSystem.rebuild(room.editableLayout.vegetation ?? []);
+  room.lastVegetationRebuildPromise = room.vegetationSystem.rebuild(room.editableLayout.vegetation ?? []);
+  void room.lastVegetationRebuildPromise;
 }

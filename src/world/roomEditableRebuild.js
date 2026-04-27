@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { worldAabbFromLocalBox } from '../physics/meshBvhSupport.js';
+import { getGlbCompoundColliderLocalBounds } from '../../shared/roomCollision.js';
 
 export function rebuildRoomEditableLayout(room) {
   room._removeEditableColliders();
@@ -67,7 +69,31 @@ export function rebuildRoomEditableLayout(room) {
       room.editableMeshes.set(primitive.id, clone);
 
       const collisionMode = room._getEditableGlbCollisionMode(primitive);
-      if (collisionMode === 'bvh-proxy') {
+      if (collisionMode === 'compound-bounds') {
+        const bounds = getGlbCompoundColliderLocalBounds(primitive.glbAssetId) ?? [];
+        clone.updateWorldMatrix(true, false);
+        bounds.forEach((localBounds, index) => {
+          const localBox = new THREE.Box3(
+            new THREE.Vector3(localBounds.min.x, localBounds.min.y, localBounds.min.z),
+            new THREE.Vector3(localBounds.max.x, localBounds.max.y, localBounds.max.z),
+          );
+          room.colliders.push({
+            mesh: clone,
+            aabb: worldAabbFromLocalBox(localBox, clone.matrixWorld),
+            type: 'furniture',
+            metadata: {
+              source: 'editable',
+              primitiveId: primitive.id,
+              colliderClearance: primitive.colliderClearance,
+              collisionMode,
+              glbProxy: true,
+              glbProxyName: localBounds.name ?? `part-${index}`,
+              glbProxyIndex: index,
+              localBox,
+            },
+          });
+        });
+      } else if (collisionMode === 'bvh-proxy') {
         room._registerCollider(clone, {
           type: 'furniture',
           metadata: {

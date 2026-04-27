@@ -5,6 +5,10 @@
  */
 
 import { LIVES_PER_ROUND, createRoundStats } from './roundState.js';
+import {
+  sampleWedgeCeilingY,
+  sampleWedgeSupportY,
+} from './wedgeCollision.js';
 
 export const PHYSICS = Object.freeze({
   walkSpeed: 4.0,
@@ -234,6 +238,10 @@ function isNonWalkableCollider(collider) {
   return collider?.metadata?.nonWalkable === true;
 }
 
+function getWedgeDescriptor(collider) {
+  return collider?.metadata?.wedge ?? null;
+}
+
 /**
  * Skip axis-aligned box resolve for co-planar datum floors only.
  * (Previously used ±5 cm from groundY, which skipped low risers entirely—no step-up, no resolve.)
@@ -320,6 +328,20 @@ function getSupportHeight(state, colliders, radius, groundSnapDistance, baseGrou
   let supportY = baseGroundY;
 
   for (const collider of colliders ?? []) {
+    const wedge = getWedgeDescriptor(collider);
+    if (wedge) {
+      if (isNonWalkableCollider(collider)) continue;
+      const wedgeY = sampleWedgeSupportY(wedge, state.position.x, state.position.z, radius);
+      if (wedgeY == null) continue;
+      const snapWindow = (collider.type === 'surface' || collider.metadata?.runnable)
+        ? groundSnapDistance
+        : groundSnapDistance * 1.5;
+      if (state.position.y >= wedgeY - snapWindow && state.velocity.y <= 0.01) {
+        supportY = Math.max(supportY, wedgeY);
+      }
+      continue;
+    }
+
     const box = getColliderBox(collider);
     if (!box) continue;
 
@@ -347,6 +369,50 @@ function getSupportHeight(state, colliders, radius, groundSnapDistance, baseGrou
   }
 
   return supportY;
+}
+
+function resolveAgainstWedge(state, collider, radius, height, previousPosition = null, options = {}) {
+  const wedge = getWedgeDescriptor(collider);
+  if (!wedge) return false;
+
+  const { position: pos, velocity: vel } = state;
+  const allowVerticalSupport = options.allowVerticalSupport !== false;
+  const groundSnapDistance = options.groundSnapDistance ?? PHYSICS.groundSnapDistance;
+  const previousCapsuleMinY = previousPosition?.y ?? pos.y;
+  const previousCapsuleMaxY = previousCapsuleMinY + height;
+  const capsuleMaxY = pos.y + height;
+  let resolved = false;
+
+  const supportY = sampleWedgeSupportY(wedge, pos.x, pos.z, radius);
+  if (allowVerticalSupport && supportY != null) {
+    const snapWindow = groundSnapDistance * 1.5;
+    const landedFromAbove = previousCapsuleMinY >= supportY - FACE_CONTACT_EPSILON
+      && pos.y <= supportY + FACE_CONTACT_EPSILON
+      && vel.y <= 0;
+    const closeToSurface = pos.y >= supportY - snapWindow && pos.y <= supportY + snapWindow && vel.y <= 0.01;
+    const stepOntoSurface = state.grounded
+      && supportY - pos.y > 0.0001
+      && supportY - pos.y <= PHYSICS.maxStepHeight;
+    if (landedFromAbove || closeToSurface || stepOntoSurface) {
+      pos.y = supportY;
+      if (vel) vel.y = Math.max(vel.y, 0);
+      resolved = true;
+    }
+  }
+
+  const ceilingY = sampleWedgeCeilingY(wedge, pos.x, pos.z, radius);
+  if (ceilingY != null) {
+    const hitFromBelow = previousCapsuleMaxY <= ceilingY + FACE_CONTACT_EPSILON
+      && capsuleMaxY >= ceilingY - FACE_CONTACT_EPSILON
+      && vel.y >= 0;
+    if (hitFromBelow) {
+      pos.y = ceilingY - height;
+      if (vel) vel.y = Math.min(vel.y, 0);
+      resolved = true;
+    }
+  }
+
+  return resolved;
 }
 
 export function resolveAgainstBox(state, box, radius, height, previousPosition = null, options = {}) {
@@ -578,6 +644,14 @@ function resolvePlayerCollisions(state, colliders, options) {
   // instead of being blocked horizontally. Only applies when grounded and
   // the obstacle is short enough relative to current foot position.
   for (const collider of ordered) {
+    if (getWedgeDescriptor(collider)) {
+      resolveAgainstWedge(state, collider, radius, height, previousPosition, {
+        allowVerticalSupport: !isNonWalkableCollider(collider),
+        groundSnapDistance,
+      });
+      continue;
+    }
+
     const box = getColliderBox(collider);
     if (!box) continue;
 

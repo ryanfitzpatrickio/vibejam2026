@@ -4,7 +4,7 @@ import {
   worldAabbFromLocalBox,
 } from '../physics/meshBvhSupport.js';
 import { sortCollidersForPlaneZIndex } from '../../shared/physics.js';
-import { createWedgeLocalColliderBoxes } from '../../shared/wedgeCollision.js';
+import { createWedgeColliderDescriptor } from '../../shared/wedgeCollision.js';
 import {
   AABB,
   isObjectVisibleInHierarchy,
@@ -83,22 +83,29 @@ export function registerPrimitiveRoomCollider(room, mesh, primitive, {
   if (!mesh || !primitive?.collider) return;
 
   if (primitive.type === 'wedge') {
-    const localBoxes = createWedgeLocalColliderBoxes().map((box) => new THREE.Box3(
-      new THREE.Vector3(box.min.x, box.min.y, box.min.z),
-      new THREE.Vector3(box.max.x, box.max.y, box.max.z),
-    ));
-    localBoxes.forEach((localBox, index) => {
-      room.colliders.push({
-        mesh,
-        aabb: worldAabbFromLocalBox(localBox, mesh.matrixWorld),
-        type,
-        metadata: {
-          ...metadata,
-          localBox,
-          wedgeProxy: true,
-          wedgeProxyIndex: index,
-        },
-      });
+    const origin = new THREE.Vector3(0, 0, 0);
+    const xPoint = new THREE.Vector3(1, 0, 0);
+    const yPoint = new THREE.Vector3(0, 1, 0);
+    const zPoint = new THREE.Vector3(0, 0, 1);
+    mesh.updateWorldMatrix(true, false);
+    origin.applyMatrix4(mesh.matrixWorld);
+    xPoint.applyMatrix4(mesh.matrixWorld);
+    yPoint.applyMatrix4(mesh.matrixWorld);
+    zPoint.applyMatrix4(mesh.matrixWorld);
+    room.colliders.push({
+      mesh,
+      aabb: AABB.fromMesh(mesh),
+      type,
+      metadata: {
+        ...metadata,
+        wedgeProxy: true,
+        wedge: createWedgeColliderDescriptor(
+          origin,
+          xPoint.sub(origin),
+          yPoint.sub(origin),
+          zPoint.sub(origin),
+        ),
+      },
     });
     return;
   }

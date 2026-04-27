@@ -72,6 +72,7 @@ import {
   normalizeTextureSettings,
 } from './editableLayoutNormalize.js';
 import { installMeshBvhSupport } from '../physics/meshBvhSupport.js';
+import { getGlbCompoundColliderLocalBounds } from '../../shared/roomCollision.js';
 import { normalizeNavArea } from '../../shared/navConfig.js';
 import {
   DEFAULT_ROPE_CARD_OPACITY,
@@ -1107,6 +1108,7 @@ export class Room {
     // authoritative for collision so traversal stays stable.
     if (primitive.generatedBakeKind === 'house') return 'none';
     if (primitive.generatedBakeKind) return 'none';
+    if (getGlbCompoundColliderLocalBounds(primitive.glbAssetId)?.length) return 'compound-bounds';
     return 'bvh-proxy';
   }
 

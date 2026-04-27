@@ -30,7 +30,8 @@ const VERTICAL_ESCAPE_SAFE_TIME = 2.4;
 const VERTICAL_ESCAPE_MIN_SURFACE_Y = 0.72;
 const VERTICAL_ESCAPE_MAX_SURFACE_Y = 3.6;
 const VERTICAL_ESCAPE_MIN_RISE = 0.62;
-const VERTICAL_ESCAPE_PICK_ATTEMPTS = 36;
+const VERTICAL_ESCAPE_PICK_ATTEMPTS = 18;
+const VERTICAL_ESCAPE_PATH_CANDIDATE_LIMIT = 10;
 const VERTICAL_ESCAPE_GOAL_REFRESH = 1.2;
 const VERTICAL_ESCAPE_REACHED_DIST_SQ = 1.25 * 1.25;
 const VERTICAL_ESCAPE_PERCH_MIN_Y = 0.58;
@@ -39,7 +40,7 @@ const VERTICAL_CLIMB_WALL_JUMP_COOLDOWN = 0.85;
 const VERTICAL_PROGRESS_STALL_TIME = 1.45;
 const CHEESE_TARGET_REFRESH_MIN = 0.65;
 const CHEESE_TARGET_REFRESH_MAX = 1.25;
-const CHEESE_CANDIDATE_LIMIT = 18;
+const CHEESE_CANDIDATE_LIMIT = 8;
 const CHEESE_REACHED_DIST_SQ = 0.95 * 0.95;
 const CHEESE_RESERVED_TARGET_PENALTY = 26;
 const CHEESE_PEER_GOAL_PENALTY = 7.5;
@@ -54,7 +55,6 @@ const TEASE_EMOTE_DURATION = 0.75;
 const TEASE_EMOTES = ['laugh', 'dance', 'wave', 'thumbsup', 'scream'];
 const HOT_SURFACE_AVOID_MARGIN = 0.42;
 const HOT_SURFACE_NEAR_MARGIN = 1.15;
-const HOT_SURFACE_PATH_SAMPLE_STEP = 0.55;
 const HOT_SURFACE_STEER_LOOKAHEAD = 0.85;
 const HOT_SURFACE_STEER_PUSH = 1.45;
 const HOT_SURFACE_GOAL_PENALTY = 80;
@@ -149,6 +149,47 @@ function hotZoneContainsPoint(zone, point, margin = 0, yMargin = 0.4) {
     && point.z <= zone.maxZ + margin;
 }
 
+function hotZoneSegmentVerticalOverlaps(zone, from, to, yMargin = 0.45) {
+  if (!Number.isFinite(zone?.minY) || !Number.isFinite(zone?.maxY)) return true;
+  const fromY = Number.isFinite(Number(from?.y)) ? Number(from.y) : 0;
+  const toY = Number.isFinite(Number(to?.y)) ? Number(to.y) : fromY;
+  return Math.max(fromY, toY) >= zone.minY - yMargin
+    && Math.min(fromY, toY) <= zone.maxY + yMargin;
+}
+
+function segmentIntersectsHotZoneXZ(zone, from, to, margin = 0) {
+  const minX = zone.minX - margin;
+  const maxX = zone.maxX + margin;
+  const minZ = zone.minZ - margin;
+  const maxZ = zone.maxZ + margin;
+
+  if (Math.max(from.x, to.x) < minX || Math.min(from.x, to.x) > maxX) return false;
+  if (Math.max(from.z, to.z) < minZ || Math.min(from.z, to.z) > maxZ) return false;
+
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  let tMin = 0;
+  let tMax = 1;
+
+  const clip = (p, q) => {
+    if (Math.abs(p) < 1e-8) return q >= 0;
+    const r = q / p;
+    if (p < 0) {
+      if (r > tMax) return false;
+      if (r > tMin) tMin = r;
+      return true;
+    }
+    if (r < tMin) return false;
+    if (r < tMax) tMax = r;
+    return true;
+  };
+
+  return clip(-dx, from.x - minX)
+    && clip(dx, maxX - from.x)
+    && clip(-dz, from.z - minZ)
+    && clip(dz, maxZ - from.z);
+}
+
 function hotZoneDistanceSqXZ(zone, point, margin = 0) {
   const minX = zone.minX - margin;
   const maxX = zone.maxX + margin;
@@ -166,22 +207,14 @@ function isGoalInsideHotSurface(goal, hotSurfaceZones, margin = HOT_SURFACE_AVOI
 
 function pathCrossesHotSurface(from, to, hotSurfaceZones, margin = HOT_SURFACE_AVOID_MARGIN) {
   if (!hasHotSurfaceZones(hotSurfaceZones) || !from || !to) return false;
-  const distance = Math.sqrt(distSqXZ(from, to));
-  const steps = Math.max(1, Math.ceil(distance / HOT_SURFACE_PATH_SAMPLE_STEP));
-
   for (const zone of hotSurfaceZones) {
-    if (hotZoneContainsPoint(zone, from, margin, 0.45) && !hotZoneContainsPoint(zone, to, margin, 0.45)) {
+    if (!hotZoneSegmentVerticalOverlaps(zone, from, to, 0.45)) continue;
+    const fromInside = hotZoneContainsPoint(zone, from, margin, 0.45);
+    const toInside = hotZoneContainsPoint(zone, to, margin, 0.45);
+    if (fromInside && !toInside) {
       continue;
     }
-    for (let i = 1; i <= steps; i += 1) {
-      const t = i / steps;
-      const sample = {
-        x: from.x + (to.x - from.x) * t,
-        y: (from.y ?? 0) + ((to.y ?? from.y ?? 0) - (from.y ?? 0)) * t,
-        z: from.z + (to.z - from.z) * t,
-      };
-      if (hotZoneContainsPoint(zone, sample, margin, 0.45)) return true;
-    }
+    if (toInside || segmentIntersectsHotZoneXZ(zone, from, to, margin)) return true;
   }
 
   return false;
@@ -605,6 +638,7 @@ function pickVerticalEscapeGoal(
     if (sampled) candidates.push(sampled);
   }
 
+  const viableCandidates = [];
   for (const candidate of candidates) {
     if (!candidate) continue;
 
@@ -617,8 +651,6 @@ function pickVerticalEscapeGoal(
     const distSelfSq = distSqXZ(state.position, candidate);
     if (distSelfSq < 1.0 || distSelfSq > 14 * 14) continue;
 
-    const pathOk = canPathToGoal(state, candidate, navMesh, hotSurfaceZones);
-    if (!pathOk) continue;
     const catDist = catPos ? Math.sqrt(distSqXZ(candidate, catPos)) : 0;
     const selfDist = Math.sqrt(distSelfSq);
     const practicalRise = Math.min(Math.max(0, rise), 2.4);
@@ -636,6 +668,12 @@ function pickVerticalEscapeGoal(
       - peerGoalPenalty
       - hotPenalty;
 
+    viableCandidates.push({ candidate, score });
+  }
+
+  viableCandidates.sort((a, b) => b.score - a.score);
+  for (const { candidate, score } of viableCandidates.slice(0, VERTICAL_ESCAPE_PATH_CANDIDATE_LIMIT)) {
+    if (!canPathToGoal(state, candidate, navMesh, hotSurfaceZones)) continue;
     if (score > bestScore) {
       bestScore = score;
       best = candidate;
@@ -1062,7 +1100,7 @@ export function buildMouseBotInput(state, brain, navMesh, predators, dt, spawnPo
       currentCheese
       && brain.goalKind === 'cheese'
       && brain.wanderTimer > 0
-      && canPathToGoal(state, asGoalFromCheese(currentCheese), navMesh, hotSurfaceZones)
+      && !isGoalInsideHotSurface(asGoalFromCheese(currentCheese), hotSurfaceZones)
     ) {
       brain.goal = asGoalFromCheese(currentCheese);
       goal = brain.goal;

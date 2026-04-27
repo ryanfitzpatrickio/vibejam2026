@@ -58,6 +58,7 @@ export class OcclusionFader {
     scene,
     camera,
     getPlayer,
+    getExtraNonOccluders,
     fadeOpacity = 0.15,
     fadeSpeed = 8,
     raycastInterval = 1 / 12,
@@ -65,6 +66,7 @@ export class OcclusionFader {
     this.scene = scene;
     this.camera = camera;
     this.getPlayer = getPlayer;
+    this.getExtraNonOccluders = typeof getExtraNonOccluders === 'function' ? getExtraNonOccluders : null;
     this.fadeOpacity = fadeOpacity;
     this.fadeSpeed = fadeSpeed;
     this.raycastInterval = Math.max(0, Number(raycastInterval) || 0);
@@ -103,6 +105,13 @@ export class OcclusionFader {
     player.traverse((child) => {
       if (child.isMesh) this._playerSet.add(child);
     });
+    const extraNonOccluders = this.getExtraNonOccluders?.() ?? [];
+    for (const root of extraNonOccluders) {
+      if (!root?.traverse) continue;
+      root.traverse((child) => {
+        if (child.isMesh) this._playerSet.add(child);
+      });
+    }
     _direction.copy(playerPos).sub(camPos);
     const distance = _direction.length();
     if (distance < 0.001) return new Set();

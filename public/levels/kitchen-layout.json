@@ -11085,40 +11085,6 @@
       "deleted": false
     },
     {
-      "id": "veg-mo7g75gk-zny8s",
-      "name": "firsttree-kjb",
-      "speciesId": "tree-glb-a",
-      "mode": "single",
-      "position": {
-        "x": -42,
-        "y": -0.5,
-        "z": 14
-      },
-      "rotation": {
-        "x": 0,
-        "y": -0.635867899139236,
-        "z": 0
-      },
-      "scale": {
-        "x": 8,
-        "y": 8,
-        "z": 8
-      },
-      "area": {
-        "shape": "rect",
-        "width": 3,
-        "depth": 2,
-        "radius": 1.5
-      },
-      "density": 1,
-      "seed": 1586,
-      "line": {
-        "length": 4,
-        "width": 0.75
-      },
-      "deleted": false
-    },
-    {
       "id": "veg-mo7rsibb-3wu1m",
       "name": "testgrass-er1-copy",
       "speciesId": "grass-debug-a",
@@ -11180,6 +11146,40 @@
       },
       "density": 3000,
       "seed": 1650,
+      "line": {
+        "length": 4,
+        "width": 0.75
+      },
+      "deleted": false
+    },
+    {
+      "id": "veg-moh3nkgi-ix3w4",
+      "name": "newtree-ndv",
+      "speciesId": "veg-species-moh2ros3-9lu5s",
+      "mode": "single",
+      "position": {
+        "x": -44,
+        "y": 0,
+        "z": 12
+      },
+      "rotation": {
+        "x": 0,
+        "y": -2.4604463217612937,
+        "z": 0
+      },
+      "scale": {
+        "x": 32,
+        "y": 32,
+        "z": 32
+      },
+      "area": {
+        "shape": "rect",
+        "width": 3,
+        "depth": 2,
+        "radius": 1.5
+      },
+      "density": 1,
+      "seed": 1678,
       "line": {
         "length": 4,
         "width": 0.75

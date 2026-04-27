@@ -413,6 +413,10 @@ export function createDefaultVegetation(species, mode, app) {
     id: createVegetationPlacementId(),
     name: `${label.toLowerCase().replace(/\s+/g, '-')}-${Math.random().toString(36).slice(2, 5)}`,
     speciesId: species?.id ?? null,
+    kind: species?.kind ?? null,
+    collision: species?.collision ?? null,
+    collisionShape: species?.collisionShape ? { ...species.collisionShape } : null,
+    size: species?.size ? { ...species.size } : null,
     mode: nextMode,
     position: {
       x: Number(spawn.x.toFixed(4)),
