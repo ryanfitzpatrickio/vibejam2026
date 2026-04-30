@@ -6,7 +6,6 @@ export function createPerformanceToggles({
   actionJuice,
   hud,
   roundRaid,
-  mischiefMeter,
   catLocator,
   scoreboard,
   toolbar,
@@ -36,7 +35,6 @@ export function createPerformanceToggles({
     perfFlags.gameplayUi = !!enabled;
     hud.setVisible(perfFlags.gameplayUi);
     roundRaid.setVisible(perfFlags.gameplayUi);
-    mischiefMeter.setVisible(perfFlags.gameplayUi);
     catLocator.setVisible(perfFlags.gameplayUi);
     scoreboard.setVisible(perfFlags.gameplayUi);
     toolbar.setVisible(perfFlags.gameplayUi);

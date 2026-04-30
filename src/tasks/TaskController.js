@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { RAID_TASK_COMPLETE_EFFECTS } from '../../shared/raidLayout.js';
+import {
+  RAID_TASK_COMPLETE_EFFECTS,
+  RAID_TASK_COMPLETION_MODES,
+  RAID_TASK_TYPES,
+  supportsPhysicalRaidTask,
+} from '../../shared/raidLayout.js';
 import { getTaskRuntime } from './taskRegistry.js';
 import { CheeseBurst } from './CheeseBurst.js';
 import { SmokeSparksEffect } from './SmokeSparksEffect.js';
@@ -31,6 +36,7 @@ export class TaskController {
     this._completedEffects = new Map();
     this._completedTaskIds = new Set();
     this._lastRoundNumber = null;
+    this._lastCompletedTaskRevision = -1;
     this._promptVerb = null;
     this._unsubInputSource = subscribeInputSource(() => {
       if (this._promptTaskId && this._promptVerb && this.promptElement) {
@@ -54,6 +60,7 @@ export class TaskController {
       this._lastRoundNumber = roundNumber;
       this._resetCompletedEffects();
     }
+    this._syncCompletedTasksFromServer();
 
     const player = this.getPlayer?.();
     if (!player?.position) {
@@ -86,6 +93,40 @@ export class TaskController {
     this._completedTaskIds.clear();
   }
 
+  _syncCompletedTasksFromServer() {
+    const serverIds = this.net?.completedTaskIds;
+    if (!Array.isArray(serverIds)) return;
+    const next = new Set(serverIds.filter((id) => typeof id === 'string'));
+    const revision = Number(this.net?.completedTaskRevision) || 0;
+    let changed = next.size !== this._completedTaskIds.size;
+    if (!changed) {
+      for (const id of next) {
+        if (!this._completedTaskIds.has(id)) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) this._completedTaskIds = next;
+    const entries = this.room?.editableRaidTaskObjects;
+    if (entries) {
+      for (const entry of entries.values()) {
+        const id = entry?.definition?.id;
+        if (!id || !entry.group) continue;
+        entry.group.userData.setRaidTaskCompleted?.(this._completedTaskIds.has(id));
+      }
+    }
+
+    if (changed || revision !== this._lastCompletedTaskRevision) {
+      this._lastCompletedTaskRevision = revision;
+      for (const [id, effectEntry] of Array.from(this._completedEffects.entries())) {
+        if (this._completedTaskIds.has(id)) continue;
+        try { effectEntry.effect?.dispose?.(); } catch { /* ignore */ }
+        this._completedEffects.delete(id);
+      }
+    }
+  }
+
   markTaskCompleted(taskId) {
     if (!taskId) return;
     this._completedTaskIds.add(taskId);
@@ -103,6 +144,9 @@ export class TaskController {
     if (!nearby) return false;
     const runtime = getTaskRuntime(nearby.definition.taskType);
     if (!runtime) return false;
+    if (this._usesPhysicalCompletion(nearby.definition)) {
+      return true;
+    }
     this._openTask(nearby, runtime);
     return true;
   }
@@ -201,18 +245,53 @@ export class TaskController {
   _setPrompt(nearby) {
     if (!this.promptElement) return;
     const id = nearby?.definition?.id ?? null;
-    if (id === this._promptTaskId) return;
+    const previousId = this._promptTaskId;
     this._promptTaskId = id;
     if (!nearby) {
       this._promptVerb = null;
       this.promptElement.style.display = 'none';
       return;
     }
+    if (this._usesPhysicalCompletion(nearby.definition)) {
+      const state = this._physicalTaskState(nearby.definition.id);
+      this._promptVerb = null;
+      this.promptElement.textContent = this._physicalPrompt(nearby.definition, state);
+      this.promptElement.style.display = 'block';
+      return;
+    }
+    if (id === previousId && this._promptVerb) return;
     const runtime = getTaskRuntime(nearby.definition.taskType);
     const verb = runtime?.promptVerb ?? 'start task';
     this._promptVerb = verb;
     this.promptElement.textContent = `Press ${actionLabel('interact')} to ${verb}`;
     this.promptElement.style.display = 'block';
+  }
+
+  _physicalTaskState(taskId) {
+    const states = this.net?.physicalTasks;
+    if (!Array.isArray(states)) return null;
+    return states.find((entry) => entry?.id === taskId) ?? null;
+  }
+
+  _usesPhysicalCompletion(definition) {
+    return definition?.completionMode === RAID_TASK_COMPLETION_MODES.PHYSICAL
+      && supportsPhysicalRaidTask(definition.taskType);
+  }
+
+  _physicalPrompt(definition, state) {
+    if (definition.taskType === RAID_TASK_TYPES.FRIDGE_RAID) {
+      const pct = Math.round(Math.max(0, Math.min(1, Number(state?.progress) || 0)) * 100);
+      const helpers = Math.max(0, Math.floor(Number(state?.helpers) || 0));
+      return helpers > 1
+        ? `Hold ${actionLabel('grab')} on handle, push right - ${pct}% (${helpers} mice)`
+        : `Hold ${actionLabel('grab')} on handle, push right - ${pct}%`;
+    }
+    if (definition.taskType === RAID_TASK_TYPES.TOPPLE_TOWER) {
+      const knocked = Math.max(0, Math.floor(Number(state?.knocked) || 0));
+      const total = Math.max(3, Math.floor(Number(state?.total) || 3));
+      return `Smack the cans to topple tower - ${knocked}/${total}`;
+    }
+    return `Use the world to complete task`;
   }
 
   dispose() {

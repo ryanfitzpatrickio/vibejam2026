@@ -290,6 +290,7 @@ class BuildModeEditor {
 
     this._addActionButton('Add Box', () => this._addPrimitive('box'));
     this._addActionButton('Add Plane', () => this._addPrimitive('plane'));
+    this._addActionButton('Device Screen', () => this._addDeviceScreen(), '#203a4f');
     this.bisectPlaneButton = this._addActionButton('Bisect Plane', () => this._toggleBisectPlaneTool(), '#3a2a45');
     this._addActionButton('Add Cyl', () => this._addPrimitive('cylinder'));
     this._addActionButton('Add Wedge', () => this._addPrimitive('wedge'));
@@ -1197,6 +1198,7 @@ class BuildModeEditor {
       this.glbPropPhysicsMassInput,
       this.glbPropCatFavoriteToyToggle,
       ...Object.values(this.glbPropPhysicsSizeInputs ?? {}),
+      this.deviceScreenToggle,
       this.receiveShadowToggle,
       this.clearanceInput,
       this.planeZIndexInput,
@@ -1247,6 +1249,7 @@ class BuildModeEditor {
 
     [
       this.raidTaskTypeSelect,
+      this.raidTaskCompletionModeSelect,
       this.raidTaskCompleteEffectSelect,
       this.raidTaskVisualTargetSelect,
       this.raidTaskVisualPreviewSelect,
@@ -1403,6 +1406,10 @@ class BuildModeEditor {
         this.glbPropCatFavoriteToyToggle.checked = primitive.catFavoriteToy === true;
       }
       this.colliderToggle.checked = primitive.collider;
+      if (this.deviceScreenToggle) {
+        this.deviceScreenToggle.checked = primitive.deviceScreen != null && primitive.deviceScreen !== false;
+        this.deviceScreenToggle.disabled = primitiveDisabled || primitive.type !== 'plane';
+      }
       this.receiveShadowToggle.checked = primitive.receiveShadow;
       this.clearanceInput.value = primitive.colliderClearance ?? 0;
       this.clearanceInput._output.textContent = (primitive.colliderClearance ?? 0).toFixed(2);
@@ -1446,6 +1453,9 @@ class BuildModeEditor {
 
     if (raidTask && this.raidTaskTypeSelect) {
       this.raidTaskTypeSelect.value = raidTask.taskType;
+      if (this.raidTaskCompletionModeSelect) {
+        this.raidTaskCompletionModeSelect.value = raidTask.completionMode ?? 'dialog';
+      }
       if (this.raidTaskCompleteEffectSelect) {
         this.raidTaskCompleteEffectSelect.value = raidTask.completeEffect ?? 'default';
       }
@@ -2148,6 +2158,33 @@ class BuildModeEditor {
 
   _addPrimitive(type) {
     const primitive = createDefaultPrimitive(type, this.app);
+    this.app.room.upsertEditablePrimitive(primitive);
+    this.layout = this.app.room.getEditableLayout();
+    this.selectedId = primitive.id;
+    this._syncForm();
+    this._attachTransformControls();
+    this._setStatus(`Added ${primitive.name}.`);
+  }
+
+  _addDeviceScreen() {
+    const primitive = createDefaultPrimitive('plane', this.app);
+    primitive.name = `device-screen-${Math.random().toString(36).slice(2, 5)}`;
+    primitive.deviceScreen = { source: 'web_viewport', app: 'drone_shop' };
+    primitive.collider = false;
+    primitive.castShadow = false;
+    primitive.receiveShadow = false;
+    primitive.material = { color: '#101827', roughness: 0.72, metalness: 0.05 };
+    primitive.texture = {
+      atlas: 'textures',
+      cell: null,
+      repeat: { x: 1, y: 1 },
+      rotation: 0,
+      offset: { x: 0, y: 0 },
+    };
+    primitive.scale = { x: 1.45, y: 0.9, z: 1 };
+    primitive.rotation.x = 0;
+    primitive.rotation.y = this.app.mouse.rotation?.y ?? primitive.rotation.y ?? 0;
+    primitive.rotation.z = 0;
     this.app.room.upsertEditablePrimitive(primitive);
     this.layout = this.app.room.getEditableLayout();
     this.selectedId = primitive.id;

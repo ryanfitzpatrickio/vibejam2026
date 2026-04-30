@@ -72,6 +72,14 @@ export class NetworkClient {
   /** Authoritative ceiling fan runtime state; empty until init/snapshot */
   fans = [];
 
+  /** Physical task progress snapshots keyed by task id on the client */
+  physicalTasks = [];
+
+  completedTaskIds = [];
+  completedTaskRevision = 0;
+
+  dronePurchase = { ok: false, pending: false, message: '' };
+
   /** @type {{ id: string, x: number, y: number, z: number, amount: number }[]} */
   cheesePickups = [];
 
@@ -152,6 +160,10 @@ export class NetworkClient {
       this.mounts = [];
       this.fans = [];
       this.cheesePickups = [];
+      this.physicalTasks = [];
+      this.completedTaskIds = [];
+      this.completedTaskRevision += 1;
+      this.dronePurchase = { ok: false, pending: false, message: '' };
       this.round = null;
       this.extractionPortals = [];
       this.adversary = { playerId: null, available: false, safeRadius: 0 };
@@ -233,6 +245,12 @@ export class NetworkClient {
     }));
   }
 
+  sendDronePurchase() {
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+    this.dronePurchase = { ok: false, pending: true, message: 'Buying drone...' };
+    this.ws.send(JSON.stringify({ type: 'purchase-drone' }));
+  }
+
   sendDisplayName(displayName) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
@@ -302,6 +320,27 @@ export class NetworkClient {
     }
   }
 
+  _applyPhysicalTasksPayload(data) {
+    if (Array.isArray(data.physicalTasks)) {
+      this.physicalTasks = data.physicalTasks;
+    }
+    if (Array.isArray(data.completedTaskIds)) {
+      this._setCompletedTaskIds(data.completedTaskIds);
+    }
+  }
+
+  _setCompletedTaskIds(ids) {
+    const next = ids.filter((id) => typeof id === 'string');
+    if (
+      next.length === this.completedTaskIds.length
+      && next.every((id, index) => id === this.completedTaskIds[index])
+    ) {
+      return;
+    }
+    this.completedTaskIds = next;
+    this.completedTaskRevision += 1;
+  }
+
   _applyCheesePayload(data) {
     if (Array.isArray(data.cheesePickups)) {
       this.cheesePickups = data.cheesePickups;
@@ -338,6 +377,7 @@ export class NetworkClient {
         this._applyMountsPayload(data);
         this._applyRopesPayload(data);
         this._applyFansPayload(data);
+        this._applyPhysicalTasksPayload(data);
         this._applyCheesePayload(data);
         if (data.round) this.round = data.round;
         if (data.adversary) this.adversary = data.adversary;
@@ -349,6 +389,7 @@ export class NetworkClient {
       case 'unlock-reset':
         if (Array.isArray(data.unlockItems)) this.unlockItems = data.unlockItems;
         if (data.heroClaims) this.heroClaims = { ...data.heroClaims };
+        this._setCompletedTaskIds([]);
         break;
 
       case 'unlock-pickup-consumed':
@@ -357,8 +398,30 @@ export class NetworkClient {
         }
         break;
 
+      case 'drone-purchase-result':
+        this.dronePurchase = {
+          ok: data.ok === true,
+          pending: false,
+          message: data.ok === true
+            ? 'Drone reserved for next round'
+            : (data.reason === 'need_cheese'
+              ? `Need ${data.cost ?? 12} carried cheese`
+              : data.reason === 'already_reserved'
+                ? 'Drone already reserved'
+                : data.reason === 'too_far'
+                  ? 'Move closer to the screen'
+                  : 'Drone purchase unavailable'),
+        };
+        break;
+
       case 'hero-claimed':
         this.heroClaims = { ...(this.heroClaims ?? {}), [data.heroKey]: data.playerId };
+        break;
+
+      case 'task-completed':
+        if (typeof data.taskId === 'string' && !this.completedTaskIds.includes(data.taskId)) {
+          this._setCompletedTaskIds([...this.completedTaskIds, data.taskId]);
+        }
         break;
 
       case 'portal-spawn':
@@ -424,6 +487,7 @@ export class NetworkClient {
         this._applyMountsPayload(data);
         this._applyRopesPayload(data);
         this._applyFansPayload(data);
+        this._applyPhysicalTasksPayload(data);
         this._applyCheesePayload(data);
         if (data.round) this.round = data.round;
         if (data.adversary) this.adversary = data.adversary;
@@ -439,6 +503,7 @@ export class NetworkClient {
             phaseEndsAt: data.phaseEndsAt,
             number: data.number ?? this.round?.number ?? 1,
           };
+          this._applyPhysicalTasksPayload(data);
         }
         break;
       case 'round-end':

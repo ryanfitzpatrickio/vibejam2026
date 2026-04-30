@@ -1,6 +1,7 @@
 import { serializePredatorState } from '../shared/predator.js';
 import { serializeRoombaState } from '../shared/roomba.js';
 import { ADVERSARY_SAFE_RADIUS, currentAdversaryId } from './adversarySystem.js';
+import { serializePhysicalTaskStates } from './physicalTaskSystem.js';
 
 function serializePredators(predators) {
   return predators.map((p) => (p.type === 'roomba' ? serializeRoombaState(p) : serializePredatorState(p)));
@@ -89,6 +90,8 @@ function serializePlayerState(p) {
   setValueIf(out, 'grabbedTarget', p.grabbedTarget);
   setValueIf(out, 'grabbedBallId', p.grabbedBallId);
   setValueIf(out, 'mountId', p.mountId);
+  setBoolIf(out, 'droneNextRound', p.droneNextRound);
+  setBoolIf(out, 'isDrone', p.isDrone);
   setNumberIf(out, 'smackStunTimer', p.smackStunTimer);
   setNumberIf(out, 'chargedSmackHitSeq', p.chargedSmackHitSeq);
   setNumberIf(out, 'smackLimpThrowWindowTimer', p.smackLimpThrowWindowTimer);
@@ -133,6 +136,8 @@ export function buildInitPayload(runtime, connectionId) {
     cheesePickups: runtime.cheeseWorld.serializePickups(),
     ropes: runtime.ropeWorld.getRopesSnapshot(),
     fans: runtime.fanWorld.serialize(),
+    physicalTasks: serializePhysicalTaskStates(runtime),
+    completedTaskIds: [...(runtime._completedRaidTaskIds?.() ?? [])],
     round: runtime.round,
     adversary: buildAdversaryPayload(runtime),
     extractionPortals: runtime.round.phase === 'extract' ? runtime.extractionPortalDefs : [],
@@ -153,6 +158,8 @@ export function buildSnapshotPayload(runtime, seqs, players = Object.fromEntries
     cheesePickups: runtime.cheeseWorld.serializePickups(),
     ropes: runtime.ropeWorld.getRopesSnapshot(),
     fans: runtime.fanWorld.serialize(),
+    physicalTasks: serializePhysicalTaskStates(runtime),
+    completedTaskIds: [...(runtime._completedRaidTaskIds?.() ?? [])],
     round: runtime.round,
     adversary: buildAdversaryPayload(runtime),
     extractionPortals: runtime.round.phase === 'extract' ? runtime.extractionPortalDefs : [],

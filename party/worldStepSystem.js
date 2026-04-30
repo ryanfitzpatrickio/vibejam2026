@@ -208,6 +208,7 @@ function recordPlayerBests(runtime) {
 export function stepWorldAndScore(runtime, dt, now) {
   runtime.pushBallWorld.syncPlayers(runtime.players);
   runtime.pushBallWorld.step(dt);
+  runtime._stepPhysicalTasks?.(dt, now);
 
   const playersObj = Object.fromEntries(runtime.players);
   const mousePlayersObj = Object.fromEntries(

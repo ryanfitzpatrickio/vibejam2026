@@ -45,6 +45,8 @@ export function copyServerToPrediction(predictionState, ss) {
   predictionState.extractProgress = ss.extractProgress ?? 0;
   predictionState.animState = ss.animState ?? predictionState.animState;
   predictionState.mountId = ss.mountId ?? null;
+  predictionState.droneNextRound = !!ss.droneNextRound;
+  predictionState.isDrone = !!ss.isDrone;
   predictionState.smackLimpThrowWindowTimer = ss.smackLimpThrowWindowTimer ?? 0;
   predictionState.limpThrownBounceTimer = ss.limpThrownBounceTimer ?? 0;
   predictionState.limpBounceHitSeq = ss.limpBounceHitSeq ?? 0;

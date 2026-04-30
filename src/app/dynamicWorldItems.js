@@ -34,6 +34,7 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
 
   const pushBallStates = new Map();
   const glbPropStates = new Map();
+  const taskPhysicsStates = new Map();
   const mountStates = new Map();
   const pushBallMatrix = new THREE.Matrix4();
   const pushBallScale = new THREE.Vector3();
@@ -84,16 +85,37 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
       if (state.object) scene.remove(state.object);
     }
     glbPropStates.clear();
+    for (const state of taskPhysicsStates.values()) {
+      if (state.object) scene.remove(state.object);
+      state.geometry?.dispose?.();
+      state.material?.dispose?.();
+    }
+    taskPhysicsStates.clear();
   }
 
   function clearMounts() {
     for (const state of mountStates.values()) {
-      if (state.object) scene.remove(state.object);
+      if (state.object) {
+        scene.remove(state.object);
+        disposeProceduralMountObject(state.object);
+      }
       state.mixer?.stopAllAction?.();
       state.eyeUnsub?.();
       state.eyeAnimator?.dispose?.();
     }
     mountStates.clear();
+  }
+
+  function disposeProceduralMountObject(object) {
+    if (!object?.userData?.proceduralMount) return;
+    object.traverse((child) => {
+      child.geometry?.dispose?.();
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material?.dispose?.());
+      } else {
+        child.material?.dispose?.();
+      }
+    });
   }
 
   function syncGlbPropObject(ball, state) {
@@ -157,6 +179,49 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
     state.object.visible = pushBallsVisible;
   }
 
+  function updateTaskPhysicsObject(ball, seen) {
+    if (!ball?.id) return;
+    seen.add(ball.id);
+    let state = taskPhysicsStates.get(ball.id);
+    if (!state) {
+      const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+      const material = new THREE.MeshStandardMaterial({
+        color: typeof ball.color === 'string' ? ball.color : '#ffe080',
+        roughness: 0.48,
+        metalness: 0.12,
+      });
+      const object = new THREE.Mesh(geometry, material);
+      object.name = `PhysicalTask-${ball.id}`;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.frustumCulled = false;
+      object.userData.skipOutline = true;
+      scene.add(object);
+      state = {
+        smoothPos: new THREE.Vector3(ball.x, ball.y, ball.z),
+        smoothQuat: new THREE.Quaternion(ball.qx, ball.qy, ball.qz, ball.qw),
+        targetPos: new THREE.Vector3(ball.x, ball.y, ball.z),
+        targetQuat: new THREE.Quaternion(ball.qx, ball.qy, ball.qz, ball.qw),
+        object,
+        geometry,
+        material,
+      };
+      taskPhysicsStates.set(ball.id, state);
+    }
+    state.targetPos.set(ball.x, ball.y, ball.z);
+    state.targetQuat.set(ball.qx, ball.qy, ball.qz, ball.qw);
+    state.smoothPos.lerp(state.targetPos, 0.48);
+    state.smoothQuat.slerp(state.targetQuat, 0.48);
+    state.object.position.copy(state.smoothPos);
+    state.object.quaternion.copy(state.smoothQuat);
+    state.object.scale.set(
+      Number.isFinite(ball.sx) ? ball.sx : 0.28,
+      Number.isFinite(ball.sy) ? ball.sy : 0.42,
+      Number.isFinite(ball.sz) ? ball.sz : 0.28,
+    );
+    state.object.visible = pushBallsVisible;
+  }
+
   function updatePushBalls({ connected, balls }) {
     if (!pushBallsVisible || !connected || !Array.isArray(balls) || balls.length <= 0) {
       clearPushBalls();
@@ -164,9 +229,14 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
     }
     const seen = new Set();
     const seenGlbProps = new Set();
+    const seenTaskPhysics = new Set();
     let count = 0;
     for (const ball of balls) {
       if (!ball?.id) continue;
+      if (ball.kind === 'task-can') {
+        updateTaskPhysicsObject(ball, seenTaskPhysics);
+        continue;
+      }
       if (ball.kind === 'glb-prop' || ball.glbAssetId) {
         updateGlbProp(ball, seenGlbProps);
         continue;
@@ -205,6 +275,14 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
       if (!seenGlbProps.has(id)) {
         if (state.object) scene.remove(state.object);
         glbPropStates.delete(id);
+      }
+    }
+    for (const [id, state] of Array.from(taskPhysicsStates.entries())) {
+      if (!seenTaskPhysics.has(id)) {
+        if (state.object) scene.remove(state.object);
+        state.geometry?.dispose?.();
+        state.material?.dispose?.();
+        taskPhysicsStates.delete(id);
       }
     }
     pushBallInstanced.count = count;
@@ -259,7 +337,99 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
     state.currentActionAge = 0;
   }
 
+  function createDroneMountObject() {
+    const group = new THREE.Group();
+    group.name = 'ProceduralDroneMount';
+    group.userData.proceduralMount = true;
+
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      color: '#7dd3fc',
+      roughness: 0.48,
+      metalness: 0.18,
+      emissive: '#0b4a64',
+      emissiveIntensity: 0.18,
+    });
+    const darkMaterial = new THREE.MeshStandardMaterial({
+      color: '#172033',
+      roughness: 0.62,
+      metalness: 0.12,
+    });
+    const rotorMaterial = new THREE.MeshBasicMaterial({
+      color: '#dff9ff',
+      transparent: true,
+      opacity: 0.62,
+      depthWrite: false,
+      toneMapped: false,
+    });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.22, 0.52), bodyMaterial);
+    body.name = 'drone-body';
+    body.castShadow = true;
+    body.receiveShadow = true;
+    group.add(body);
+
+    const cameraPod = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.18), darkMaterial);
+    cameraPod.name = 'drone-camera';
+    cameraPod.position.set(0, -0.01, 0.34);
+    cameraPod.castShadow = true;
+    group.add(cameraPod);
+
+    const armGeometry = new THREE.BoxGeometry(0.9, 0.05, 0.07);
+    const armA = new THREE.Mesh(armGeometry, darkMaterial);
+    armA.name = 'drone-arm-a';
+    armA.rotation.y = Math.PI * 0.25;
+    armA.castShadow = true;
+    group.add(armA);
+    const armB = new THREE.Mesh(armGeometry.clone(), darkMaterial);
+    armB.name = 'drone-arm-b';
+    armB.rotation.y = -Math.PI * 0.25;
+    armB.castShadow = true;
+    group.add(armB);
+
+    const rotorGeometry = new THREE.CylinderGeometry(0.22, 0.22, 0.025, 28);
+    const postGeometry = new THREE.CylinderGeometry(0.045, 0.045, 0.12, 10);
+    const rotorPositions = [
+      [-0.42, 0.12, -0.34],
+      [0.42, 0.12, -0.34],
+      [-0.42, 0.12, 0.34],
+      [0.42, 0.12, 0.34],
+    ];
+    group.userData.rotors = [];
+    for (const [x, y, z] of rotorPositions) {
+      const post = new THREE.Mesh(postGeometry.clone(), darkMaterial);
+      post.position.set(x, y - 0.06, z);
+      post.castShadow = true;
+      group.add(post);
+
+      const rotor = new THREE.Mesh(rotorGeometry.clone(), rotorMaterial);
+      rotor.name = 'drone-rotor';
+      rotor.position.set(x, y, z);
+      rotor.rotation.x = Math.PI * 0.5;
+      rotor.renderOrder = 5;
+      group.userData.rotors.push(rotor);
+      group.add(rotor);
+    }
+
+    const socket = new THREE.Object3D();
+    socket.name = 'spine';
+    socket.position.set(0, -0.18, 0.18);
+    group.add(socket);
+
+    group.traverse((child) => {
+      child.userData.skipOutline = true;
+      if (child.isMesh) child.frustumCulled = false;
+    });
+    return group;
+  }
+
   function syncMountObject(mount, state) {
+    if (mount.mountKind === 'drone') {
+      if (!state.object) {
+        state.object = createDroneMountObject();
+        scene.add(state.object);
+      }
+      return;
+    }
     if ((!room?.loadGlbAsset && !room?.loadGlbModel) || state.object || state.loading || state.failed) return;
     state.loading = true;
     const assetId = mount.glbAssetId;
@@ -347,6 +517,9 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
       state.eyeAnimator?.update?.(deltaSeconds);
       playMountAnimation(state, mount.animState, deltaSeconds);
       if (!state.object) continue;
+      for (const rotor of state.object.userData?.rotors ?? []) {
+        rotor.rotation.z += deltaSeconds * (mount.flying ? 42 : 18);
+      }
       state.object.position.copy(state.smoothPos);
       state.object.quaternion.copy(state.smoothQuat);
       state.object.scale.set(
@@ -358,7 +531,10 @@ export function createDynamicWorldItems(scene, { room = null } = {}) {
     }
     for (const [id, state] of Array.from(mountStates.entries())) {
       if (!seen.has(id)) {
-        if (state.object) scene.remove(state.object);
+        if (state.object) {
+          scene.remove(state.object);
+          disposeProceduralMountObject(state.object);
+        }
         state.mixer?.stopAllAction?.();
         state.eyeUnsub?.();
         state.eyeAnimator?.dispose?.();

@@ -284,7 +284,9 @@ export function createRaidTaskHelperObject(definition, {
   };
 
   const buildFallbackVisuals = (task, slot) => {
-    if (task.taskType === RAID_TASK_TYPES.TOPPLE_TOWER) {
+    if (task.taskType === RAID_TASK_TYPES.TOPPLE_TOWER && task.completionMode === 'physical') {
+      if (slot === 'before') addDefaultMarker();
+    } else if (task.taskType === RAID_TASK_TYPES.TOPPLE_TOWER) {
       if (slot === 'before') {
         addBox(before, 'can-stack-1', '#ff9eb8', { x: -0.22, y: 0.2, z: 0 }, { x: 0.22, y: 0.4, z: 0.22 });
         addBox(before, 'can-stack-2', '#8be9ff', { x: 0, y: 0.62, z: 0 }, { x: 0.24, y: 0.42, z: 0.24 });

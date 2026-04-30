@@ -14,6 +14,7 @@ import kitchenRoombaNavMesh from '../shared/kitchen-roomba-navmesh.generated.js'
 import kitchenAdversaryHumanNavMesh from '../shared/kitchen-adversary-human-navmesh.generated.js';
 import { collectSpawnPointsFromLayout } from '../shared/spawnPoints.js';
 import { collectVibePortalPlacementsFromLayout } from '../shared/vibePortal.js';
+import { collectDeviceScreensFromLayout, DRONE_PURCHASE_CHEESE_COST } from '../shared/deviceScreens.js';
 import { StatsTracker } from './stats.js';
 import { createPushBallWorld } from './pushBallWorld.js';
 import { createMountWorld } from './mountWorld.js';
@@ -29,6 +30,7 @@ import { handleGameMessage } from './messageRouter.js';
 import { createWsTransport, utf8ByteLength } from './wsTransport.js';
 import { emitNoise, handleSqueak, tickNoiseAggro } from './noiseSystem.js';
 import { findRaidTaskById, handleTaskComplete } from './taskSystem.js';
+import { stepPhysicalTasks } from './physicalTaskSystem.js';
 import {
   currentAdversaryId,
   recordAdversaryScore,
@@ -197,6 +199,7 @@ export default class GameRoomRuntime {
   levelRoombaNavMesh = kitchenRoombaNavMesh;
   spawnPoints = collectSpawnPointsFromLayout(kitchenLayout);
   portalPlacements = collectVibePortalPlacementsFromLayout(kitchenLayout);
+  deviceScreens = collectDeviceScreensFromLayout(kitchenLayout);
   stats = null;
   portalArrivals = new Set();
   botBrains = new Map();
@@ -209,6 +212,10 @@ export default class GameRoomRuntime {
   _taskCompleteCooldown = new Map();
   /** @type {Map<string, Set<string>>} per-player task reward claims for the current round */
   _taskCompletionClaims = new Map();
+  /** @type {Map<string, object>} server-side physical task runtime state */
+  _physicalTaskStates = new Map();
+  /** @type {Set<string>} players that bought a drone for the next round */
+  _droneNextRound = new Set();
   /** @type {Map<string, number>} last squeak ms by connection id */
   _squeakCooldown = new Map();
 
@@ -279,12 +286,14 @@ export default class GameRoomRuntime {
     this._refreshLevelColliders();
     this.spawnPoints = collectSpawnPointsFromLayout(layout);
     this.portalPlacements = collectVibePortalPlacementsFromLayout(layout);
+    this.deviceScreens = collectDeviceScreensFromLayout(layout);
     this.extractionPortalDefs = collectExtractionPortalsFromLayout(layout, this.spawnPoints);
     if (Array.isArray(layout?.ropes)) {
       this.ropeWorld?.setRopes?.(layout.ropes);
     }
     this.fanWorld?.setFans?.(layout?.fans);
     this.pushBallWorld?.setGlbProps?.(layout);
+    this.pushBallWorld?.setPhysicalTaskBodies?.(layout, this._completedRaidTaskIds());
     this.mountWorld?.setMounts?.(layout);
     this.cheeseWorld.setNavMesh(this.levelMouseNavMesh);
     if (resetPredators) {
@@ -306,6 +315,7 @@ export default class GameRoomRuntime {
     });
     this.hotSurfaceZones = collectHotSurfaceZones(layout, this.levelColliders);
     this.pushBallWorld?.setLevelColliders?.(this.levelColliders);
+    this.pushBallWorld?.setPhysicalTaskBodies?.(layout, this._completedRaidTaskIds());
     this.roombaCannonWorld?.setLevelColliders?.(this.levelColliders);
     this.mouseLaunchWorld?.setLevelColliders?.(this.levelColliders);
     this.ropeWorld?.setLevelColliders?.(this.levelColliders);
@@ -562,6 +572,7 @@ export default class GameRoomRuntime {
       this._squeakCooldown.delete(conn.id);
       this._claimHeroCooldown.delete(conn.id);
       this._unlockPickupCooldown.delete(conn.id);
+      this._droneNextRound.delete(conn.id);
       this.portalArrivals.delete(conn.id);
       const leaving = this.players.get(conn.id);
       if (leaving?.isAdversary) this._recordAdversaryScore(conn.id, leaving);
@@ -658,12 +669,61 @@ export default class GameRoomRuntime {
     });
   }
 
+  _stepPhysicalTasks(dt, nowSeconds) {
+    stepPhysicalTasks(this, dt, nowSeconds, {
+      mischiefPoints: MISCHIEF_POINTS,
+    });
+  }
+
   _handleUnlockPickup(senderId, data) {
     handleUnlockPickup(this, senderId, data);
   }
 
   _handleClaimHero(senderId, data) {
     handleClaimHero(this, senderId, data);
+  }
+
+  _handleDronePurchase(sender) {
+    const player = this.players.get(sender?.id);
+    const reply = (payload) => this._sendToConnection(sender, JSON.stringify({
+      type: 'drone-purchase-result',
+      cost: DRONE_PURCHASE_CHEESE_COST,
+      ...payload,
+    }));
+    if (!player?.alive || player.spectator || player.extracted || player.isAdversary) {
+      reply({ ok: false, reason: 'not_available' });
+      return;
+    }
+    if (this._droneNextRound.has(sender.id) || player.droneNextRound === true) {
+      reply({ ok: false, reason: 'already_reserved' });
+      return;
+    }
+    if (!Array.isArray(this.deviceScreens) || this.deviceScreens.length <= 0) {
+      reply({ ok: false, reason: 'no_device' });
+      return;
+    }
+    let near = false;
+    for (const screen of this.deviceScreens) {
+      const dx = (screen.position.x ?? 0) - player.position.x;
+      const dy = (screen.position.y ?? 0) - player.position.y;
+      const dz = (screen.position.z ?? 0) - player.position.z;
+      if (dx * dx + dz * dz + dy * dy * 0.25 <= 2.8 * 2.8) {
+        near = true;
+        break;
+      }
+    }
+    if (!near) {
+      reply({ ok: false, reason: 'too_far' });
+      return;
+    }
+    if ((Number(player.cheeseCarried) || 0) < DRONE_PURCHASE_CHEESE_COST) {
+      reply({ ok: false, reason: 'need_cheese' });
+      return;
+    }
+    player.cheeseCarried = Math.max(0, Math.floor(Number(player.cheeseCarried) || 0) - DRONE_PURCHASE_CHEESE_COST);
+    player.droneNextRound = true;
+    this._droneNextRound.add(sender.id);
+    reply({ ok: true });
   }
 
   _endHeroMode(state) {

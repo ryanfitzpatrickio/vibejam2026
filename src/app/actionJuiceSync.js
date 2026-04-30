@@ -37,11 +37,11 @@ export function syncActionJuicePopups({
         chain.combo = Math.max(chain.combo + 1, next.mischiefCombo);
         chain.lastAt = nowSeconds;
         mischiefChains.set(playerId, chain);
-        spawnActionJuice(
-          playerState,
-          chain.combo > 1 ? `+${mischiefGain} mischief x${chain.combo}` : `+${mischiefGain} mischief`,
-          'mischief',
-        );
+        if (chain.combo > 1) {
+          spawnActionJuice(playerState, `x${chain.combo} COMBO! +${mischiefGain}`, 'combo');
+        } else {
+          spawnActionJuice(playerState, `+${mischiefGain} mischief`, 'mischief');
+        }
       }
 
       const grabGain = next.grabsInitiated - prev.grabsInitiated;

@@ -173,6 +173,10 @@ export function createPlayerState(id) {
     grabbedBallId: null,
     /** Rideable mount id while mounted (null if walking normally). */
     mountId: null,
+    /** Purchased from a device screen; consumed at the next round start. */
+    droneNextRound: false,
+    /** True while this player is locked into the purchased drone mount. */
+    isDrone: false,
     /** Seconds remaining of smack stun (plays death anim, recovers when 0). */
     smackStunTimer: 0,
     /** Monotonic client effect trigger for charged-smack impact sounds. */

@@ -18,6 +18,7 @@ const ROUND_END_JUMP_SPEED = 6.8;
 const ROUND_END_BIRD_JUMP_SPEED = 7.4;
 const ROUND_END_GRAVITY = -18;
 const DEFAULT_SOCKET_NAME = 'spine';
+const DRONE_GLB_ASSET_ID = 'asset-mount-bird-001';
 const INTERACT_RANGE = 1.45;
 const WALK_SPEED = 3.6;
 const FLIGHT_SPEED = 6.2;
@@ -255,6 +256,33 @@ function mountFromPrimitive(primitive) {
   };
 }
 
+function droneMountForPlayer(playerId, state) {
+  const rotation = finiteNumber(Number(state?.rotation), 0);
+  return {
+    id: `drone-${playerId}`,
+    name: `drone-${playerId}`,
+    glbAssetId: DRONE_GLB_ASSET_ID,
+    mountKind: 'drone',
+    socketName: DEFAULT_SOCKET_NAME,
+    riderOffset: { x: 0, y: 0.42, z: 0.12 },
+    grabOffset: { x: 0, y: -0.38, z: 0.32 },
+    scale: { x: 0.82, y: 0.82, z: 0.82 },
+    position: {
+      x: finiteNumber(Number(state?.position?.x), 0),
+      y: Math.max(0.75, finiteNumber(Number(state?.position?.y), 0) + 0.45),
+      z: finiteNumber(Number(state?.position?.z), 0),
+    },
+    velocity: { x: 0, y: 0, z: 0 },
+    rotation,
+    groundY: finiteNumber(Number(state?.position?.y), 0),
+    riderId: playerId,
+    grounded: false,
+    flying: true,
+    animState: 'flap',
+    virtual: true,
+  };
+}
+
 function applyRiderPose(mount, state) {
   const rider = rotateOffset(mount.riderOffset, mount.rotation);
   state.position.x = mount.position.x + rider.x;
@@ -446,7 +474,7 @@ export function createMountWorld() {
       return false;
     }
 
-    if (input?.dismountPressed && !input?.dismountBlocked) {
+    if (input?.dismountPressed && !input?.dismountBlocked && mount.mountKind !== 'drone') {
       dismount(playerId, state, mount);
       return true;
     }
@@ -572,6 +600,20 @@ export function createMountWorld() {
     });
   }
 
+  function spawnDroneForPlayer(playerId, state) {
+    if (!state?.alive || state.extracted || state.spectator || state.isAdversary) return false;
+    clearPlayer(playerId, state);
+    const mount = droneMountForPlayer(playerId, state);
+    mounts.set(mount.id, mount);
+    playerToMount.set(playerId, mount.id);
+    state.mountId = mount.id;
+    state.isDrone = true;
+    state._mountDismountHoldSeconds = 0;
+    state._suppressMountReleaseSmack = true;
+    applyRiderPose(mount, state);
+    return true;
+  }
+
   return {
     celebrationDismount,
     clearPlayer,
@@ -579,6 +621,7 @@ export function createMountWorld() {
     getMountsState,
     resetRound,
     setMounts,
+    spawnDroneForPlayer,
     stepCelebrations,
     tryMountNearest,
     updateMountedPlayer,

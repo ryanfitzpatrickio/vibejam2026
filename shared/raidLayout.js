@@ -41,6 +41,21 @@ export const RAID_TASK_COMPLETE_EFFECT_LABELS = Object.freeze({
   [RAID_TASK_COMPLETE_EFFECTS.SMOKE_SPARKS]: 'Smoke + Sparks',
 });
 
+export const RAID_TASK_COMPLETION_MODES = Object.freeze({
+  DIALOG: 'dialog',
+  PHYSICAL: 'physical',
+});
+
+export const RAID_TASK_COMPLETION_MODE_LABELS = Object.freeze({
+  [RAID_TASK_COMPLETION_MODES.DIALOG]: 'Dialog minigame',
+  [RAID_TASK_COMPLETION_MODES.PHYSICAL]: 'Physical trigger',
+});
+
+export function supportsPhysicalRaidTask(taskType) {
+  return taskType === RAID_TASK_TYPES.FRIDGE_RAID
+    || taskType === RAID_TASK_TYPES.TOPPLE_TOWER;
+}
+
 const DEFAULT_TASK_TEXTURE_ATLAS = 'textures';
 const TASK_PREFAB_FACE_TEXTURE_SLOTS = Object.freeze({
   box: Object.freeze(['right', 'left', 'top', 'bottom', 'front', 'back']),
@@ -190,12 +205,19 @@ export function normalizeRaidTaskEntry(entry = {}) {
   const completeEffect = Object.values(RAID_TASK_COMPLETE_EFFECTS).includes(rawCompleteEffect)
     ? rawCompleteEffect
     : defaultCompleteEffect;
+  const rawCompletionMode = typeof entry.completionMode === 'string'
+    ? entry.completionMode
+    : (typeof entry.completeMode === 'string' ? entry.completeMode : RAID_TASK_COMPLETION_MODES.DIALOG);
+  const completionMode = Object.values(RAID_TASK_COMPLETION_MODES).includes(rawCompletionMode)
+    ? rawCompletionMode
+    : RAID_TASK_COMPLETION_MODES.DIALOG;
   return {
     id: typeof entry.id === 'string' && entry.id.length > 0
       ? entry.id
       : `raid-task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     name: typeof entry.name === 'string' ? entry.name : 'Task marker',
     taskType,
+    completionMode,
     completeEffect,
     position: {
       x: Number.isFinite(entry.position?.x) ? entry.position.x : 0,

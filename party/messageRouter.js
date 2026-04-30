@@ -113,6 +113,11 @@ export async function handleGameMessage(runtime, sender, data, options = {}) {
     return;
   }
 
+  if (data.type === 'purchase-drone') {
+    runtime._handleDronePurchase(sender);
+    return;
+  }
+
   if (data.type === 'dev-sync-layout') {
     handleDevSyncLayout(runtime, data);
   }

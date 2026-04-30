@@ -43,6 +43,15 @@ export function advanceRoundPhase(runtime, wallNow) {
       phaseEndsAt: wallNow + ROUND_DURATIONS.forage,
       heroCandidateId: null,
     };
+    runtime.broadcast(JSON.stringify({
+      type: 'round-phase',
+      phase: 'forage',
+      phaseEndsAt: runtime.round.phaseEndsAt,
+      number: runtime.round.number,
+      completedTaskIds: [],
+      physicalTasks: [],
+      message: 'New raid started!',
+    }));
   }
 }
 
@@ -110,6 +119,9 @@ export function finishRound(runtime) {
 }
 
 export function startNewRound(runtime) {
+  runtime._taskCompleteCooldown.clear();
+  runtime._taskCompletionClaims.clear();
+  runtime._physicalTaskStates?.clear?.();
   runtime.pushBallWorld?.resetRound?.(runtime._layout);
   runtime.mountWorld?.resetRound?.(runtime._layout);
   runtime.cheeseWorld.seedScatter();
@@ -120,8 +132,6 @@ export function startNewRound(runtime) {
   runtime._unlockPickupCooldown.clear();
   runtime._spawnBallCooldown.clear();
   runtime._playerExtraBallSpawnCount.clear();
-  runtime._taskCompleteCooldown.clear();
-  runtime._taskCompletionClaims.clear();
   runtime._refreshLevelColliders();
   runtime.broadcast(JSON.stringify({
     type: 'unlock-reset',
@@ -177,6 +187,7 @@ export function startNewRound(runtime) {
     state.grabbedTarget = null;
     state.grabbedBallId = null;
     state.mountId = null;
+    state.isDrone = false;
     state.roombaLaunch = null;
     state.ropeSwing = null;
     const spawn = runtime._pickPlayerSpawn(idx);
@@ -186,6 +197,11 @@ export function startNewRound(runtime) {
     runtime.ropeWorld?.removePlayer?.(id);
     runtime.fanWorld?.removePlayer?.(id);
     runtime.mountWorld?.clearPlayer?.(id, state);
+    if (runtime._droneNextRound?.has?.(id) || state.droneNextRound === true) {
+      runtime.mountWorld?.spawnDroneForPlayer?.(id, state);
+      runtime._droneNextRound?.delete?.(id);
+      state.droneNextRound = false;
+    }
     runtime._lastRopeGrab.delete(id);
     runtime._lastRopeJump?.delete(id);
     if (!runtime.inputQueues.has(id)) {

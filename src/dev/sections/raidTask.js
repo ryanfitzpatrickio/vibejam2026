@@ -1,6 +1,8 @@
 import {
   RAID_TASK_COMPLETE_EFFECTS,
   RAID_TASK_COMPLETE_EFFECT_LABELS,
+  RAID_TASK_COMPLETION_MODE_LABELS,
+  RAID_TASK_COMPLETION_MODES,
   RAID_TASK_TYPES,
   RAID_TASK_TYPE_LABELS,
 } from '../../../shared/raidLayout.js';
@@ -66,6 +68,19 @@ export function installRaidTaskSection(editor) {
   });
   typeWrap.appendChild(editor.raidTaskTypeSelect);
   section.appendChild(typeWrap);
+
+  editor.raidTaskCompletionModeSelect = createSelectField(section, 'Completion');
+  Object.values(RAID_TASK_COMPLETION_MODES).forEach((value) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = RAID_TASK_COMPLETION_MODE_LABELS[value] ?? value;
+    editor.raidTaskCompletionModeSelect.appendChild(option);
+  });
+  editor.raidTaskCompletionModeSelect.addEventListener('change', () => {
+    editor._updateSelected((task) => {
+      task.completionMode = editor.raidTaskCompletionModeSelect.value;
+    }, { snapPosition: false, snapScale: false });
+  });
 
   editor.raidTaskCompleteEffectSelect = createSelectField(section, 'Post-complete effect');
   Object.values(RAID_TASK_COMPLETE_EFFECTS).forEach((value) => {

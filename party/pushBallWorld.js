@@ -8,6 +8,7 @@
 
 import { World, Vec3, Sphere, Box, Body, Cylinder } from 'cannon-es';
 import { PHYSICS } from '../shared/physics.js';
+import { RAID_TASK_COMPLETION_MODES, RAID_TASK_TYPES } from '../shared/raidLayout.js';
 
 const BALL_RADIUS = 0.38;
 const BALL_MASS = 5;
@@ -219,6 +220,8 @@ export function createPushBallWorld({
   let nextExtraBallId = 0;
   /** @type {Map<string, { body: Body, radius: number, glbAssetId: string, scale: {x:number,y:number,z:number}, spawn: object }>} */
   const glbProps = new Map();
+  /** @type {Map<string, { body: Body, radius: number, taskId: string, taskType: string, part: string, color: string, spawn: object }>} */
+  const taskPhysicsBodies = new Map();
 
   /** @type {Map<string, Body>} */
   const playerProxies = new Map();
@@ -235,6 +238,13 @@ export function createPushBallWorld({
       world.removeBody(body);
     }
     extraBalls.clear();
+  }
+
+  function clearTaskPhysicsBodies() {
+    for (const { body } of taskPhysicsBodies.values()) {
+      world.removeBody(body);
+    }
+    taskPhysicsBodies.clear();
   }
 
   function createGlbPropBody(primitive, radius) {
@@ -324,15 +334,82 @@ export function createPushBallWorld({
     }
   }
 
+  function createTaskCanBody(task, index) {
+    const body = new Body({
+      mass: 2.8,
+      linearDamping: 0.07,
+      angularDamping: 0.14,
+      material: world.defaultContactMaterial,
+    });
+    body.addShape(new Cylinder(0.14, 0.14, 0.42, 12));
+    const baseX = Number(task.position?.x) || 0;
+    const baseY = Number(task.position?.y) || 0;
+    const baseZ = Number(task.position?.z) || 0;
+    const yaw = Number(task.rotation?.y) || 0;
+    const localX = 0;
+    const localY = 0.23 + index * 0.42;
+    const sin = Math.sin(yaw);
+    const cos = Math.cos(yaw);
+    body.position.set(
+      baseX + localX * cos,
+      baseY + localY,
+      baseZ - localX * sin,
+    );
+    body.quaternion.setFromEuler(0, yaw, 0, 'XYZ');
+    return {
+      body,
+      radius: 0.24,
+      taskId: task.id,
+      taskType: task.taskType,
+      part: `can-${index + 1}`,
+      color: ['#ff9eb8', '#8be9ff', '#ffe080'][index] ?? '#ffe080',
+      spawn: {
+        x: body.position.x,
+        y: body.position.y,
+        z: body.position.z,
+        qx: body.quaternion.x,
+        qy: body.quaternion.y,
+        qz: body.quaternion.z,
+        qw: body.quaternion.w,
+      },
+    };
+  }
+
+  function setPhysicalTaskBodies(layout, completedTaskIds = null) {
+    clearTaskPhysicsBodies();
+    const completed = completedTaskIds instanceof Set
+      ? completedTaskIds
+      : new Set(Array.isArray(completedTaskIds) ? completedTaskIds : []);
+    const tasks = Array.isArray(layout?.raidTasks) ? layout.raidTasks : [];
+    for (const task of tasks) {
+      if (!task?.id || task.deleted === true || completed.has(task.id)) continue;
+      if (task.completionMode !== RAID_TASK_COMPLETION_MODES.PHYSICAL) continue;
+      if (task.taskType !== RAID_TASK_TYPES.TOPPLE_TOWER) continue;
+      for (let i = 0; i < 3; i += 1) {
+        const id = `task-${task.id}-can-${i + 1}`;
+        const entry = createTaskCanBody(task, i);
+        world.addBody(entry.body);
+        taskPhysicsBodies.set(id, entry);
+      }
+    }
+  }
+
   function resetRound(layout = null) {
     resetBallBody(ball, ballSpawnX, ballSpawnY, ballSpawnZ);
     clearExtraBalls();
     if (layout) {
       setGlbProps(layout);
+      setPhysicalTaskBodies(layout);
       return;
     }
     for (const { body, spawn } of glbProps.values()) {
       resetBallBody(body, spawn.x, spawn.y, spawn.z);
+    }
+    for (const { body, spawn } of taskPhysicsBodies.values()) {
+      body.position.set(spawn.x, spawn.y, spawn.z);
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+      body.quaternion.set(spawn.qx, spawn.qy, spawn.qz, spawn.qw);
     }
   }
 
@@ -458,6 +535,14 @@ export function createPushBallWorld({
         resetBallBody(body, spawn.x, spawn.y, spawn.z);
       }
     }
+    for (const [, { body, spawn }] of taskPhysicsBodies) {
+      if (body.position.y < -5) {
+        body.position.set(spawn.x, spawn.y, spawn.z);
+        body.velocity.set(0, 0, 0);
+        body.angularVelocity.set(0, 0, 0);
+        body.quaternion.set(spawn.qx, spawn.qy, spawn.qz, spawn.qw);
+      }
+    }
   }
 
   function getBallsState() {
@@ -484,6 +569,18 @@ export function createPushBallWorld({
         physicsShape,
         ...serializeScale(scale),
         ...serializePhysicsSize(physicsSize),
+      });
+    }
+    for (const [id, { body, radius, taskId, taskType, part, color }] of taskPhysicsBodies) {
+      list.push({
+        ...serializeBallBody(body, id, radius, color),
+        kind: 'task-can',
+        taskId,
+        taskType,
+        part,
+        sx: 0.28,
+        sy: 0.42,
+        sz: 0.28,
       });
     }
     return list;
@@ -527,6 +624,15 @@ export function createPushBallWorld({
         favoriteToy: favoriteToy === true,
       });
     }
+    for (const [id, { body, radius }] of taskPhysicsBodies) {
+      list.push({
+        id,
+        x: body.position.x, y: body.position.y, z: body.position.z,
+        vx: body.velocity.x, vy: body.velocity.y, vz: body.velocity.z,
+        radius,
+        grabbedBy: grabbedBy.get(id) ?? null,
+      });
+    }
     return list;
   }
 
@@ -542,6 +648,7 @@ export function createPushBallWorld({
     const entries = [[ball, BALL_RADIUS]];
     for (const [, { body, radius }] of extraBalls) entries.push([body, radius]);
     for (const [, { body, radius }] of glbProps) entries.push([body, radius]);
+    for (const [, { body, radius }] of taskPhysicsBodies) entries.push([body, radius]);
     let hit = 0;
     for (const [body, radius] of entries) {
       const dx = body.position.x - origin.x;
@@ -569,6 +676,9 @@ export function createPushBallWorld({
     for (const [id, { body, radius }] of glbProps) {
       list.push({ id, body, radius });
     }
+    for (const [id, { body, radius, taskId, taskType, part }] of taskPhysicsBodies) {
+      list.push({ id, body, radius, taskId, taskType, part });
+    }
     return list;
   }
 
@@ -577,7 +687,9 @@ export function createPushBallWorld({
     const entry = extraBalls.get(id);
     if (entry) return { id, body: entry.body, radius: entry.radius };
     const glbEntry = glbProps.get(id);
-    return glbEntry ? { id, body: glbEntry.body, radius: glbEntry.radius } : null;
+    if (glbEntry) return { id, body: glbEntry.body, radius: glbEntry.radius };
+    const taskEntry = taskPhysicsBodies.get(id);
+    return taskEntry ? { id, body: taskEntry.body, radius: taskEntry.radius } : null;
   }
 
   /** Pin a ball at (x,y,z) and zero its velocity — called every tick while held. */
@@ -611,6 +723,7 @@ export function createPushBallWorld({
     resetRound,
     setLevelColliders,
     setGlbProps,
+    setPhysicalTaskBodies,
     getBallEntries,
     getBallEntry,
     pinBall,

@@ -29,6 +29,12 @@ const STYLE_PRESETS = Object.freeze({
     background: 'linear-gradient(180deg, rgba(31,201,157,0.96) 0%, rgba(17,128,115,0.96) 100%)',
     shadow: 'rgba(56, 243, 191, 0.42)',
   },
+  combo: {
+    color: '#fffbea',
+    border: 'rgba(255, 227, 113, 0.96)',
+    background: 'linear-gradient(180deg, rgba(255,197,57,0.98) 0%, rgba(234,82,93,0.96) 100%)',
+    shadow: 'rgba(255, 187, 59, 0.54)',
+  },
 });
 
 function clamp01(value) {

@@ -115,6 +115,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -184,6 +185,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -253,6 +255,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -322,6 +325,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -391,6 +395,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -460,6 +465,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -529,6 +535,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -598,6 +605,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -667,6 +675,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -736,6 +745,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -805,6 +815,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -874,6 +885,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -943,6 +955,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1012,6 +1025,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1081,6 +1095,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1150,6 +1165,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1219,6 +1235,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1288,6 +1305,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1386,6 +1404,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1467,6 +1486,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1548,6 +1568,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1629,6 +1650,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1698,6 +1720,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1767,6 +1790,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -1848,6 +1872,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 1,
       "castShadow": true,
@@ -1928,6 +1953,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2008,6 +2034,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2089,6 +2116,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2158,6 +2186,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 1,
       "castShadow": true,
@@ -2251,6 +2280,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2332,6 +2362,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2417,6 +2448,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2498,6 +2530,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2578,6 +2611,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2660,6 +2694,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2730,6 +2765,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -2800,6 +2836,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -2869,6 +2906,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -2938,6 +2976,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -3007,6 +3046,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": false,
@@ -3076,6 +3116,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3157,6 +3198,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3238,6 +3280,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3320,6 +3363,7 @@ export default {
         "z": 0.4945
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3400,6 +3444,7 @@ export default {
         "z": 0.4945
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3481,6 +3526,7 @@ export default {
         "z": 0.4945
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3562,6 +3608,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3643,6 +3690,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3724,6 +3772,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3805,6 +3854,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3886,6 +3936,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -3967,6 +4018,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4057,6 +4109,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4142,6 +4195,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4210,6 +4264,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": false,
@@ -4278,6 +4333,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": false,
@@ -4346,6 +4402,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": false,
@@ -4426,6 +4483,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 1,
       "castShadow": true,
@@ -4507,6 +4565,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4588,6 +4647,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4669,6 +4729,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4738,6 +4799,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4807,6 +4869,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4876,6 +4939,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -4945,6 +5009,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5014,6 +5079,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5083,6 +5149,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5152,6 +5219,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5221,6 +5289,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5291,6 +5360,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5360,6 +5430,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5429,6 +5500,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5498,6 +5570,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5567,6 +5640,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5637,6 +5711,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5706,6 +5781,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5775,6 +5851,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -5844,6 +5921,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": false,
@@ -5912,6 +5990,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": false,
@@ -5980,6 +6059,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6049,6 +6129,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6118,6 +6199,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6187,6 +6269,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6256,6 +6339,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6325,6 +6409,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6394,6 +6479,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6462,6 +6548,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6530,6 +6617,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6598,6 +6686,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6666,6 +6755,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6735,6 +6825,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6805,6 +6896,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6874,6 +6966,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -6943,6 +7036,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 1.5,
       "castShadow": true,
@@ -7011,6 +7105,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7079,6 +7174,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7147,6 +7243,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7216,6 +7313,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7285,6 +7383,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7354,6 +7453,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7423,6 +7523,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7492,6 +7593,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7561,6 +7663,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7630,6 +7733,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7699,6 +7803,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7768,6 +7873,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7837,6 +7943,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7906,6 +8013,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -7975,6 +8083,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8044,6 +8153,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8113,6 +8223,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8182,6 +8293,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8268,6 +8380,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8353,6 +8466,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8433,6 +8547,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8513,6 +8628,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8595,6 +8711,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8675,6 +8792,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8756,6 +8874,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8837,6 +8956,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -8923,6 +9043,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9008,6 +9129,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9094,6 +9216,7 @@ export default {
         "z": 1
       },
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9162,6 +9285,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": "hot_surface",
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": false,
@@ -9232,6 +9356,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": "hot_surface",
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": false,
@@ -9302,6 +9427,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9370,6 +9496,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9438,6 +9565,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": true,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9514,6 +9642,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9590,6 +9719,7 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": true,
@@ -9658,11 +9788,805 @@ export default {
       "prefabInstanceRotation": null,
       "prefabInstanceScale": null,
       "gameplayType": null,
+      "deviceScreen": null,
       "collider": false,
       "colliderClearance": 0,
       "castShadow": true,
       "receiveShadow": true,
       "deleted": false
+    },
+    {
+      "id": "primitive-molceesc-cs0qr",
+      "name": "device-screen-rep",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -0.6,
+        "y": 4.3,
+        "z": -1.1
+      },
+      "rotation": {
+        "x": -1.5707963267948966,
+        "y": 0,
+        "z": 1.570796326794897
+      },
+      "scale": {
+        "x": 0.5,
+        "y": 1,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures3",
+        "cell": 24,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#101827",
+        "roughness": 0.72,
+        "metalness": 0.05
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "gameplayType": null,
+      "deviceScreen": {
+        "source": "web_viewport",
+        "app": "drone_shop"
+      },
+      "collider": false,
+      "colliderClearance": 0,
+      "castShadow": false,
+      "receiveShadow": false,
+      "deleted": false,
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "primitive-molchn22-42kz7",
+      "name": "box-w2r",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": -0.6,
+        "y": 4.2,
+        "z": -1.1
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 0.19,
+        "z": 0.5
+      },
+      "texture": {
+        "atlas": "textures3",
+        "cell": 41,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-moldoyqe-sxxbv-part-1",
+      "name": "standing desk with laptop-Desk Top",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 4,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4,
+        "y": 0.5,
+        "z": 4
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 0,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#8B4513",
+        "roughness": 0.6,
+        "metalness": 0
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": "prefab-moldfyfc-zyg6j",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-moldoyqe-sxxbv",
+      "prefabInstanceOrigin": {
+        "x": -11,
+        "y": 0,
+        "z": 19.9116
+      },
+      "prefabInstanceRotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-moldoyqe-sxxbv-part-2",
+      "name": "standing desk with laptop-Left Leg Vertical",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": -1.5556,
+        "y": 2,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.5,
+        "y": 4,
+        "z": 0.5
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 0,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#696969",
+        "roughness": 0.3,
+        "metalness": 0.8
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": "prefab-moldfyfc-zyg6j",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-moldoyqe-sxxbv",
+      "prefabInstanceOrigin": {
+        "x": -11,
+        "y": 0,
+        "z": 19.9116
+      },
+      "prefabInstanceRotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-moldoyqe-sxxbv-part-3",
+      "name": "standing desk with laptop-Right Leg Vertical",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 1.5556,
+        "y": 2,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.5,
+        "y": 4,
+        "z": 0.5
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 0,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#696969",
+        "roughness": 0.3,
+        "metalness": 0.8
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": "prefab-moldfyfc-zyg6j",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-moldoyqe-sxxbv",
+      "prefabInstanceOrigin": {
+        "x": -11,
+        "y": 0,
+        "z": 19.9116
+      },
+      "prefabInstanceRotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-moldoyqe-sxxbv-part-4",
+      "name": "standing desk with laptop-Left Leg Horizontal",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": -1.5556,
+        "y": 0.2318,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.5,
+        "y": 0.5,
+        "z": 3
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 0,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#696969",
+        "roughness": 0.3,
+        "metalness": 0.8
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": "prefab-moldfyfc-zyg6j",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-moldoyqe-sxxbv",
+      "prefabInstanceOrigin": {
+        "x": -11,
+        "y": 0,
+        "z": 19.9116
+      },
+      "prefabInstanceRotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-moldoyqe-sxxbv-part-5",
+      "name": "standing desk with laptop-Right Leg Horizontal",
+      "type": "box",
+      "spawnType": null,
+      "position": {
+        "x": 1.5556,
+        "y": 0.2318,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.5,
+        "y": 0.5,
+        "z": 3
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": 0,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#696969",
+        "roughness": 0.3,
+        "metalness": 0.8
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": "prefab-moldfyfc-zyg6j",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-moldoyqe-sxxbv",
+      "prefabInstanceOrigin": {
+        "x": -11,
+        "y": 0,
+        "z": 19.9116
+      },
+      "prefabInstanceRotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-moldoyqe-sxxbv-part-6",
+      "name": "standing desk with laptop-plane-part",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 4.2632,
+        "z": 0
+      },
+      "rotation": {
+        "x": -1.5707963267948966,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 1.5,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures3",
+        "cell": 11,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": "prefab-moldfyfc-zyg6j",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-moldoyqe-sxxbv",
+      "prefabInstanceOrigin": {
+        "x": -11,
+        "y": 0,
+        "z": 19.9116
+      },
+      "prefabInstanceRotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
+    },
+    {
+      "id": "prefab-instance-moldoyqe-sxxbv-part-7",
+      "name": "standing desk with laptop-plane-part",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": 0,
+        "y": 4.915,
+        "z": 1.0586
+      },
+      "rotation": {
+        "x": -2.6878070480712677,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2,
+        "y": 1.5,
+        "z": 2
+      },
+      "texture": {
+        "atlas": "textures2",
+        "cell": 27,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 3.141592653589793,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#ffffff",
+        "roughness": 0.88,
+        "metalness": 0.04
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": "prefab-moldfyfc-zyg6j",
+      "navArea": "default",
+      "prefabInstanceId": "prefab-instance-moldoyqe-sxxbv",
+      "prefabInstanceOrigin": {
+        "x": -11,
+        "y": 0,
+        "z": 19.9116
+      },
+      "prefabInstanceRotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "prefabInstanceScale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "gameplayType": null,
+      "deviceScreen": null,
+      "collider": true,
+      "colliderClearance": 0,
+      "castShadow": true,
+      "receiveShadow": true,
+      "deleted": false,
+      "zIndex": 0
+    },
+    {
+      "id": "primitive-moldplkj-j6ge5",
+      "name": "device-screen-cof",
+      "type": "plane",
+      "spawnType": null,
+      "position": {
+        "x": -11,
+        "y": 4.9,
+        "z": 20.9
+      },
+      "rotation": {
+        "x": -2.705260340591211,
+        "y": 1.5407439555097887e-33,
+        "z": -3.141592653589793
+      },
+      "scale": {
+        "x": 2,
+        "y": 1.5,
+        "z": 1
+      },
+      "texture": {
+        "atlas": "textures",
+        "cell": null,
+        "repeat": {
+          "x": 1,
+          "y": 1
+        },
+        "rotation": 0,
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "faceTextures": {},
+      "material": {
+        "color": "#101827",
+        "roughness": 0.72,
+        "metalness": 0.05
+      },
+      "glbAssetId": null,
+      "glbProp": false,
+      "catFavoriteToy": false,
+      "mount": false,
+      "mountKind": null,
+      "mountSocketName": "spine",
+      "mountRiderOffset": null,
+      "mountGrabOffset": null,
+      "physicsShape": "sphere",
+      "physicsRadius": null,
+      "physicsSize": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "physicsMass": null,
+      "prefabId": null,
+      "navArea": "default",
+      "prefabInstanceId": null,
+      "prefabInstanceOrigin": null,
+      "prefabInstanceRotation": null,
+      "prefabInstanceScale": null,
+      "gameplayType": null,
+      "deviceScreen": {
+        "source": "web_viewport",
+        "app": "drone_shop"
+      },
+      "collider": false,
+      "colliderClearance": 0,
+      "castShadow": false,
+      "receiveShadow": false,
+      "deleted": false,
+      "zIndex": 0,
+      "bakedAssetId": "asset-house-kitchen-layout"
     },
     {
       "id": "primitive-house-kitchen-layout-glb",
@@ -9975,6 +10899,7 @@ export default {
       "id": "raid-task-mo3avgvf-qaqml",
       "name": "task-cal",
       "taskType": "chew_wires",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": 18,
@@ -9994,6 +10919,7 @@ export default {
       "id": "raid-task-mo5h5lyv-rlpmx",
       "name": "task-e78",
       "taskType": "chew_wires",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": -19.8,
@@ -10013,6 +10939,7 @@ export default {
       "id": "raid-task-mo5hxebp-xql0x",
       "name": "task-akz",
       "taskType": "chew_wires",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": -14,
@@ -10032,6 +10959,7 @@ export default {
       "id": "raid-task-topple-tower-01",
       "name": "Topple Tower",
       "taskType": "topple_tower",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": 19,
@@ -10051,6 +10979,7 @@ export default {
       "id": "raid-task-fridge-raid-01",
       "name": "Fridge Raid",
       "taskType": "fridge_raid",
+      "completionMode": "physical",
       "completeEffect": "none",
       "position": {
         "x": 18,
@@ -10400,6 +11329,7 @@ export default {
       "id": "raid-task-cut-lights-01",
       "name": "Cut Lights",
       "taskType": "cut_lights",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": -23.5,
@@ -10419,6 +11349,7 @@ export default {
       "id": "raid-task-sabotage-roomba-01",
       "name": "Sabotage Roomba",
       "taskType": "sabotage_roomba",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": 20,
@@ -10438,6 +11369,7 @@ export default {
       "id": "raid-task-mo5jc2jm-aqqto",
       "name": "task-ueh",
       "taskType": "unlock_gus",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": 20.75,
@@ -10457,6 +11389,7 @@ export default {
       "id": "raid-task-mo5je6kp-94bl1",
       "name": "task-g2i",
       "taskType": "unlock_speedy",
+      "completionMode": "dialog",
       "completeEffect": "default",
       "position": {
         "x": 23,
@@ -10476,6 +11409,7 @@ export default {
       "id": "raid-task-moefp2t1-jdxc3",
       "name": "task-window",
       "taskType": "window",
+      "completionMode": "dialog",
       "completeEffect": "none",
       "position": {
         "x": 4,
@@ -11055,6 +11989,10 @@ export default {
       "id": "veg-mo6xk6rj-1rme9",
       "name": "testgrass-er1",
       "speciesId": "grass-debug-a",
+      "kind": null,
+      "collision": null,
+      "collisionShape": null,
+      "size": null,
       "mode": "patch",
       "position": {
         "x": -42,
@@ -11089,6 +12027,10 @@ export default {
       "id": "veg-mo7rsibb-3wu1m",
       "name": "testgrass-er1-copy",
       "speciesId": "grass-debug-a",
+      "kind": null,
+      "collision": null,
+      "collisionShape": null,
+      "size": null,
       "mode": "patch",
       "position": {
         "x": -42,
@@ -11123,6 +12065,10 @@ export default {
       "id": "veg-mo7rviuv-tbepq",
       "name": "testgrass-er1-copy-copy",
       "speciesId": "grass-debug-a",
+      "kind": null,
+      "collision": null,
+      "collisionShape": null,
+      "size": null,
       "mode": "patch",
       "position": {
         "x": -40,
@@ -11157,6 +12103,10 @@ export default {
       "id": "veg-moh3nkgi-ix3w4",
       "name": "newtree-ndv",
       "speciesId": "veg-species-moh2ros3-9lu5s",
+      "kind": null,
+      "collision": null,
+      "collisionShape": null,
+      "size": null,
       "mode": "single",
       "position": {
         "x": -44,

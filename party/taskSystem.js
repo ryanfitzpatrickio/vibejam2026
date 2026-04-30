@@ -1,6 +1,6 @@
 import { PREDATOR_AI } from '../shared/predator.js';
 import { ROOMBA_PHASE } from '../shared/roomba.js';
-import { RAID_TASK_TYPES } from '../shared/raidLayout.js';
+import { RAID_TASK_COMPLETION_MODES, RAID_TASK_TYPES, supportsPhysicalRaidTask } from '../shared/raidLayout.js';
 
 const TASK_COMPLETION_RADIUS = 3;
 const TASK_COMPLETION_RADIUS_SQ = TASK_COMPLETION_RADIUS * TASK_COMPLETION_RADIUS;
@@ -80,8 +80,9 @@ function applyTaskSideEffects(predators, taskType) {
   }
 }
 
-export function handleTaskComplete(runtime, senderId, data, {
+export function completeRaidTask(runtime, senderId, task, {
   mischiefPoints,
+  bypassPlayerDistance = false,
 } = {}) {
   const player = runtime.players.get(senderId);
   if (!player?.alive || player.spectator || player.extracted || player.isAdversary) return;
@@ -89,10 +90,8 @@ export function handleTaskComplete(runtime, senderId, data, {
   const last = runtime._taskCompleteCooldown.get(senderId) ?? 0;
   if (now - last < 600) return;
 
-  const taskId = typeof data?.taskId === 'string' ? data.taskId : '';
-  const task = taskId ? findRaidTaskById(runtime._layout, taskId) : null;
   if (!task) return;
-  if (typeof data?.taskType === 'string' && data.taskType !== task.taskType) return;
+  const taskId = task.id;
 
   const amount = TASK_REWARD_AMOUNTS[task.taskType] ?? 0;
   if (amount <= 0) return;
@@ -104,7 +103,7 @@ export function handleTaskComplete(runtime, senderId, data, {
 
   const dx = taskX - player.position.x;
   const dz = taskZ - player.position.z;
-  if (dx * dx + dz * dz > TASK_COMPLETION_RADIUS_SQ) return;
+  if (!bypassPlayerDistance && dx * dx + dz * dz > TASK_COMPLETION_RADIUS_SQ) return;
 
   const claims = getTaskCompletionClaims(runtime._taskCompletionClaims, '__global__');
   if (claims.has(taskId)) return;
@@ -121,4 +120,16 @@ export function handleTaskComplete(runtime, senderId, data, {
     taskType: task.taskType,
     playerId: senderId,
   }));
+}
+
+export function handleTaskComplete(runtime, senderId, data, {
+  mischiefPoints,
+} = {}) {
+  const taskId = typeof data?.taskId === 'string' ? data.taskId : '';
+  const task = taskId ? findRaidTaskById(runtime._layout, taskId) : null;
+  if (!task) return;
+  if (task.completionMode === RAID_TASK_COMPLETION_MODES.PHYSICAL
+    && supportsPhysicalRaidTask(task.taskType)) return;
+  if (typeof data?.taskType === 'string' && data.taskType !== task.taskType) return;
+  completeRaidTask(runtime, senderId, task, { mischiefPoints });
 }

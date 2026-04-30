@@ -24,6 +24,7 @@ import {
   nearestRopeDistanceSq,
 } from './gameplayHints.js';
 import { createDynamicWorldItems } from './dynamicWorldItems.js';
+import { DeviceScreenController } from './DeviceScreenController.js';
 import {
   CHARGED_THROW_CAMERA_SIDE_OFFSET,
   LOCAL_CHARGED_THROW_ORBIT_SPEED,
@@ -68,7 +69,6 @@ import { ChaseAlertOverlay } from '../hud/ChaseAlertOverlay.jsx';
 import { AdversaryStatusOverlay } from '../hud/AdversaryStatusOverlay.jsx';
 import { ActionJuiceOverlay } from '../hud/ActionJuiceOverlay.js';
 import { createHoldActionReticle } from '../hud/HoldActionReticle.js';
-import { MischiefMeter } from '../hud/MischiefMeter.jsx';
 import { OnboardingOverlay } from '../hud/OnboardingOverlay.jsx';
 import { WindStreakField } from '../world/WindStreakField.js';
 import { attachEdgeOutlines } from '../materials/index.js';
@@ -395,7 +395,6 @@ export async function createGameSession({
 
   const hud = new HUD();
   const roundRaid = new RoundRaidOverlay();
-  const mischiefMeter = new MischiefMeter();
   const onboarding = new OnboardingOverlay();
   const catLocator = new CatLocatorOverlay();
   const actionJuice = new ActionJuiceOverlay({ scene });
@@ -629,6 +628,13 @@ export async function createGameSession({
     net,
     getPlayer: () => (predictionState?.isAdversary && human?.playerControlled ? human : mouse),
   });
+  const deviceScreens = new DeviceScreenController({
+    camera,
+    canvas,
+    room,
+    net,
+    getPlayer: () => (predictionState?.isAdversary && human?.playerControlled ? human : mouse),
+  });
   // Expose collection counters to the hero-unlock dialog (reads current
   // server-authoritative counts for the local player).
   window.__unlockCollected = (heroKey) => {
@@ -822,7 +828,6 @@ export async function createGameSession({
     actionJuice,
     hud,
     roundRaid,
-    mischiefMeter,
     catLocator,
     scoreboard,
     toolbar,
@@ -1181,7 +1186,6 @@ export async function createGameSession({
     // HUD via the perf panel doesn't have it reappear after the intro ends.
     hud.setVisible(shown && perfFlags.gameplayUi);
     roundRaid.setVisible(shown && perfFlags.gameplayUi);
-    mischiefMeter.setVisible(shown && perfFlags.gameplayUi);
     catLocator.setVisible(shown && perfFlags.gameplayUi);
     scoreboard.setVisible(shown && perfFlags.gameplayUi);
     toolbar.setVisible(shown && perfFlags.gameplayUi);
@@ -1846,8 +1850,6 @@ export async function createGameSession({
     roundRaid.updatePhaseBanner(net.connected ? net.round : null, Date.now() / 1000, {
       subtitle: '',
     });
-    mischiefMeter.update(net.connected ? net.serverState : predictionState, Date.now() / 1000);
-
     const currentPhase = net.connected ? (net.round?.phase ?? null) : null;
     if (currentPhase !== _prevRoundPhase) {
       if (currentPhase === 'extract' && _prevRoundPhase !== null) {
@@ -2102,6 +2104,7 @@ export async function createGameSession({
       taskController.cheeseBurst?.update?.(deltaSeconds);
     }
     unlockCollectibles.update(deltaSeconds);
+    deviceScreens.update(deltaSeconds);
     if (!perfFlags.gameplayUi) {
       taskPromptElement.style.display = 'none';
     }
@@ -2288,7 +2291,6 @@ export async function createGameSession({
     dynamicWorldItems.dispose();
     extractionMarkers.dispose();
     roundRaid.dispose();
-    mischiefMeter.dispose();
     onboarding.dispose();
     hud.dispose();
     catLocator.dispose();
@@ -2304,6 +2306,7 @@ export async function createGameSession({
     scene.remove(localNameplateAnchor);
     taskController.dispose();
     unlockCollectibles.dispose();
+    deviceScreens.dispose();
     actionJuice.dispose();
     taskPromptElement.remove();
     labelRenderer.domElement.remove();

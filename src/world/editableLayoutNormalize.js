@@ -14,6 +14,7 @@ import {
 } from '../../shared/raidLayout.js';
 import { normalizeRope } from '../../shared/ropes.js';
 import { normalizeCeilingFan } from '../../shared/ceilingFans.js';
+import { normalizeDeviceScreenConfig } from '../../shared/deviceScreens.js';
 
 export const ROOM_TEXTURE_CELLS = Object.freeze({
   floor: 0,
@@ -234,6 +235,9 @@ export function normalizeEditablePrimitive(entry = {}) {
     prefabInstanceRotation: entry.prefabInstanceRotation ? cloneVectorLike(entry.prefabInstanceRotation, { x: 0, y: 0, z: 0 }) : null,
     prefabInstanceScale: entry.prefabInstanceScale ? cloneVectorLike(entry.prefabInstanceScale, { x: 1, y: 1, z: 1 }) : null,
     gameplayType: entry.gameplayType === 'hot_surface' || entry.hazardType === 'hot_surface' ? 'hot_surface' : null,
+    deviceScreen: type === 'plane' && entry.deviceScreen
+      ? normalizeDeviceScreenConfig(entry.deviceScreen)
+      : null,
     collider: type === 'prop' ? entry.collider === true : entry.collider !== false,
     colliderClearance: entry.colliderClearance ?? 0,
     castShadow: type === 'prop' ? entry.castShadow === true : entry.castShadow !== false,

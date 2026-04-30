@@ -52,6 +52,18 @@ export function installSelectionSection(editor) {
       primitive.receiveShadow = checked;
     });
   });
+  editor.deviceScreenToggle = createCheckbox('Device Screen', toggles, (checked) => {
+    editor._updateSelected((primitive) => {
+      primitive.deviceScreen = checked && primitive.type === 'plane'
+        ? { source: 'web_viewport', app: 'drone_shop' }
+        : null;
+      if (checked && primitive.type === 'plane') {
+        primitive.collider = false;
+        primitive.castShadow = false;
+        primitive.receiveShadow = false;
+      }
+    });
+  });
 
   editor.clearanceInput = createRangeField(section, 'Clearance', 0, 2, 0.05, (value) => {
     editor._updateSelected((primitive) => {
