@@ -63,10 +63,27 @@
       #scoreboard { transform: translateX(-50%) scale(0.8) !important; transform-origin: top center !important; }
       #hero-prompt { transform: translateX(-50%) scale(0.8) !important; transform-origin: center bottom !important; }
     }
+    @media (max-width: 520px), (max-height: 760px) {
+      #hud { transform: scale(0.42) !important; transform-origin: bottom left !important; }
+      #game-toolbar { transform: scale(0.56) !important; transform-origin: top left !important; }
+      #round-phase { transform: translateX(-50%) scale(0.56) !important; transform-origin: top center !important; }
+      #chase-alert { transform: translateX(-50%) scale(0.56) !important; transform-origin: top center !important; }
+      #scoreboard { transform: translateX(-50%) scale(0.62) !important; transform-origin: top center !important; }
+      #hero-prompt { transform: translateX(-50%) scale(0.58) !important; transform-origin: center bottom !important; }
+    }
+    @media (max-width: 380px), (max-height: 680px) {
+      #hud { transform: scale(0.34) !important; transform-origin: bottom left !important; }
+      #game-toolbar { transform: scale(0.48) !important; transform-origin: top left !important; }
+      #round-phase { transform: translateX(-50%) scale(0.48) !important; transform-origin: top center !important; }
+      #chase-alert { transform: translateX(-50%) scale(0.48) !important; transform-origin: top center !important; }
+      #scoreboard { transform: translateX(-50%) scale(0.54) !important; transform-origin: top center !important; }
+      #hero-prompt { transform: translateX(-50%) scale(0.5) !important; transform-origin: center bottom !important; }
+    }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
+  <script type="module" src="/rune/logic/logic.js" data-rune-logic></script>
   <script type="module" src="/src/main.js"></script>
   <script async src="https://vibejam.cc/2026/widget.js"></script>
 </body>

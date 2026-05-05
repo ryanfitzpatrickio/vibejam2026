@@ -74,6 +74,7 @@ import { WindStreakField } from '../world/WindStreakField.js';
 import { attachEdgeOutlines } from '../materials/index.js';
 import { createOutlinePipeline } from '../postprocessing/OutlinePipeline.js';
 import { NetworkClient } from '../net/NetworkClient.js';
+import { RuneNetworkClient } from '../net/RuneNetworkClient.js';
 import { RemotePlayerManager } from '../net/RemotePlayerManager.js';
 import {
   EmoteManager,
@@ -598,12 +599,17 @@ export async function createGameSession({
   });
 
   // --- Multiplayer ---
+  const useRuneBackend = import.meta.env.MODE === 'rune' || import.meta.env.VITE_RUNE_BACKEND === 'true';
   const portalArrival = readVibePortalArrivalFromSearch(window.location.search);
   const net = offlineMode
     ? createOfflineNetClient(roomId)
-    : new NetworkClient(roomId, {
-      portalArrival: portalArrival.active ? portalArrival : null,
-    });
+    : (useRuneBackend
+      ? new RuneNetworkClient(roomId, {
+        portalArrival: portalArrival.active ? portalArrival : null,
+      })
+      : new NetworkClient(roomId, {
+        portalArrival: portalArrival.active ? portalArrival : null,
+      }));
   function requestSqueak() {
     net.sendSqueak?.();
   }
@@ -971,13 +977,13 @@ export async function createGameSession({
   }
 
   net.on((data) => {
-    if (data.type === 'init' && data.players?.[net.localId]) {
+    if (data.type === 'init' && data.players?.[net.localId] && !net.positionOnly) {
       snapLocalStateToServer(data.players[net.localId]);
       lastReconciledSeq = -2;
       return;
     }
 
-    if (data.type === 'portal-spawn' && data.player?.id === net.localId) {
+    if (data.type === 'portal-spawn' && data.player?.id === net.localId && !net.positionOnly) {
       snapLocalStateToServer(data.player);
       lastReconciledSeq = -2;
     }
@@ -1011,7 +1017,7 @@ export async function createGameSession({
     }
   });
 
-  if (net.localId && net.serverState) {
+  if (net.localId && net.serverState && !net.positionOnly) {
     snapLocalStateToServer(net.serverState);
   }
 
@@ -1155,15 +1161,15 @@ export async function createGameSession({
   }
 
   // --- Cinematic intro ---------------------------------------------------
-  // Production boots through Cloudflare Turnstile + PartyKit connect + server
-  // spawn — roughly 1–3s of staring at the client's pre-snap camera position
+  // Production boots through PartyKit connect + server spawn — roughly 1–3s
+  // of staring at the client's pre-snap camera position
   // with a fully-rendered HUD. Instead of that, run a drone-style orbit over
   // the house with no UI until the server actually spawns our player. In dev
-  // there's no Turnstile round-trip, so we enforce a 5s minimum to make the
-  // intro visible / tweakable without having to deploy.
+  // we enforce a 1s minimum to make the intro visible / tweakable without
+  // having to deploy.
   const CINEMATIC_MIN_MS = offlineMode ? 0 : (import.meta.env.DEV ? 1000 : 0);
   const cinematicStartMs = performance.now();
-  let cinematicActive = !offlineMode;
+  let cinematicActive = !offlineMode && !net.positionOnly;
   const _cineLookAt = new THREE.Vector3(0, 1.2, 0);
   // Preserve the gameplay fog (near=16, far=68) and swap in a pushed-out fog
   // while the drone orbits so the house doesn't wash out at the larger radius.
@@ -1444,11 +1450,13 @@ export async function createGameSession({
         simulateTick(predictionState, input, PHYSICS_STEP, CLIENT_BOUNDS, colliders, vPull);
       }
 
-      const renderPos = renderPositionSmoother.updateFromPrediction(
-        predictionState,
-        mouse.groundOffset,
-        PHYSICS_STEP,
-      );
+      const renderPos = net.positionOnly
+        ? renderPositionSmoother.snapToPrediction(predictionState, mouse.groundOffset)
+        : renderPositionSmoother.updateFromPrediction(
+          predictionState,
+          mouse.groundOffset,
+          PHYSICS_STEP,
+        );
 
       mouse.position.x = renderPos.x;
       mouse.position.y = renderPos.y;
@@ -1605,8 +1613,26 @@ export async function createGameSession({
           controller.adversaryTogglePressed = false;
         }
         inputWithEmote.interactHeld = !!controller.interactHeld;
+        if (net.positionOnly) {
+          inputWithEmote.position = {
+            x: predictionState.position.x,
+            y: predictionState.position.y,
+            z: predictionState.position.z,
+          };
+          inputWithEmote.velocity = {
+            x: predictionState.velocity.x,
+            y: predictionState.velocity.y,
+            z: predictionState.velocity.z,
+          };
+          inputWithEmote.rotation = predictionState.rotation;
+          inputWithEmote.animState = predictionState.animState;
+          inputWithEmote.grounded = predictionState.grounded;
+          inputWithEmote.sprinting = predictionState.sprinting;
+          inputWithEmote.crouching = predictionState.crouching;
+          inputWithEmote.sliding = predictionState.sliding;
+        }
         net.sendInput(inputWithEmote);
-        reconcileWithServer();
+        if (!net.positionOnly) reconcileWithServer();
       }
     }
 

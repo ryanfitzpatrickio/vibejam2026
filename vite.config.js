@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { defineConfig } from 'vite';
 import solid from 'vite-plugin-solid';
+import rune from 'rune-sdk/vite';
 
 const execFileAsync = promisify(execFile);
 const DEV_JSON_MAX_BYTES = 2 * 1024 * 1024;
@@ -202,37 +203,70 @@ function devLevelSavePlugin() {
   };
 }
 
-export default defineConfig({
-  plugins: [solid(), devLevelSavePlugin()],
-  base: './',
-  root: '.',
-  publicDir: 'public',
-  resolve: {
-    alias: {
-      '@chenglou/pretext': path.resolve(process.cwd(), 'node_modules/@chenglou/pretext/src/layout.ts'),
+function stripExternalWidgetForRune(enabled) {
+  return {
+    name: 'prepare-html-for-rune',
+    transformIndexHtml(html) {
+      if (!enabled) {
+        return html.replace(
+          /\n\s*<script type="module" src="\/rune\/logic\/logic\.js" data-rune-logic><\/script>/,
+          '',
+        );
+      }
+      return html.replace(
+        /\n\s*<script async src="https:\/\/vibejam\.cc\/2026\/widget\.js"><\/script>/,
+        '',
+      );
     },
-  },
-  optimizeDeps: {
-    include: ['@chenglou/pretext'],
-  },
-  build: {
-    target: 'esnext',
-    modulePreload: { polyfill: false },
-    rollupOptions: {
-      output: {
-        manualChunks: undefined,
+  };
+}
+
+export default defineConfig(({ mode }) => {
+  const isRuneBuild = mode === 'rune' || process.env.VITE_RUNE_BACKEND === 'true';
+  return {
+    plugins: [
+      solid(),
+      devLevelSavePlugin(),
+      stripExternalWidgetForRune(isRuneBuild),
+      ...(isRuneBuild
+        ? [rune({
+          logicPath: path.resolve(process.cwd(), 'rune/logic/logic.js'),
+          minifyLogic: false,
+          ignoredDependencies: [],
+        })]
+        : []),
+    ],
+    base: './',
+    root: '.',
+    publicDir: 'public',
+    resolve: {
+      alias: {
+        '@chenglou/pretext': path.resolve(process.cwd(), 'node_modules/@chenglou/pretext/src/layout.ts'),
       },
     },
-  },
-  // Strip console.* + debugger statements at build time (production only; dev
-  // server is untouched). Reduces bundle size and prevents leaking log strings
-  // into the minified output. See also the runtime shim in src/main.js which
-  // covers any dynamic `console[key]()` calls the static pass can't remove.
-  esbuild: {
-    drop: ['console', 'debugger'],
-  },
-  server: {
-    host: '127.0.0.1',
-    open: true,
-  },
+    optimizeDeps: {
+      include: ['@chenglou/pretext'],
+    },
+    build: {
+      outDir: isRuneBuild ? 'dist-rune' : 'dist',
+      target: 'esnext',
+      modulePreload: { polyfill: false },
+      rollupOptions: {
+        output: {
+          manualChunks: undefined,
+        },
+      },
+    },
+    // Strip console.* + debugger statements at build time (production only; dev
+    // server is untouched). Reduces bundle size and prevents leaking log strings
+    // into the minified output. See also the runtime shim in src/main.js which
+    // covers any dynamic `console[key]()` calls the static pass can't remove.
+    esbuild: {
+      drop: ['console', 'debugger'],
+    },
+    server: {
+      host: '127.0.0.1',
+      open: !isRuneBuild,
+    },
+  };
 });

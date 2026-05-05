@@ -19,6 +19,8 @@ readRendererMode(); // migrate legacy localStorage `webgpu` → `webgl`
 const canvas = document.getElementById('canvas');
 const ROOM_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const BUILD_MODE_PROFILE = import.meta.env.MODE === 'buildmode';
+const RUNE_BACKEND = import.meta.env.MODE === 'rune' || import.meta.env.VITE_RUNE_BACKEND === 'true';
+let lastPointerLockExitAt = 0;
 
 const modePanel = new RendererModePanel({
   visible: false,
@@ -258,16 +260,17 @@ function showFatalBootError(error) {
 }
 
 try {
-  const roomId = BUILD_MODE_PROFILE ? 'buildmode-local' : await resolveBootRoomId();
+  const roomId = BUILD_MODE_PROFILE ? 'buildmode-local' : (RUNE_BACKEND ? 'rune' : await resolveBootRoomId());
+  const roomVisibility = BUILD_MODE_PROFILE ? 'local' : (RUNE_BACKEND ? 'rune' : bootRoomVisibility);
   app = await createGameSession({
     canvas,
     roomId,
-    roomVisibility: BUILD_MODE_PROFILE ? 'local' : bootRoomVisibility,
-    onCopyInvite: BUILD_MODE_PROFILE ? null : (bootRoomVisibility === 'private' ? copyCurrentInviteLink : null),
-    onCreatePrivateRoom: BUILD_MODE_PROFILE ? null : createAndJoinPrivateRoom,
+    roomVisibility,
+    onCopyInvite: BUILD_MODE_PROFILE || RUNE_BACKEND ? null : (bootRoomVisibility === 'private' ? copyCurrentInviteLink : null),
+    onCreatePrivateRoom: BUILD_MODE_PROFILE || RUNE_BACKEND ? null : createAndJoinPrivateRoom,
     offlineMode: BUILD_MODE_PROFILE,
   });
-  if (!BUILD_MODE_PROFILE) installRoomRecovery(roomId, bootRoomVisibility);
+  if (!BUILD_MODE_PROFILE && !RUNE_BACKEND) installRoomRecovery(roomId, bootRoomVisibility);
 } catch (error) {
   showFatalBootError(error);
   throw error;
@@ -308,7 +311,14 @@ if (buildMode?.isActive?.()) {
 
 canvas.addEventListener('click', () => {
   if (buildMode?.isActive?.() || shouldShowMobileControls) return;
-  app.thirdPersonCamera.requestPointerLock();
+  if (RUNE_BACKEND && performance.now() - lastPointerLockExitAt < 1200) return;
+  app.thirdPersonCamera.requestPointerLock()?.catch?.(() => {});
+});
+
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement !== canvas) {
+    lastPointerLockExitAt = performance.now();
+  }
 });
 
 window.addEventListener('keydown', (event) => {

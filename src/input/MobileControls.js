@@ -266,6 +266,7 @@ export class MobileControls {
       WebkitTapHighlightColor: 'transparent',
       fontFamily: 'system-ui, sans-serif',
     });
+    this.root.style.setProperty('--mobile-control-scale', '0.72');
 
     this.joystickZone = document.createElement('div');
     Object.assign(this.joystickZone.style, {
@@ -286,6 +287,8 @@ export class MobileControls {
       boxShadow: '0 12px 26px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.18)',
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
+      transform: 'scale(var(--mobile-control-scale, 1))',
+      transformOrigin: 'bottom left',
     });
 
     this.joystickKnob = document.createElement('div');
@@ -347,6 +350,8 @@ export class MobileControls {
       WebkitUserSelect: 'none',
       WebkitTouchCallout: 'none',
       WebkitTapHighlightColor: 'transparent',
+      transform: 'scale(var(--mobile-control-scale, 1))',
+      transformOrigin: 'top right',
     });
 
     this.actionPad = document.createElement('div');
@@ -362,6 +367,8 @@ export class MobileControls {
       WebkitUserSelect: 'none',
       WebkitTouchCallout: 'none',
       WebkitTapHighlightColor: 'transparent',
+      transform: 'scale(var(--mobile-control-scale, 1))',
+      transformOrigin: 'bottom right',
     });
 
     this.throwDock = document.createElement('div');
@@ -375,6 +382,8 @@ export class MobileControls {
       WebkitUserSelect: 'none',
       WebkitTouchCallout: 'none',
       WebkitTapHighlightColor: 'transparent',
+      transform: 'scale(var(--mobile-control-scale, 1))',
+      transformOrigin: 'bottom left',
     });
 
     this._buttons = {
@@ -483,6 +492,7 @@ export class MobileControls {
     this._joystickMaxDist = 45;
     this._previousViewportStyles = null;
     this._viewportLocked = false;
+    this._onViewportResize = () => this._updateResponsiveScale();
     this._preventDocumentTouch = (event) => {
       if (this.root.style.display === 'none') return;
       const target = event.target;
@@ -494,6 +504,7 @@ export class MobileControls {
     };
 
     this._applyHumanSwitchState();
+    this._updateResponsiveScale();
   }
 
   async init() {
@@ -501,7 +512,10 @@ export class MobileControls {
     this._installJoystick();
     this._installCameraTouch();
     this._installButtons();
+    window.addEventListener('resize', this._onViewportResize, { passive: true });
+    window.visualViewport?.addEventListener('resize', this._onViewportResize, { passive: true });
     this._applySideLayout();
+    this._updateResponsiveScale();
     return this;
   }
 
@@ -516,31 +530,49 @@ export class MobileControls {
     Object.assign(this.joystickZone.style, m ? {
       left: 'auto',
       right: 'calc(16px + env(safe-area-inset-right))',
+      transformOrigin: 'bottom right',
     } : {
       left: 'calc(16px + env(safe-area-inset-left))',
       right: 'auto',
+      transformOrigin: 'bottom left',
     });
     Object.assign(this.actionPad.style, m ? {
       left: 'calc(12px + env(safe-area-inset-left))',
       right: 'auto',
+      transformOrigin: 'bottom left',
     } : {
       left: 'auto',
       right: 'calc(14px + env(safe-area-inset-right))',
+      transformOrigin: 'bottom right',
     });
     Object.assign(this.throwDock.style, m ? {
       left: 'auto',
       right: 'calc(26px + env(safe-area-inset-right))',
+      transformOrigin: 'bottom right',
     } : {
       left: 'calc(26px + env(safe-area-inset-left))',
       right: 'auto',
+      transformOrigin: 'bottom left',
     });
     Object.assign(this.topBar.style, m ? {
       left: 'calc(12px + env(safe-area-inset-left))',
       right: 'auto',
+      transformOrigin: 'top left',
     } : {
       left: 'auto',
       right: 'calc(12px + env(safe-area-inset-right))',
+      transformOrigin: 'top right',
     });
+  }
+
+  _updateResponsiveScale() {
+    const viewport = window.visualViewport;
+    const width = Math.max(1, viewport?.width || window.innerWidth || 390);
+    const height = Math.max(1, viewport?.height || window.innerHeight || 700);
+    const shortSide = Math.min(width, height);
+    const longSide = Math.max(width, height);
+    const scale = Math.max(0.5, Math.min(0.84, Math.min(shortSide / 520, longSide / 920)));
+    this.root.style.setProperty('--mobile-control-scale', scale.toFixed(3));
   }
 
   _installJoystick() {
@@ -851,6 +883,7 @@ export class MobileControls {
     this.root.style.display = 'block';
     this._applyViewportLock();
     this._applySideLayout();
+    this._updateResponsiveScale();
   }
 
   _releaseHeldInputs() {
@@ -879,6 +912,8 @@ export class MobileControls {
 
   dispose() {
     this._releaseHeldInputs();
+    window.removeEventListener('resize', this._onViewportResize);
+    window.visualViewport?.removeEventListener('resize', this._onViewportResize);
     this.root.removeEventListener('touchstart', this._preventRootTouch, true);
     this.root.removeEventListener('touchmove', this._preventRootTouch, true);
     this.root.removeEventListener('touchend', this._preventRootTouch, true);

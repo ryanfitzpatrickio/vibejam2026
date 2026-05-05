@@ -147,7 +147,6 @@ ALLOWED_ORIGINS=https://mouse.ryanfitzpatrick.io
 STATS_COLLECTOR_URL=https://mouse.ryanfitzpatrick.io/api/stats/event
 STATS_COLLECTOR_TOKEN=shared-secret
 STATS_ADMIN_TOKEN=admin-secret
-TURNSTILE_SECRET=cloudflare-turnstile-secret
 DEV_LAYOUT_SYNC_ENABLED=false
 DEV_LAYOUT_SYNC_TOKEN=your-dev-sync-token
 ```
@@ -167,7 +166,6 @@ npx wrangler secret put STATS_ADMIN_TOKEN
 npx partykit env add STATS_COLLECTOR_URL
 npx partykit env add STATS_COLLECTOR_TOKEN
 npx partykit env add STATS_ADMIN_TOKEN
-npx partykit env add TURNSTILE_SECRET
 npx partykit env add ENVIRONMENT
 npx partykit env add ALLOWED_ORIGINS
 ```

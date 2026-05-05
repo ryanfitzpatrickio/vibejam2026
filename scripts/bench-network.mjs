@@ -12,9 +12,9 @@
  *   node scripts/bench-network.mjs --host=http://10.0.0.5:1999           # explicit plaintext
  *
  * NOTE: Benching prod is disabled by default. The prod party rejects WS upgrades
- * with empty Origin headers (scripts don't send one) and requires a Turnstile
- * token that node can't generate. Run this against local dev or a separate
- * staging party with non-production env settings, not your live one.
+ * with empty Origin headers (scripts don't send one). Run this against local
+ * dev or a separate staging party with non-production env settings, not your
+ * live one.
  *
  * Writes ./bench-results.json (gitignored) for `npm run bench:compare`.
  */

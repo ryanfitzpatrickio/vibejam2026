@@ -67,57 +67,6 @@ export function isAllowedOrigin(origin, env, request = null) {
   return getAllowedOrigins(env).has(normalized);
 }
 
-export function shouldRequireTurnstile(_request, env) {
-  const secret = String(env?.TURNSTILE_SECRET ?? '').trim();
-  if (secret) return true;
-  return isProductionEnv(env);
-}
-
-/**
- * Verify a Cloudflare Turnstile token against siteverify.
- *
- * Returns true only when Cloudflare confirms the token is valid and
- * single-use-not-yet-spent. Callers decide whether Turnstile is required.
- *
- * Tokens are single-use and expire after ~300s. The client fetches a fresh
- * one for every (re)connect via the PartySocket `query` hook.
- */
-export async function verifyTurnstileToken(token, env) {
-  const secret = String(env?.TURNSTILE_SECRET ?? '').trim();
-  if (!secret) return true;
-  if (!token) {
-    console.warn('[turnstile] missing cfToken on WS upgrade');
-    return false;
-  }
-  try {
-    const body = new URLSearchParams();
-    body.set('secret', secret);
-    body.set('response', token);
-    // PartyKit routes through several hops; sending remoteip can cause false
-    // mismatches versus the edge IP observed when the challenge was issued.
-    const response = await fetch(
-      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-      {
-        method: 'POST',
-        body,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      },
-    );
-    if (!response.ok) {
-      console.warn('[turnstile] siteverify http error', response.status);
-      return false;
-    }
-    const result = await response.json();
-    if (!result?.success) {
-      console.warn('[turnstile] siteverify rejected', result?.['error-codes'] ?? result);
-    }
-    return !!result?.success;
-  } catch (error) {
-    console.warn('[turnstile] siteverify threw', error?.message || error);
-    return false;
-  }
-}
-
 export function corsHeadersForRequest(request, env) {
   const origin = request.headers.get('Origin') ?? '';
   if (!origin || !isAllowedOrigin(origin, env, request)) return {};
@@ -176,19 +125,6 @@ export async function gateWebSocketConnection(request, lobby) {
       status: 429,
       headers: { 'Retry-After': '60' },
     });
-  }
-
-  const secret = String(lobby?.env?.TURNSTILE_SECRET ?? '').trim();
-  if (shouldRequireTurnstile(request, lobby.env)) {
-    if (!secret) {
-      return new Response('Turnstile is required but not configured', { status: 503 });
-    }
-    const url = new URL(request.url);
-    const token = url.searchParams.get('cfToken') ?? '';
-    const ok = await verifyTurnstileToken(token, lobby.env);
-    if (!ok) {
-      return new Response('Turnstile verification failed', { status: 401 });
-    }
   }
 
   return request;

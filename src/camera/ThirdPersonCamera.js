@@ -129,10 +129,18 @@ export class ThirdPersonCamera {
 
   requestPointerLock() {
     if (!this.domElement || !this.domElement.requestPointerLock) {
-      return;
+      return null;
     }
 
-    this.domElement.requestPointerLock();
+    try {
+      const result = this.domElement.requestPointerLock();
+      if (result?.catch) {
+        result.catch(() => {});
+      }
+      return result;
+    } catch {
+      return null;
+    }
   }
 
   setFov(fov) {

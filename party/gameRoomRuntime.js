@@ -83,9 +83,6 @@ import {
  * - STATS_ADMIN_TOKEN — required; GET …/stats returns 503 if missing
  * - GET …/leaderboard returns public aggregate leaderboards
  * - ALLOWED_ORIGINS — comma-separated browser origins allowed to open WebSockets
- * - TURNSTILE_SECRET — Cloudflare Turnstile secret key; when set, every WS
- *   upgrade must carry a valid single-use ?cfToken=… (client fetches via
- *   VITE_TURNSTILE_SITE_KEY). Leave unset to disable (dev default).
  * - ALLOW_EMPTY_ORIGIN — set "true" ONLY to debug non-browser clients; in prod
  *   empty Origin headers are rejected (scripts like node `ws` send none).
  * - DEV_LAYOUT_SYNC_ENABLED — set "true" only in dev to accept dev-sync-layout
