@@ -1,4 +1,3 @@
-import { applyPortalArrivalToPlayerState, sanitizePortalArrivalPayload } from '../shared/vibePortal.js';
 import { isValidDevSyncLayout } from '../shared/devLayoutValidation.js';
 import { sanitizePlayerInputMessage } from '../shared/playerInputSanitize.js';
 import { sanitizeDisplayName } from '../shared/displayName.js';
@@ -22,22 +21,6 @@ async function handleHello(runtime, sender, data) {
   if (playerHello && typeof data.displayName === 'string') {
     playerHello.displayName = sanitizeDisplayName(data.displayName);
     runtime.stats?.recordDisplayName(sender.id, playerHello.displayName);
-  }
-
-  const portalArrival = sanitizePortalArrivalPayload(data.portal);
-  if (portalArrival.active && !runtime.portalArrivals.has(sender.id)) {
-    const player = runtime.players.get(sender.id);
-    if (applyPortalArrivalToPlayerState(player, portalArrival, runtime.portalPlacements)) {
-      runtime.portalArrivals.add(sender.id);
-      runtime._sendToConnection(sender, JSON.stringify({
-        type: 'portal-spawn',
-        player,
-      }));
-      runtime.broadcast(JSON.stringify({
-        type: 'player-joined',
-        player,
-      }), [sender.id]);
-    }
   }
 
   try {

@@ -13,7 +13,6 @@ import kitchenMouseNavMesh from '../shared/kitchen-mouse-navmesh.generated.js';
 import kitchenRoombaNavMesh from '../shared/kitchen-roomba-navmesh.generated.js';
 import kitchenAdversaryHumanNavMesh from '../shared/kitchen-adversary-human-navmesh.generated.js';
 import { collectSpawnPointsFromLayout } from '../shared/spawnPoints.js';
-import { collectVibePortalPlacementsFromLayout } from '../shared/vibePortal.js';
 import { collectDeviceScreensFromLayout, DRONE_PURCHASE_CHEESE_COST } from '../shared/deviceScreens.js';
 import { StatsTracker } from './stats.js';
 import { createPushBallWorld } from './pushBallWorld.js';
@@ -83,9 +82,6 @@ import {
  * - STATS_ADMIN_TOKEN — required; GET …/stats returns 503 if missing
  * - GET …/leaderboard returns public aggregate leaderboards
  * - ALLOWED_ORIGINS — comma-separated browser origins allowed to open WebSockets
- * - TURNSTILE_SECRET — Cloudflare Turnstile secret key; when set, every WS
- *   upgrade must carry a valid single-use ?cfToken=… (client fetches via
- *   VITE_TURNSTILE_SITE_KEY). Leave unset to disable (dev default).
  * - ALLOW_EMPTY_ORIGIN — set "true" ONLY to debug non-browser clients; in prod
  *   empty Origin headers are rejected (scripts like node `ws` send none).
  * - DEV_LAYOUT_SYNC_ENABLED — set "true" only in dev to accept dev-sync-layout
@@ -198,10 +194,8 @@ export default class GameRoomRuntime {
   /** Wide agent mesh for roomba pathing (matches disk radius in nav bake). */
   levelRoombaNavMesh = kitchenRoombaNavMesh;
   spawnPoints = collectSpawnPointsFromLayout(kitchenLayout);
-  portalPlacements = collectVibePortalPlacementsFromLayout(kitchenLayout);
   deviceScreens = collectDeviceScreensFromLayout(kitchenLayout);
   stats = null;
-  portalArrivals = new Set();
   botBrains = new Map();
   _nextBotId = 0;
   /** @type {Map<string, number>} last spawn-extra-ball ms by connection id */
@@ -285,7 +279,6 @@ export default class GameRoomRuntime {
     this._layout = layout;
     this._refreshLevelColliders();
     this.spawnPoints = collectSpawnPointsFromLayout(layout);
-    this.portalPlacements = collectVibePortalPlacementsFromLayout(layout);
     this.deviceScreens = collectDeviceScreensFromLayout(layout);
     this.extractionPortalDefs = collectExtractionPortalsFromLayout(layout, this.spawnPoints);
     if (Array.isArray(layout?.ropes)) {
@@ -573,7 +566,6 @@ export default class GameRoomRuntime {
       this._claimHeroCooldown.delete(conn.id);
       this._unlockPickupCooldown.delete(conn.id);
       this._droneNextRound.delete(conn.id);
-      this.portalArrivals.delete(conn.id);
       const leaving = this.players.get(conn.id);
       if (leaving?.isAdversary) this._recordAdversaryScore(conn.id, leaving);
       if (leaving) this.cheeseWorld.onDeathDropCarried(leaving);

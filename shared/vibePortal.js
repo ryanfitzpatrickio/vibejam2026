@@ -1,6 +1,6 @@
 import { PHYSICS } from './physics.js';
 
-export const VIBE_PORTAL_URL = 'https://vibejam.cc/portal/2026';
+export const VIBE_PORTAL_URL = '';
 export const VIBE_PORTAL_PARAM_KEYS = Object.freeze([
   'portal',
   'username',

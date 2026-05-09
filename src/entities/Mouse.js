@@ -1,12 +1,32 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MouseAnimationManager } from '../animation/MouseAnimationManager.js';
 import { MouseEyeAtlasAnimator } from '../animation/MouseEyeAtlasAnimator.js';
 import { assetUrl } from '../utils/assetUrl.js';
 
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (navigator.maxTouchPoints > 0 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
+
+const _avatarGltfCache = new Map();
+
+function loadAvatarGltf(modelUrl) {
+  if (!_avatarGltfCache.has(modelUrl)) {
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    _avatarGltfCache.set(modelUrl, loader.loadAsync(modelUrl));
+  }
+  return _avatarGltfCache.get(modelUrl);
+}
+
+function cloneAvatarGltf(gltf) {
+  return {
+    ...gltf,
+    scene: cloneSkinned(gltf.scene),
+    animations: gltf.animations ?? [],
+  };
+}
 
 function applyCommonProps(material, sourceMaterial) {
   material.map = sourceMaterial?.map ?? null;
@@ -102,14 +122,11 @@ export class Mouse extends THREE.Group {
   }
 
   async _loadAvatar() {
-    const loader = new GLTFLoader();
-    loader.setMeshoptDecoder(MeshoptDecoder);
-
     const modelUrls = [assetUrl('mouse-skinned.optimized.glb')];
 
     for (const modelUrl of modelUrls) {
       try {
-        const gltf = await loader.loadAsync(modelUrl);
+        const gltf = cloneAvatarGltf(await loadAvatarGltf(modelUrl));
         this._teardownPrimitiveParts();
         this._attachAvatar(gltf);
         break;

@@ -5,11 +5,9 @@
  */
 import PartySocket from 'partysocket';
 import { getClientPreferredDisplayName } from '../utils/playerDisplayName.js';
-import { getTurnstileToken } from './turnstile.js';
 
 const PARTYKIT_HOST =
   import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999';
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 /** Max pending inputs to keep for reconciliation */
 const MAX_PENDING = 120;
@@ -112,9 +110,8 @@ export class NetworkClient {
   /** @type {((event: {type: string, [k:string]: any}) => void)[]} */
   listeners = [];
 
-  constructor(roomId = 'default', { portalArrival = null } = {}) {
+  constructor(roomId = 'default') {
     this.roomId = roomId;
-    this.portalArrival = portalArrival;
   }
 
   connect() {
@@ -122,18 +119,6 @@ export class NetworkClient {
       host: PARTYKIT_HOST,
       room: this.roomId,
       party: 'main',
-      // Fetched per (re)connect. Turnstile tokens are single-use and ~300s TTL,
-      // so reconnects always fetch a fresh one. No-op when site key is unset.
-      query: async () => {
-        if (!TURNSTILE_SITE_KEY) return {};
-        try {
-          const token = await getTurnstileToken(TURNSTILE_SITE_KEY);
-          return token ? { cfToken: token } : {};
-        } catch (err) {
-          console.warn('[net] turnstile token unavailable:', err);
-          return {};
-        }
-      },
     });
 
     this.ws.addEventListener('message', (e) => {
@@ -146,7 +131,6 @@ export class NetworkClient {
         type: 'hello',
         playerKey: this.playerKey,
         displayName: getClientPreferredDisplayName(),
-        portal: this.portalArrival ?? undefined,
       }));
       console.log('[net] connected to room:', this.roomId);
       for (const fn of this.listeners) fn({ type: 'open' });
@@ -421,15 +405,6 @@ export class NetworkClient {
       case 'task-completed':
         if (typeof data.taskId === 'string' && !this.completedTaskIds.includes(data.taskId)) {
           this._setCompletedTaskIds([...this.completedTaskIds, data.taskId]);
-        }
-        break;
-
-      case 'portal-spawn':
-        if (data.player?.id === this.localId) {
-          this.serverState = data.player;
-          this.serverSeq = -1;
-          this.pendingInputs.length = 0;
-          this._sendTimes.clear();
         }
         break;
 

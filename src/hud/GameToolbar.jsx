@@ -19,7 +19,7 @@ import {
  */
 
 const BUTTON_SIZE = 44;
-const BUTTON_COUNT = 5;
+const BUTTON_COUNT = 4;
 
 function stopUi(event) {
   event.preventDefault();
@@ -718,11 +718,6 @@ function ToolbarView(props) {
           onClick={() => props.onToggleLeaderboard?.()}
         />
         <ToolbarButton
-          icon="github"
-          title="Open GitHub"
-          onClick={() => props.onOpenGithub?.()}
-        />
-        <ToolbarButton
           icon="gear"
           title="Settings"
           pressed={s.settingsOpen}
@@ -747,17 +742,6 @@ function ToolbarView(props) {
             title="Settings"
             closeTitle="Close settings"
             onClose={() => props.onCloseSettings?.()}
-          />
-          <NameRow
-            value={s.displayName}
-            onChange={(v) => props.onChangeDisplayName?.(v)}
-            onApplied={(v) => props.onAppliedDisplayName?.(v)}
-          />
-          <RoomRow
-            roomId={s.roomId}
-            roomVisibility={s.roomVisibility}
-            onCopyInvite={() => props.onCopyInvite?.()}
-            onCreatePrivateRoom={() => props.onCreatePrivateRoom?.()}
           />
           <SettingRow
             label="Music"

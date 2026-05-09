@@ -375,7 +375,7 @@ export class Room {
         version: layout?.version ?? 1,
         primitives: Array.isArray(layout?.primitives) ? layout.primitives.map((entry) => normalizeEditablePrimitive(entry)) : [],
         lights: Array.isArray(layout?.lights) ? layout.lights.map((entry) => normalizeEditableLight(entry)) : [],
-        portals: Array.isArray(layout?.portals) ? layout.portals.map((entry) => normalizeEditablePortal(entry)) : [],
+        portals: [],
         ropes: Array.isArray(layout?.ropes) ? layout.ropes.map((entry) => normalizeEditableRope(entry)) : [],
         fans: Array.isArray(layout?.fans) ? layout.fans.map((entry) => normalizeEditableFan(entry)) : [],
         extractionPortals: Array.isArray(layout?.extractionPortals)

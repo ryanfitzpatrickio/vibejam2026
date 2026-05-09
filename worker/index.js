@@ -22,13 +22,13 @@ const jsonTextEncoder = new TextEncoder();
 
 const BASE_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval' https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://challenges.cloudflare.com",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://vibejam.cc https://vibej.am https://static.cloudflareinsights.com https://cloudflareinsights.com",
+  "img-src 'self' data: blob:",
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
   "font-src 'self' data:",
-  "frame-src https://vibejam.cc https://vibej.am https://challenges.cloudflare.com",
+  "frame-src 'none'",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -75,10 +75,6 @@ function getContentSecurityPolicy(request, env) {
   const connectSources = [
     "'self'",
     'blob:',
-    'https://vibejam.cc',
-    'https://vibej.am',
-    'https://static.cloudflareinsights.com',
-    'https://cloudflareinsights.com',
     'https://*.partykit.dev',
     'https://*.partykit.io',
     'https://party.ryanfitzpatrick.io',

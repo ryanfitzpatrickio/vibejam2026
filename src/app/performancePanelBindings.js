@@ -88,11 +88,13 @@ export function bindPerformancePanelToggles(panel, {
         navMeshOverlay.visible = !!v;
       },
     },
-    vibePortals: {
-      label: 'Vibe portals (rings / particles / sprites)',
-      get: () => vibePortalManager.getPortalsVisible(),
-      set: (v) => vibePortalManager.setPortalsVisible(v),
-    },
+    ...(vibePortalManager ? {
+      vibePortals: {
+        label: 'Vibe portals (rings / particles / sprites)',
+        get: () => vibePortalManager.getPortalsVisible(),
+        set: (v) => vibePortalManager.setPortalsVisible(v),
+      },
+    } : {}),
     cheesePickups: {
       label: 'Cheese pickup meshes',
       get: () => cheesePickupGroup.visible !== false,

@@ -348,6 +348,7 @@ export class VibePortalManager {
   }
 
   _buildExitUrl(playerState) {
+    if (!VIBE_PORTAL_URL) return null;
     const url = new URL(VIBE_PORTAL_URL);
     const params = this._buildBaseParams(playerState);
     params.set('ref', getCurrentRef());

@@ -146,3 +146,5 @@ src-tauri/target/
 src-tauri/gen/
 .env.production
 /scripts/live-bots.mjs
+/dist-rune/
+/wavedash.toml

@@ -33,11 +33,10 @@ function BarStatusDot(props) {
       style={{
         width: '9px',
         height: '9px',
-        'border-radius': '0',
+        'border-radius': '999px',
         background: props.color,
         'box-shadow': `0 0 0 2px rgba(12,18,26,0.45), 0 0 6px ${glow()}`,
         'flex-shrink': '0',
-        transform: 'skewX(-8deg)',
       }}
     />
   );
@@ -48,6 +47,24 @@ function formatClock(seconds) {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}:${String(r).padStart(2, '0')}`;
+}
+
+function connectionColor(connected, ping) {
+  if (!connected) {
+    return { color: '#8e98a8', glow: 'rgba(142,152,168,0.45)' };
+  }
+  const ms = Number(ping);
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return { color: '#62df7c', glow: 'rgba(98,223,124,0.7)' };
+  }
+  if (ms < 110) return { color: '#62df7c', glow: 'rgba(98,223,124,0.7)' };
+  if (ms < 220) return { color: '#ffe08a', glow: 'rgba(255,224,138,0.65)' };
+  return { color: '#ff6f91', glow: 'rgba(255,111,145,0.65)' };
+}
+
+function latencyText(ping) {
+  const ms = Math.max(0, Math.round(Number(ping) || 0));
+  return `${ms}ms`;
 }
 
 function gradeForRound(row) {
@@ -194,6 +211,8 @@ function RoundPhaseTopRow(props) {
     const n = Math.max(0, Math.floor(Number(props.state.barCheese) || 0));
     return `${n}/${maxC}`;
   });
+  const connection = createMemo(() => connectionColor(!!props.state.connected, props.state.ping));
+  const latency = createMemo(() => latencyText(props.state.ping));
   const sidePanel = {
     ...HUD_PANEL_STYLE,
     ...(compact ? MOBILE_TOP_GLASS : {}),
@@ -331,8 +350,8 @@ function RoundPhaseTopRow(props) {
               'align-self': 'center',
             }}
           />
-          <div style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
-            <BarStatusDot color="#62df7c" glow="rgba(98,223,124,0.7)" />
+          <div style={{ display: 'flex', 'align-items': 'center', gap: compact ? '3px' : '4px' }}>
+            <BarStatusDot color={connection().color} glow={connection().glow} />
             <span
               style={{
                 color: '#fff',
@@ -341,6 +360,17 @@ function RoundPhaseTopRow(props) {
               }}
             >
               {Math.max(0, Math.floor(Number(props.state.barConnected) || 0))}
+            </span>
+            <span
+              style={{
+                color: props.state.connected ? '#dce8ff' : '#aab2c2',
+                font: HUD_SMALL_LABEL_FONT,
+                'font-size': compact ? '9px' : '10px',
+                'letter-spacing': '0.02em',
+                'white-space': 'nowrap',
+              }}
+            >
+              {latency()}
             </span>
           </div>
           <Show when={Math.max(0, Math.floor(Number(props.state.barBots) || 0)) > 0}>
@@ -802,6 +832,8 @@ export class RoundRaidOverlay {
       barCheeseMax: 50,
       barConnected: 1,
       barBots: 0,
+      connected: false,
+      ping: 0,
       phaseVisible: false,
       phaseText: '',
       phaseColor: '#fff',
@@ -895,6 +927,8 @@ export class RoundRaidOverlay {
     cheeseMax,
     connectedCount,
     botCount,
+    connected,
+    ping,
   } = {}) {
     batch(() => {
       this._setState({
@@ -904,6 +938,8 @@ export class RoundRaidOverlay {
         barCheeseMax: cheeseMax ?? 50,
         barConnected: connectedCount ?? 1,
         barBots: botCount ?? 0,
+        connected: connected ?? false,
+        ping: ping ?? 0,
       });
     });
   }

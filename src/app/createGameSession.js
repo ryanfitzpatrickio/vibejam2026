@@ -47,7 +47,6 @@ import { Roomba } from '../entities/Roomba.js';
 import { PredatorManager } from '../entities/PredatorManager.js';
 import { Room } from '../world/Room.js';
 import { RopeSystem } from '../world/RopeSystem.js';
-import { VibePortalManager } from '../world/VibePortalManager.js';
 import { ThirdPersonCamera } from '../camera/ThirdPersonCamera.js';
 import {
   CharacterController,
@@ -75,6 +74,7 @@ import { attachEdgeOutlines } from '../materials/index.js';
 import { createOutlinePipeline } from '../postprocessing/OutlinePipeline.js';
 import { NetworkClient } from '../net/NetworkClient.js';
 import { RemotePlayerManager } from '../net/RemotePlayerManager.js';
+import { updateWavedashLoadProgress } from '../net/wavedashSdk.js';
 import {
   EmoteManager,
   HUMAN_ADVERSARY_EMOTES,
@@ -97,7 +97,6 @@ import {
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { simulateTick, createPlayerState } from '../../shared/physics.js';
 import { getRoombaVacuumPullAcceleration } from '../../shared/roomba.js';
-import { readVibePortalArrivalFromSearch } from '../../shared/vibePortal.js';
 import kitchenNavMesh from '../../shared/kitchen-navmesh.generated.js';
 import { LEVEL_WORLD_BOUNDS_XZ } from '../../shared/levelWorldBounds.js';
 import { normalizeRope } from '../../shared/ropes.js';
@@ -164,6 +163,13 @@ const GITHUB_URL = 'https://github.com/ryanfitzpatrickio/vibejam2026';
 /** Cat AI states where the hunt target is the local player — drives ambient crossfade. */
 const CAT_AMBIENT_HUNT_AI = new Set(['alert', 'roar', 'chase', 'chase_ball', 'attack', 'cooldown']);
 
+function shouldUseWavedashNetwork() {
+  const backend = String(import.meta.env.VITE_NET_BACKEND ?? '').trim().toLowerCase();
+  if (backend === 'wavedash') return true;
+  if (backend === 'partykit' || backend === 'party') return false;
+  return !!(globalThis.WavedashJS || globalThis.Wavedash);
+}
+
 export async function createGameSession({
   canvas,
   roomId = 'default',
@@ -172,6 +178,7 @@ export async function createGameSession({
   onCreatePrivateRoom = null,
   offlineMode = false,
 } = {}) {
+  updateWavedashLoadProgress(0.03);
   const scene = new THREE.Scene();
   applyAtmosphere(scene);
 
@@ -184,6 +191,7 @@ export async function createGameSession({
   scene.add(mouse);
 
   const renderer = createWebGLRenderer(canvas);
+  updateWavedashLoadProgress(0.08);
   canvas.style.position = 'relative';
   canvas.style.zIndex = '0';
 
@@ -598,12 +606,15 @@ export async function createGameSession({
   });
 
   // --- Multiplayer ---
-  const portalArrival = readVibePortalArrivalFromSearch(window.location.search);
-  const net = offlineMode
-    ? createOfflineNetClient(roomId)
-    : new NetworkClient(roomId, {
-      portalArrival: portalArrival.active ? portalArrival : null,
-    });
+  let net;
+  if (offlineMode) {
+    net = createOfflineNetClient(roomId);
+  } else if (shouldUseWavedashNetwork()) {
+    const { WavedashNetworkClient } = await import('../net/WavedashNetworkClient.js');
+    net = new WavedashNetworkClient(roomId);
+  } else {
+    net = new NetworkClient(roomId);
+  }
   function requestSqueak() {
     net.sendSqueak?.();
   }
@@ -675,7 +686,6 @@ export async function createGameSession({
   // Per-mesh outlines on remote mice are redundant once the fullscreen outline
   // pass is active; leave the toggle available for comparison.
   remotePlayerManager.setEdgeOutlinesVisible(false);
-  if (!offlineMode) net.connect();
 
   /** Track previous smackStunTimer / grabbedTarget per player for audio event detection. */
   const _prevSmackStun = new Map();
@@ -847,14 +857,6 @@ export async function createGameSession({
   });
 
   let lastReconciledSeq = -2;
-  const vibePortalManager = new VibePortalManager({
-    scene,
-    getPlayerState: () => predictionState,
-    getPlayerObject: () => mouse,
-    getPlayerColor: () => '#f5a962',
-    getPortalPlacements: () => room.getVibePortalPlacements(),
-  });
-
   function isLocalPlayerCatHuntTarget() {
     const lid = net.localId;
     if (!lid || !net.connected) return false;
@@ -975,11 +977,6 @@ export async function createGameSession({
       snapLocalStateToServer(data.players[net.localId]);
       lastReconciledSeq = -2;
       return;
-    }
-
-    if (data.type === 'portal-spawn' && data.player?.id === net.localId) {
-      snapLocalStateToServer(data.player);
-      lastReconciledSeq = -2;
     }
 
     if (data.type === 'round-end') {
@@ -1155,12 +1152,9 @@ export async function createGameSession({
   }
 
   // --- Cinematic intro ---------------------------------------------------
-  // Production boots through Cloudflare Turnstile + PartyKit connect + server
-  // spawn — roughly 1–3s of staring at the client's pre-snap camera position
-  // with a fully-rendered HUD. Instead of that, run a drone-style orbit over
-  // the house with no UI until the server actually spawns our player. In dev
-  // there's no Turnstile round-trip, so we enforce a 5s minimum to make the
-  // intro visible / tweakable without having to deploy.
+  // Multiplayer boot can spend a moment waiting on lobby connect + server
+  // spawn. Instead of showing the pre-snap camera with a fully-rendered HUD,
+  // run a drone-style orbit over the house until the server spawns our player.
   const CINEMATIC_MIN_MS = offlineMode ? 0 : (import.meta.env.DEV ? 1000 : 0);
   const cinematicStartMs = performance.now();
   let cinematicActive = !offlineMode;
@@ -1221,6 +1215,51 @@ export async function createGameSession({
     );
     camera.lookAt(_cineLookAt);
     camera.updateMatrixWorld();
+  }
+
+  async function warmUpRenderer() {
+    updateWavedashLoadProgress(0.18);
+    const waitFor = [
+      room.ready,
+      mouse.ready,
+      cat?.ready,
+      human?.ready,
+      bunny?.ready,
+      roomba?.ready,
+    ].filter(Boolean);
+    await Promise.allSettled(waitFor);
+    updateWavedashLoadProgress(0.62);
+
+    resize(window.innerWidth || canvas.clientWidth || 1, window.innerHeight || canvas.clientHeight || 1, window.devicePixelRatio || 1);
+    updateCinematicCamera(performance.now());
+    scene.updateMatrixWorld(true);
+
+    const visibility = [];
+    const revealForCompile = (object) => {
+      if (!object) return;
+      visibility.push([object, object.visible]);
+      object.visible = true;
+    };
+    revealForCompile(roomba);
+    revealForCompile(roomba?.dockGroup);
+
+    try {
+      // Avoid renderer.compileAsync here. In Three r184 it can crash when a
+      // program entry is missing during parallel shader polling, which strands
+      // Wavedash behind the loading screen. Synchronous compile is less fancy
+      // but predictable, and the Wavedash loader hides the one-time cost.
+      renderer.compile(scene, camera);
+      updateWavedashLoadProgress(0.82);
+      render();
+      render();
+    } catch (error) {
+      console.warn('[boot] renderer warmup failed:', error);
+    } finally {
+      for (const [object, visible] of visibility) {
+        object.visible = visible;
+      }
+    }
+    updateWavedashLoadProgress(0.94);
   }
 
   function isLocalPlayerSpawned() {
@@ -1673,7 +1712,6 @@ export async function createGameSession({
     placementMode?.update(deltaSeconds);
     room.applyFanRuntimeStates(net.connected ? net.fans : null);
     room.updateLoot(timeMs);
-    vibePortalManager.update(deltaSeconds);
 
     if (net.connected) {
       remotePlayerManager.sync(net.remotePlayers);
@@ -1780,7 +1818,6 @@ export async function createGameSession({
     const remotePlayers = [...net.remotePlayers.keys()];
     const botCount = remotePlayers.filter((id) => typeof id === 'string' && id.startsWith('bot-')).length;
     const connectedCount = net.connected ? 1 + (remotePlayers.length - botCount) : 1;
-    const playerCount = connectedCount + botCount;
     const cheeseForHud = net.connected
       ? (net.serverState?.cheeseCarried ?? 0)
       : Math.max(0, Math.floor(predictionState.cheeseCarried ?? 0));
@@ -1791,12 +1828,6 @@ export async function createGameSession({
     hud.update({
       stamina: controller.staminaPercent,
       health: controller.healthPercent,
-      ping: net.ping,
-      playerCount,
-      connectedCount,
-      botCount,
-      cheese: cheeseForHud,
-      lives: livesForHud,
       heroAvatar: net.connected
         ? (net.serverState?.heroAvatar ?? null)
         : (predictionState.heroAvatar ?? null),
@@ -1823,6 +1854,8 @@ export async function createGameSession({
       cheeseMax: 50,
       connectedCount,
       botCount,
+      connected: net.connected,
+      ping: net.ping,
     });
 
     heroPrompt.setVisible(false);
@@ -2281,7 +2314,6 @@ export async function createGameSession({
     predatorManager?.dispose();
     emoteWheel.dispose();
     heroPrompt.dispose();
-    vibePortalManager.dispose();
     scoreboard.dispose();
     chaseAlert.dispose();
     windStreaks.dispose();
@@ -2334,7 +2366,6 @@ export async function createGameSession({
       setRemotePlayersVisible: performanceToggles.setRemotePlayersVisible,
       setPredatorsVisible: performanceToggles.setPredatorsVisible,
       navMeshOverlay,
-      vibePortalManager,
       cheesePickupGroup: dynamicWorldItems.cheesePickupGroup,
       getPushBallsVisible: dynamicWorldItems.getPushBallsVisible,
       setPushBallsVisible: dynamicWorldItems.setPushBallsVisible,
@@ -2344,6 +2375,14 @@ export async function createGameSession({
       occlusionFader,
     });
   }
+
+  try {
+    await warmUpRenderer();
+  } catch (error) {
+    console.warn('[boot] renderer warmup failed before network start:', error);
+  }
+  if (!offlineMode) net.connect();
+  updateWavedashLoadProgress(0.98);
 
   return {
     mode: 'webgl',

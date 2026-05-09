@@ -13,7 +13,7 @@ import {
 
 /**
  * Angular raid HUD: compact panel with icon + skewed fill bar rows for
- * health/stamina, and a combined lives/cheese/live-mice row below.
+ * health/stamina/mischief plus contextual prompts.
  */
 
 // --- Layout constants (panel-local px). Tweak here; the panel auto-sizes. ---
@@ -103,134 +103,6 @@ function StatBar(props) {
         }}
       >
         {props.valueText()}
-      </div>
-    </div>
-  );
-}
-
-function LivesCell(props) {
-  const slots = createMemo(() => {
-    const max = Math.max(1, Math.min(3, Math.floor(Number(props.maxLives?.() ?? 2))));
-    const cur = Math.max(0, Math.min(max, Math.floor(Number(props.lives?.() ?? 0))));
-    return Array.from({ length: max }, (_, i) => (i < cur ? 'HEART_LIFE_FULL' : 'HEART_LIFE_LOST'));
-  });
-
-  return (
-    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-      <div style={{ display: 'flex', gap: '4px' }}>
-        <For each={slots()}>{(name) => <Sprite name={name} size={34} />}</For>
-      </div>
-      <div
-        style={{
-          color: '#fff',
-          font: LABEL_FONT,
-          'letter-spacing': '0.04em',
-          'text-shadow': LABEL_SHADOW,
-          'line-height': '1.05',
-        }}
-      >
-        LIVES
-      </div>
-    </div>
-  );
-}
-
-function Counter(props) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        'align-items': 'center',
-        gap: '8px',
-      }}
-    >
-      <Sprite name={props.iconName} size={48} />
-      <div
-        style={{
-          display: 'flex',
-          'flex-direction': 'column',
-          'line-height': '1.05',
-        }}
-      >
-        <div
-          style={{
-            color: props.labelColor,
-            font: LABEL_FONT,
-            'letter-spacing': '0.04em',
-            'text-shadow': LABEL_SHADOW,
-          }}
-        >
-          {props.label}
-        </div>
-        <div
-          style={{
-            color: '#fff',
-            font: VALUE_FONT,
-            'text-shadow': LABEL_SHADOW,
-          }}
-        >
-          {props.valueText()}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatusDot(props) {
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: '10px',
-        height: '10px',
-        'border-radius': '0',
-        background: props.color,
-        'box-shadow': `0 0 0 2px rgba(12,18,26,0.45), 0 0 8px ${props.glow ?? props.color}`,
-        'flex-shrink': '0',
-        transform: 'skewX(-8deg)',
-      }}
-    />
-  );
-}
-
-function LiveCountsRow(props) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        'align-items': 'center',
-        gap: '14px',
-        'justify-self': 'end',
-        'min-width': '0',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          'align-items': 'center',
-          gap: '7px',
-          color: '#fff',
-          font: VALUE_FONT,
-          'text-shadow': LABEL_SHADOW,
-          'white-space': 'nowrap',
-        }}
-      >
-        <StatusDot color="#62df7c" glow="rgba(98,223,124,0.7)" />
-        <span>{Math.max(0, Math.floor(Number(props.connectedCount) || 0))}</span>
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          'align-items': 'center',
-          gap: '7px',
-          color: '#d8dee8',
-          font: VALUE_FONT,
-          'text-shadow': LABEL_SHADOW,
-          'white-space': 'nowrap',
-        }}
-      >
-        <StatusDot color="#8e98a8" glow="rgba(142,152,168,0.45)" />
-        <span>{Math.max(0, Math.floor(Number(props.botCount) || 0))}</span>
       </div>
     </div>
   );
