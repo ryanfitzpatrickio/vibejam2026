@@ -52,10 +52,11 @@ export class RemotePlayerManager {
         this._spawn(id, data);
       } else if (this.players.has(id)) {
         const entry = this.players.get(id);
+        const targetPosition = data.renderPosition ?? data.position;
         entry.targetPos.set(
-          data.position?.x ?? 0,
-          (data.position?.y ?? 0) + entry.mouse.groundOffset,
-          data.position?.z ?? 0,
+          targetPosition?.x ?? 0,
+          (targetPosition?.y ?? 0) + entry.mouse.groundOffset,
+          targetPosition?.z ?? 0,
         );
         entry.targetRot = data.rotation ?? 0;
         entry.serverAlive = data.alive !== false;
@@ -232,11 +233,12 @@ export class RemotePlayerManager {
     }
     this._spawning.delete(id);
 
-    const groundY = (data.position?.y ?? 0) + mouse.groundOffset;
+    const initialPosition = data.renderPosition ?? data.position;
+    const groundY = (initialPosition?.y ?? 0) + mouse.groundOffset;
     mouse.position.set(
-      data.position?.x ?? 0,
+      initialPosition?.x ?? 0,
       groundY,
-      data.position?.z ?? 0,
+      initialPosition?.z ?? 0,
     );
     const outlineMeshes = attachEdgeOutlines(mouse, {
       color: '#090909',
@@ -278,14 +280,14 @@ export class RemotePlayerManager {
       displayName,
       emoteManager,
       targetPos: new THREE.Vector3(
-        data.position?.x ?? 0,
+        initialPosition?.x ?? 0,
         groundY,
-        data.position?.z ?? 0,
+        initialPosition?.z ?? 0,
       ),
       prevPos: new THREE.Vector3(
-        data.position?.x ?? 0,
+        initialPosition?.x ?? 0,
         groundY,
-        data.position?.z ?? 0,
+        initialPosition?.z ?? 0,
       ),
       targetRot: data.rotation ?? 0,
       animState: 'idle',

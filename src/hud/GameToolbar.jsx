@@ -19,7 +19,7 @@ import {
  */
 
 const BUTTON_SIZE = 44;
-const BUTTON_COUNT = 5;
+const BUTTON_COUNT = 1;
 
 function stopUi(event) {
   event.preventDefault();
@@ -39,6 +39,21 @@ function Icon(props) {
     style: { 'pointer-events': 'none', display: 'block' },
   };
   switch (props.name) {
+    case 'help':
+      return (
+        <svg
+          {...common}
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="9" />
+          <path d="M9.8 9.4a2.4 2.4 0 0 1 4.5 1.2c0 1.8-2.3 2-2.3 3.7" />
+          <line x1="12" y1="17.2" x2="12" y2="17.3" />
+        </svg>
+      );
     case 'github':
       return (
         <svg {...common} fill="currentColor">
@@ -700,88 +715,11 @@ function ToolbarView(props) {
         }}
       >
         <ToolbarButton
-          icon={s.musicMuted ? 'musicOff' : 'music'}
-          title={s.musicMuted ? 'Unmute music' : 'Mute music'}
-          pressed={s.musicMuted}
-          onClick={() => props.onToggleMusic?.()}
-        />
-        <ToolbarButton
-          icon={s.sfxMuted ? 'sfxOff' : 'sfx'}
-          title={s.sfxMuted ? 'Unmute sound effects' : 'Mute sound effects'}
-          pressed={s.sfxMuted}
-          onClick={() => props.onToggleSfx?.()}
-        />
-        <ToolbarButton
-          icon="leaderboard"
-          title="Leaderboard"
-          pressed={s.leaderboardOpen}
-          onClick={() => props.onToggleLeaderboard?.()}
-        />
-        <ToolbarButton
-          icon="github"
-          title="Open GitHub"
-          onClick={() => props.onOpenGithub?.()}
-        />
-        <ToolbarButton
-          icon="gear"
-          title="Settings"
-          pressed={s.settingsOpen}
-          onClick={() => props.onToggleSettings?.()}
+          icon="help"
+          title="Help"
+          onClick={() => props.onOpenHelp?.()}
         />
       </div>
-
-      {/* Settings panel */}
-      <Show when={s.settingsOpen}>
-        <div
-          id="settings-panel"
-          data-scroll-container
-          onPointerDown={stopPanel}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            ...HUD_PANEL_STYLE,
-            ...panelBase,
-            width: 'min(320px, calc(100vw - env(safe-area-inset-left, 0px) - 12px))',
-          }}
-        >
-          <PanelHeader
-            title="Settings"
-            closeTitle="Close settings"
-            onClose={() => props.onCloseSettings?.()}
-          />
-          <NameRow
-            value={s.displayName}
-            onChange={(v) => props.onChangeDisplayName?.(v)}
-            onApplied={(v) => props.onAppliedDisplayName?.(v)}
-          />
-          <RoomRow
-            roomId={s.roomId}
-            roomVisibility={s.roomVisibility}
-            onCopyInvite={() => props.onCopyInvite?.()}
-            onCreatePrivateRoom={() => props.onCreatePrivateRoom?.()}
-          />
-          <SettingRow
-            label="Music"
-            on={!s.musicMuted}
-            onClick={() => props.onToggleMusic?.()}
-          />
-          <SettingRow
-            label="Sound effects"
-            on={!s.sfxMuted}
-            onClick={() => props.onToggleSfx?.()}
-          />
-          <div
-            style={{
-              'margin-top': '10px',
-              color: 'rgba(255,255,255,0.8)',
-              font: HUD_SMALL_LABEL_FONT,
-              'text-shadow': HUD_LABEL_SHADOW,
-              'line-height': '1.45',
-            }}
-          >
-            WASD to move. Space jumps. Shift sprints. F opens emotes.
-          </div>
-        </div>
-      </Show>
 
       {/* Leaderboard panel */}
       <Show when={s.leaderboardOpen}>
@@ -841,10 +779,9 @@ function ToolbarView(props) {
 export class GameToolbar {
   constructor({
     container = document.body,
-    githubUrl,
     onToggleMusic,
     onToggleSfx,
-    onOpenGithub,
+    onOpenHelp,
     onChangeDisplayName,
     onOpenLeaderboard,
     onCopyInvite,
@@ -856,10 +793,9 @@ export class GameToolbar {
     roomVisibility = 'public',
   } = {}) {
     this.container = container;
-    this.githubUrl = githubUrl;
     this.onToggleMusic = onToggleMusic;
     this.onToggleSfx = onToggleSfx;
-    this.onOpenGithub = onOpenGithub;
+    this.onOpenHelp = onOpenHelp;
     this.onChangeDisplayName = onChangeDisplayName;
     this.onOpenLeaderboard = onOpenLeaderboard;
     this.onCopyInvite = onCopyInvite;
@@ -887,12 +823,9 @@ export class GameToolbar {
       () => (
         <ToolbarView
           state={state}
+          onOpenHelp={() => this.onOpenHelp?.()}
           onToggleMusic={() => this.onToggleMusic?.()}
           onToggleSfx={() => this.onToggleSfx?.()}
-          onOpenGithub={() => {
-            if (this.onOpenGithub) this.onOpenGithub();
-            else if (this.githubUrl) window.open(this.githubUrl, '_blank', 'noopener,noreferrer');
-          }}
           onToggleSettings={() => this.setSettingsOpen(!state.settingsOpen)}
           onToggleLeaderboard={() => {
             const next = !state.leaderboardOpen;

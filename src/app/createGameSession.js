@@ -160,8 +160,6 @@ function vacuumPullForPrediction(net, predictionState) {
   );
 }
 
-const GITHUB_URL = 'https://github.com/ryanfitzpatrickio/vibejam2026';
-
 /** Cat AI states where the hunt target is the local player — drives ambient crossfade. */
 const CAT_AMBIENT_HUNT_AI = new Set(['alert', 'roar', 'chase', 'chase_ball', 'attack', 'cooldown']);
 
@@ -173,6 +171,7 @@ export async function createGameSession({
   onCreatePrivateRoom = null,
   offlineMode = false,
 } = {}) {
+  const useRuneBackend = import.meta.env.MODE === 'rune' || import.meta.env.VITE_RUNE_BACKEND === 'true';
   const scene = new THREE.Scene();
   applyAtmosphere(scene);
 
@@ -348,7 +347,7 @@ export async function createGameSession({
     }).catch(() => {});
   }
 
-  roomba = ENABLE_ROOMBA_PREDATOR ? new Roomba() : null;
+  roomba = ENABLE_ROOMBA_PREDATOR && !useRuneBackend ? new Roomba() : null;
   if (roomba) {
     const roombaInstance = roomba;
     roombaInstance.ready.then(() => {
@@ -461,10 +460,12 @@ export async function createGameSession({
 
   let leaderboardRequestSeq = 0;
   const toolbar = new GameToolbar({
-    githubUrl: GITHUB_URL,
     displayName: getClientPreferredDisplayName(),
     roomId,
     roomVisibility,
+    onOpenHelp: () => {
+      onboarding.show();
+    },
     onToggleMusic: () => {
       primeAmbientAudio();
       setMusicMuted(!audioPrefs.musicMuted);
@@ -472,9 +473,6 @@ export async function createGameSession({
     onToggleSfx: () => {
       void audioManager.resume();
       setSfxMuted(!audioPrefs.sfxMuted);
-    },
-    onOpenGithub: () => {
-      window.open(GITHUB_URL, '_blank', 'noopener,noreferrer');
     },
     onOpenLeaderboard: async () => {
       const requestSeq = ++leaderboardRequestSeq;
@@ -599,8 +597,9 @@ export async function createGameSession({
   });
 
   // --- Multiplayer ---
-  const useRuneBackend = import.meta.env.MODE === 'rune' || import.meta.env.VITE_RUNE_BACKEND === 'true';
-  const portalArrival = readVibePortalArrivalFromSearch(window.location.search);
+  const portalArrival = useRuneBackend
+    ? { active: false }
+    : readVibePortalArrivalFromSearch(window.location.search);
   const net = offlineMode
     ? createOfflineNetClient(roomId)
     : (useRuneBackend
@@ -853,13 +852,20 @@ export async function createGameSession({
   });
 
   let lastReconciledSeq = -2;
-  const vibePortalManager = new VibePortalManager({
-    scene,
-    getPlayerState: () => predictionState,
-    getPlayerObject: () => mouse,
-    getPlayerColor: () => '#f5a962',
-    getPortalPlacements: () => room.getVibePortalPlacements(),
-  });
+  const vibePortalManager = useRuneBackend
+    ? {
+      update() {},
+      dispose() {},
+      getPortalsVisible: () => false,
+      setPortalsVisible() {},
+    }
+    : new VibePortalManager({
+      scene,
+      getPlayerState: () => predictionState,
+      getPlayerObject: () => mouse,
+      getPlayerColor: () => '#f5a962',
+      getPortalPlacements: () => room.getVibePortalPlacements(),
+    });
 
   function isLocalPlayerCatHuntTarget() {
     const lid = net.localId;
@@ -976,15 +982,18 @@ export async function createGameSession({
     renderPositionSmoother.snapToPrediction(predictionState, mouse.groundOffset);
   }
 
+  let initialServerSnapApplied = false;
   net.on((data) => {
-    if (data.type === 'init' && data.players?.[net.localId] && !net.positionOnly) {
+    if (data.type === 'init' && data.players?.[net.localId] && (!net.positionOnly || !initialServerSnapApplied)) {
       snapLocalStateToServer(data.players[net.localId]);
+      initialServerSnapApplied = true;
       lastReconciledSeq = -2;
       return;
     }
 
-    if (data.type === 'portal-spawn' && data.player?.id === net.localId && !net.positionOnly) {
+    if (data.type === 'portal-spawn' && data.player?.id === net.localId && (!net.positionOnly || !initialServerSnapApplied)) {
       snapLocalStateToServer(data.player);
+      initialServerSnapApplied = true;
       lastReconciledSeq = -2;
     }
 
@@ -1448,6 +1457,39 @@ export async function createGameSession({
         predictionState.animState = 'sit';
       } else {
         simulateTick(predictionState, input, PHYSICS_STEP, CLIENT_BOUNDS, colliders, vPull);
+      }
+
+      if (net.positionOnly && net.serverState) {
+        const ss = net.serverState;
+        const aliveChanged = predictionState.alive !== ss.alive;
+        const throwTick = Number(ss.throwTick) || 0;
+        const thrownChanged = throwTick > 0 && throwTick !== predictionState._lastRuneThrowTick;
+        const smackStunned = (Number(ss.smackStunTimer) || 0) > 0;
+        const serverPoseRequired = aliveChanged || smackStunned || !!ss.grabbedBy || thrownChanged;
+        predictionState.health = ss.health ?? predictionState.health;
+        predictionState.alive = ss.alive !== false;
+        predictionState.livesRemaining = ss.livesRemaining ?? predictionState.livesRemaining;
+        predictionState.spectator = !!ss.spectator;
+        predictionState.deaths = ss.deaths ?? predictionState.deaths;
+        predictionState.smackStunTimer = ss.smackStunTimer ?? predictionState.smackStunTimer ?? 0;
+        predictionState.smackLimpThrowWindowTimer = ss.smackLimpThrowWindowTimer ?? predictionState.smackLimpThrowWindowTimer ?? 0;
+        predictionState.chargedSmackHitSeq = ss.chargedSmackHitSeq ?? predictionState.chargedSmackHitSeq ?? 0;
+        if (ss.roundStats && typeof ss.roundStats === 'object') {
+          predictionState.roundStats = { ...predictionState.roundStats, ...ss.roundStats };
+        }
+        if (thrownChanged) predictionState._lastRuneThrowTick = throwTick;
+        if (serverPoseRequired) {
+          predictionState.position.x = ss.position.x;
+          predictionState.position.y = ss.position.y;
+          predictionState.position.z = ss.position.z;
+          predictionState.velocity.x = ss.velocity.x;
+          predictionState.velocity.y = ss.velocity.y;
+          predictionState.velocity.z = ss.velocity.z;
+          predictionState.rotation = ss.rotation;
+          mouse.setYaw(predictionState.rotation);
+          renderPositionSmoother.snapToPrediction(predictionState, mouse.groundOffset);
+        }
+        if (!predictionState.alive) predictionState.animState = 'death';
       }
 
       const renderPos = net.positionOnly
@@ -2026,7 +2068,8 @@ export async function createGameSession({
     }
 
     const balls = net.pushBalls;
-    const ropeDistanceSq = nearestRopeDistanceSq(net.ropes, predictionState.position);
+    const ropes = useRuneBackend ? [] : net.ropes;
+    const ropeDistanceSq = nearestRopeDistanceSq(ropes, predictionState.position);
     const ropeGrabAssistActive = !!(
       controller.ropeGrabHeld
       && !predictionState.grounded
@@ -2096,7 +2139,7 @@ export async function createGameSession({
     }
     _smackFiredThisFrame = false;
 
-    const ropeLayout = room.getEditableLayout?.()?.ropes ?? [];
+    const ropeLayout = useRuneBackend ? [] : (room.getEditableLayout?.()?.ropes ?? []);
     const ropeStyleById = new Map(
       ropeLayout.map((r) => {
         const n = normalizeRope(r);
@@ -2109,8 +2152,8 @@ export async function createGameSession({
         }];
       }),
     );
-    if (perfFlags.ropes) {
-      ropeSystem.update(net.connected ? net.ropes : [], ropeStyleById);
+    if (perfFlags.ropes && !useRuneBackend) {
+      ropeSystem.update(net.connected ? ropes : [], ropeStyleById);
     } else {
       ropeSystem.update([], ropeStyleById);
     }

@@ -10,25 +10,6 @@ import {
 } from './hudStyle.js';
 import { actionLabel } from '../input/inputSource.js';
 
-const STORAGE_KEY = 'mouseTrouble:onboardingDismissed:v1';
-
-function readDismissed() {
-  try {
-    return window.localStorage?.getItem(STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeDismissed() {
-  try {
-    window.localStorage?.setItem(STORAGE_KEY, '1');
-  } catch {
-    // Ignore private-mode or blocked storage. The overlay can be dismissed for
-    // this page load even if the preference cannot persist.
-  }
-}
-
 function OnboardingView(props) {
   const steps = () => [
     { label: 'Grab cheese', detail: `Press ${actionLabel('interact')} near cheese and tasks.` },
@@ -190,9 +171,9 @@ export class OnboardingOverlay {
     this.container = container;
     this._mount = document.createElement('div');
     container.appendChild(this._mount);
-    const [visible, setVisible] = createSignal(!readDismissed());
+    const [visible, setVisible] = createSignal(false);
+    this._show = () => setVisible(true);
     this._dismiss = () => {
-      writeDismissed();
       setVisible(false);
     };
     this._dispose = render(() => (
@@ -202,6 +183,10 @@ export class OnboardingOverlay {
 
   dismiss() {
     this._dismiss?.();
+  }
+
+  show() {
+    this._show?.();
   }
 
   dispose() {

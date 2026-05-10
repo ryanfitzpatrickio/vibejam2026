@@ -90,6 +90,8 @@ export class RendererModePanel {
       left: '20px',
       zIndex: '121',
       width: '320px',
+      maxWidth: 'calc(100vw - 40px)',
+      maxHeight: 'calc(100dvh - 40px)',
       padding: '12px',
       borderRadius: '12px',
       background: 'rgba(10, 12, 16, 0.86)',
@@ -100,6 +102,10 @@ export class RendererModePanel {
       boxShadow: '0 12px 32px rgba(0, 0, 0, 0.35)',
       border: '1px solid rgba(255, 255, 255, 0.12)',
       backdropFilter: 'blur(6px)',
+      overflowY: 'auto',
+      overscrollBehavior: 'contain',
+      WebkitOverflowScrolling: 'touch',
+      touchAction: 'pan-y',
       display: this.visible ? 'block' : 'none',
     });
 

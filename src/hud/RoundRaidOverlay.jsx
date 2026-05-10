@@ -220,7 +220,7 @@ function RoundPhaseTopRow(props) {
       id="round-phase-top"
       style={{
         position: 'fixed',
-        top: compact ? 'calc(6px + env(safe-area-inset-top))' : 'calc(12px + env(safe-area-inset-top))',
+        top: compact ? 'calc(34px + env(safe-area-inset-top))' : 'calc(18px + env(safe-area-inset-top))',
         left: '0',
         right: '0',
         width: '100%',
