@@ -1,0 +1,178 @@
+{
+  "achievements": [
+    {
+      "identifier": "MT_FIRST_RAID",
+      "display_name": "First Raid",
+      "description": "Finish your first raid round.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_ROUNDS",
+        "threshold": 1
+      }
+    },
+    {
+      "identifier": "MT_FIRST_ESCAPE",
+      "display_name": "Mouse Hole Rookie",
+      "description": "Extract successfully once.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_EXTRACTIONS",
+        "threshold": 1
+      }
+    },
+    {
+      "identifier": "MT_FIRST_CHEESE",
+      "display_name": "Tiny Nibble",
+      "description": "Collect your first cheese.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_CHEESE_COLLECTED",
+        "threshold": 1
+      }
+    },
+    {
+      "identifier": "MT_FIRST_MISCHIEF",
+      "display_name": "Little Menace",
+      "description": "Earn your first mischief point.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_MISCHIEF",
+        "threshold": 1
+      }
+    },
+    {
+      "identifier": "MT_FIRST_CHASE",
+      "display_name": "Cat Noticed You",
+      "description": "Spend 5 total seconds chased by the cat.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_CHASE_SECONDS",
+        "threshold": 5
+      }
+    },
+    {
+      "identifier": "MT_CHEESE_100",
+      "display_name": "Cheese Gobbler",
+      "description": "Collect 100 lifetime cheese.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_CHEESE_COLLECTED",
+        "threshold": 100
+      }
+    },
+    {
+      "identifier": "MT_MISCHIEF_1000",
+      "display_name": "Kitchen Menace",
+      "description": "Earn 1,000 lifetime mischief.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_MISCHIEF",
+        "threshold": 1000
+      }
+    },
+    {
+      "identifier": "MT_CHASE_120",
+      "display_name": "Tail Bait",
+      "description": "Spend 120 lifetime seconds chased.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_CHASE_SECONDS",
+        "threshold": 120
+      }
+    },
+    {
+      "identifier": "MT_ESCAPE_10",
+      "display_name": "Reliable Escape Artist",
+      "description": "Extract 10 times.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_EXTRACTIONS",
+        "threshold": 10
+      }
+    },
+    {
+      "identifier": "MT_BRAWLER_25",
+      "display_name": "Paw-To-Paw",
+      "description": "Land 25 smacks.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_SMACKS",
+        "threshold": 25
+      }
+    },
+    {
+      "identifier": "MT_CHEESE_1000",
+      "display_name": "Fromage Fortune",
+      "description": "Collect 1,000 lifetime cheese.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_CHEESE_COLLECTED",
+        "threshold": 1000
+      }
+    },
+    {
+      "identifier": "MT_MISCHIEF_10000",
+      "display_name": "Household Disaster",
+      "description": "Earn 10,000 lifetime mischief.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_MISCHIEF",
+        "threshold": 10000
+      }
+    },
+    {
+      "identifier": "MT_CHASE_900",
+      "display_name": "Nine Lives Energy",
+      "description": "Spend 900 lifetime seconds chased.",
+      "stat_requirement": {
+        "stat": "MT_TOTAL_CHASE_SECONDS",
+        "threshold": 900
+      }
+    },
+    {
+      "identifier": "MT_PERFECT_ESCAPE_5",
+      "display_name": "Untouchable",
+      "description": "Extract in 5 rounds with zero deaths.",
+      "stat_requirement": {
+        "stat": "MT_PERFECT_EXTRACT_ROUNDS",
+        "threshold": 5
+      }
+    },
+    {
+      "identifier": "MT_LEGENDARY_FULL_PANTRY",
+      "display_name": "Full Pantry Legend",
+      "description": "Reach 10,000 cheese, 50,000 mischief, and 3,600 chase seconds lifetime.",
+      "stat_requirement": null
+    }
+  ],
+  "stats": [
+    {
+      "identifier": "MT_TOTAL_ROUNDS",
+      "display_name": "Total Rounds"
+    },
+    {
+      "identifier": "MT_TOTAL_EXTRACTIONS",
+      "display_name": "Total Extractions"
+    },
+    {
+      "identifier": "MT_TOTAL_CHEESE_COLLECTED",
+      "display_name": "Total Cheese Collected"
+    },
+    {
+      "identifier": "MT_TOTAL_MISCHIEF",
+      "display_name": "Total Mischief"
+    },
+    {
+      "identifier": "MT_TOTAL_CHASE_SECONDS",
+      "display_name": "Total Chase Seconds"
+    },
+    {
+      "identifier": "MT_TOTAL_SMACKS",
+      "display_name": "Total Smacks"
+    },
+    {
+      "identifier": "MT_TOTAL_GRABS",
+      "display_name": "Total Grabs"
+    },
+    {
+      "identifier": "MT_TOTAL_THROWS",
+      "display_name": "Total Throws"
+    },
+    {
+      "identifier": "MT_TOTAL_DEATHS",
+      "display_name": "Total Deaths"
+    },
+    {
+      "identifier": "MT_PERFECT_EXTRACT_ROUNDS",
+      "display_name": "Perfect Extract Rounds"
+    }
+  ]
+}

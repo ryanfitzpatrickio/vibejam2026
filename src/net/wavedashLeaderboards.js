@@ -39,12 +39,28 @@ function displayTypeValue(sdk, displayType) {
   return sdk?.LeaderboardDisplayType?.[displayType] ?? (displayType === 'TIME_SECONDS' ? 1 : 0);
 }
 
-async function getOrCreateLeaderboardId(board) {
+function sdkMethod(sdk, names) {
+  for (const name of names) {
+    if (typeof sdk?.[name] === 'function') return sdk[name].bind(sdk);
+  }
+  return null;
+}
+
+async function resolveLeaderboardId(board) {
   const sdk = getWavedashSDK();
-  if (!sdk?.getOrCreateLeaderboard) return null;
+  const getLeaderboard = sdkMethod(sdk, ['getLeaderboard', 'GetLeaderboard', 'get_leaderboard']);
+  const getOrCreateLeaderboard = sdkMethod(sdk, [
+    'getOrCreateLeaderboard',
+    'GetOrCreateLeaderboard',
+    'get_or_create_leaderboard',
+  ]);
+  if (!getLeaderboard && !getOrCreateLeaderboard) return null;
   if (!leaderboardIdPromises.has(board.name)) {
     leaderboardIdPromises.set(board.name, (async () => {
-      const response = await sdk.getOrCreateLeaderboard(
+      const existing = getLeaderboard ? successData(await getLeaderboard(board.name)) : null;
+      if (existing?.id) return existing.id;
+      if (!getOrCreateLeaderboard) return null;
+      const response = await getOrCreateLeaderboard(
         board.name,
         sortOrderValue(sdk),
         displayTypeValue(sdk, board.displayType),
@@ -73,7 +89,7 @@ function normalizeEntry(entry) {
 async function listEntries(board, limit) {
   const sdk = getWavedashSDK();
   if (!sdk?.listLeaderboardEntries) return [];
-  const leaderboardId = await getOrCreateLeaderboardId(board);
+  const leaderboardId = await resolveLeaderboardId(board);
   if (!leaderboardId) return [];
   const response = await sdk.listLeaderboardEntries(leaderboardId, 0, limit, false);
   const entries = successData(response);
@@ -83,7 +99,7 @@ async function listEntries(board, limit) {
 async function getMyEntry(board) {
   const sdk = getWavedashSDK();
   if (!sdk?.getMyLeaderboardEntries) return null;
-  const leaderboardId = await getOrCreateLeaderboardId(board);
+  const leaderboardId = await resolveLeaderboardId(board);
   if (!leaderboardId) return null;
   const response = await sdk.getMyLeaderboardEntries(leaderboardId);
   const entries = successData(response);
@@ -97,7 +113,7 @@ async function getMyScore(board) {
 
 export async function fetchWavedashLeaderboards({ limit = 5 } = {}) {
   const sdk = getWavedashSDK();
-  if (!sdk?.getOrCreateLeaderboard || !sdk?.listLeaderboardEntries) return null;
+  if (!sdk?.listLeaderboardEntries) return null;
   try {
     const boardData = await Promise.all(
       Object.values(WAVEDASH_LEADERBOARDS).map(async (board) => {
@@ -136,7 +152,7 @@ export async function submitWavedashRoundTotals({
       const delta = deltas[board.key];
       if (delta <= 0) continue;
       try {
-        const leaderboardId = await getOrCreateLeaderboardId(board);
+        const leaderboardId = await resolveLeaderboardId(board);
         if (!leaderboardId) continue;
         const current = await getMyScore(board);
         const response = await sdk.uploadLeaderboardScore(leaderboardId, current + delta, true);
@@ -169,7 +185,7 @@ export async function submitWavedashLeaderboardTotals({
     for (const board of Object.values(WAVEDASH_LEADERBOARDS)) {
       if (totals[board.key] <= 0) continue;
       try {
-        const leaderboardId = await getOrCreateLeaderboardId(board);
+        const leaderboardId = await resolveLeaderboardId(board);
         if (!leaderboardId) continue;
         const response = await sdk.uploadLeaderboardScore(leaderboardId, totals[board.key], true);
         results[board.key] = successData(response);

@@ -1,6 +1,7 @@
 import { getWavedashSDK } from './wavedashSdk.js';
 import {
   fetchWavedashLeaderboards,
+  submitWavedashRoundTotals,
   submitWavedashLeaderboardTotals,
 } from './wavedashLeaderboards.js';
 
@@ -185,6 +186,14 @@ function statDeltasFromRound(localResult) {
   };
 }
 
+function leaderboardDeltasFromRound(localResult) {
+  return {
+    mischief: wholeNumber(localResult?.mischief),
+    chaseSeconds: wholeNumber(localResult?.chaseSeconds),
+    cheeseCollected: wholeNumber(localResult?.cheeseCollected ?? localResult?.cheese),
+  };
+}
+
 function wholeNumber(value) {
   return Math.max(0, Math.floor(Number(value) || 0));
 }
@@ -221,10 +230,10 @@ function setStatValue(sdk, statId, value, storeNow = false) {
   return null;
 }
 
-function setAchievementValue(sdk, achievementId, unlocked = true) {
+function setAchievementValue(sdk, achievementId, storeNow = false) {
   const setAchievement = getSdkMethod(sdk, ['setAchievement', 'SetAchievement', 'set_achievement']);
   if (!setAchievement) return null;
-  return setAchievement(achievementId, unlocked);
+  return setAchievement(achievementId, storeNow);
 }
 
 async function storeStats(sdk) {
@@ -233,9 +242,16 @@ async function storeStats(sdk) {
   return store();
 }
 
+async function requestStats(sdk) {
+  const request = getSdkMethod(sdk, ['requestStats', 'RequestStats', 'request_stats']);
+  if (!request) return null;
+  return request();
+}
+
 function hasStatsApi(sdk) {
   return !!(
-    getSdkMethod(sdk, ['getStat', 'GetStat', 'get_stat', 'getStatInt', 'GetStatInt', 'get_stat_int'])
+    getSdkMethod(sdk, ['requestStats', 'RequestStats', 'request_stats'])
+    && getSdkMethod(sdk, ['getStat', 'GetStat', 'get_stat', 'getStatInt', 'GetStatInt', 'get_stat_int'])
     && getSdkMethod(sdk, ['setStat', 'SetStat', 'set_stat', 'setStatInt', 'SetStatInt', 'set_stat_int'])
     && getSdkMethod(sdk, ['storeStats', 'StoreStats', 'store_stats'])
   );
@@ -249,9 +265,12 @@ function shouldUnlockFullPantry(totals) {
 
 export async function submitWavedashProgressFromRound(localResult) {
   const sdk = getWavedashSDK();
-  if (!sdk || !hasStatsApi(sdk)) return null;
+  const fallbackLeaderboardSubmit = () => submitWavedashRoundTotals(leaderboardDeltasFromRound(localResult));
+  if (!sdk) return null;
+  if (!hasStatsApi(sdk)) return fallbackLeaderboardSubmit();
 
   try {
+    await requestStats(sdk);
     const deltas = statDeltasFromRound(localResult);
     const totals = {};
     for (const [statId, delta] of Object.entries(deltas)) {
@@ -262,7 +281,7 @@ export async function submitWavedashProgressFromRound(localResult) {
     }
 
     if (shouldUnlockFullPantry(totals)) {
-      setAchievementValue(sdk, 'MT_LEGENDARY_FULL_PANTRY', true);
+      setAchievementValue(sdk, 'MT_LEGENDARY_FULL_PANTRY', false);
     }
 
     await storeStats(sdk);
@@ -276,6 +295,6 @@ export async function submitWavedashProgressFromRound(localResult) {
     return { deltas, totals };
   } catch (error) {
     console.warn('[wavedash-progress] failed to submit progress:', error);
-    return null;
+    return fallbackLeaderboardSubmit();
   }
 }
