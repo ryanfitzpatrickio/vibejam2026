@@ -76,6 +76,10 @@ import { NetworkClient } from '../net/NetworkClient.js';
 import { RemotePlayerManager } from '../net/RemotePlayerManager.js';
 import { updateWavedashLoadProgress } from '../net/wavedashSdk.js';
 import {
+  fetchWavedashLeaderboards,
+  submitWavedashProgressFromRound,
+} from '../net/wavedashProgress.js';
+import {
   EmoteManager,
   HUMAN_ADVERSARY_EMOTES,
   HUMAN_ADVERSARY_RAT_EMOTE_ID,
@@ -467,6 +471,7 @@ export async function createGameSession({
   }
 
   let leaderboardRequestSeq = 0;
+  const submittedWavedashProgressRounds = new Set();
   const toolbar = new GameToolbar({
     githubUrl: GITHUB_URL,
     displayName: getClientPreferredDisplayName(),
@@ -486,7 +491,7 @@ export async function createGameSession({
     onOpenLeaderboard: async () => {
       const requestSeq = ++leaderboardRequestSeq;
       toolbar.setAllTimeLeaderboards(toolbar.allTimeLeaderboards, 'Loading all-time scores...');
-      const data = await net.fetchLeaderboard();
+      const data = await fetchWavedashLeaderboards();
       if (requestSeq !== leaderboardRequestSeq) return;
       toolbar.setAllTimeLeaderboards(data, data ? '' : 'All-time scores unavailable');
     },
@@ -982,6 +987,18 @@ export async function createGameSession({
     if (data.type === 'round-end') {
       roundRaid.showRoundEnd(data, net.localId);
       const results = Array.isArray(data.results) ? data.results : [];
+      const localResult = results.find((row) => row?.id === net.localId);
+      const roundNumber = Number(data.roundNumber ?? data.number);
+      const submitKey = Number.isFinite(roundNumber) ? `${net.localId}:${roundNumber}` : '';
+      if (
+        localResult
+        && !localResult.isBot
+        && submitKey
+        && !submittedWavedashProgressRounds.has(submitKey)
+      ) {
+        submittedWavedashProgressRounds.add(submitKey);
+        void submitWavedashProgressFromRound(localResult);
+      }
       for (const row of results) {
         const expression = row?.extracted ? 'sparklingHappy' : 'dizzy';
         if (row?.id === net.localId) {

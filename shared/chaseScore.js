@@ -51,6 +51,9 @@ export function tickPlayerChaseScores(players, predators, dt) {
     const chased = isPlayerChasedByCat(predators, id);
     if (chased) {
       state.chaseStreakSeconds = (state.chaseStreakSeconds ?? 0) + dt;
+      if (state.roundStats) {
+        state.roundStats.totalChaseSeconds = (Number(state.roundStats.totalChaseSeconds) || 0) + dt;
+      }
     } else {
       const streak = state.chaseStreakSeconds ?? 0;
       if (streak > 0) {

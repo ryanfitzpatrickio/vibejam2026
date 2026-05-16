@@ -69,6 +69,7 @@ export function createRoundStats() {
     grabsInitiated: 0,
     throwsLanded: 0,
     maxChaseStreak: 0,
+    totalChaseSeconds: 0,
     tasksCompleted: [],
     /** Final computed score at round end (populated by server). */
     finalScore: 0,
@@ -88,6 +89,7 @@ export function resetRoundStats(stats) {
   stats.grabsInitiated = 0;
   stats.throwsLanded = 0;
   stats.maxChaseStreak = 0;
+  stats.totalChaseSeconds = 0;
   stats.tasksCompleted = [];
   stats.finalScore = 0;
   stats.xpAwarded = 0;

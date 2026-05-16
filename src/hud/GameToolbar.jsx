@@ -648,17 +648,17 @@ function LiveRoomTable(props) {
 function ToolbarView(props) {
   const s = props.state;
 
-  const bestChase = createMemo(() => {
+  const mostMischief = createMemo(() => {
     const boards = s.allTimeLeaderboards?.leaderboards ?? s.allTimeLeaderboards ?? {};
-    return Array.isArray(boards.bestChase) ? boards.bestChase : [];
+    return Array.isArray(boards.mischief) ? boards.mischief : [];
   });
-  const bestCheese = createMemo(() => {
+  const totalChase = createMemo(() => {
     const boards = s.allTimeLeaderboards?.leaderboards ?? s.allTimeLeaderboards ?? {};
-    return Array.isArray(boards.bestCheeseHeld) ? boards.bestCheeseHeld : [];
+    return Array.isArray(boards.chaseSeconds) ? boards.chaseSeconds : [];
   });
-  const bestAdversary = createMemo(() => {
+  const mostCheeseCollected = createMemo(() => {
     const boards = s.allTimeLeaderboards?.leaderboards ?? s.allTimeLeaderboards ?? {};
-    return Array.isArray(boards.bestAdversary) ? boards.bestAdversary : [];
+    return Array.isArray(boards.cheeseCollected) ? boards.cheeseCollected : [];
   });
 
   const panelBase = {
@@ -800,19 +800,19 @@ function ToolbarView(props) {
             </div>
           </Show>
           <LeaderboardSection
-            title="Best cat chase"
-            rows={bestChase()}
-            format={(v) => `${v.toFixed(1)}s`}
-          />
-          <LeaderboardSection
-            title="Most cheese held"
-            rows={bestCheese()}
+            title="Most Mischief"
+            rows={mostMischief()}
             format={(v) => String(Math.max(0, Math.floor(v)))}
           />
           <LeaderboardSection
-            title="Best human avoidance"
-            rows={bestAdversary()}
-            format={(v) => `${v.toFixed(1)}s`}
+            title="Total Cat Chase"
+            rows={totalChase()}
+            format={(v) => `${Math.max(0, Math.round(v))}s`}
+          />
+          <LeaderboardSection
+            title="Most Cheese Collected"
+            rows={mostCheeseCollected()}
+            format={(v) => String(Math.max(0, Math.floor(v)))}
           />
           <LiveRoomTable rows={s.leaderboardRows} />
         </div>

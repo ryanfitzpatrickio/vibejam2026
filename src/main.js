@@ -13,8 +13,10 @@ if (import.meta.env.PROD) {
 
 import { createGameSession } from './app/createGameSession.js';
 import { RendererModePanel, readRendererMode } from './hud/RendererModePanel.js';
+import { updateWavedashLoadProgress } from './net/wavedashSdk.js';
 
 readRendererMode(); // migrate legacy localStorage `webgpu` → `webgl`
+updateWavedashLoadProgress(0.01);
 
 const canvas = document.getElementById('canvas');
 const ROOM_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
@@ -57,9 +59,42 @@ function nextPublicOverflowRoomId(currentRoomId = 'default') {
 }
 
 function isMatchmakeEndpointMissing(error) {
-  return /matchmake returned (404|405)/i.test(
-    error instanceof Error ? error.message : String(error),
-  );
+  const message = error instanceof Error ? error.message : String(error);
+  return /matchmake returned (404|405)/i.test(message)
+    || /matchmake (unavailable|returned non-json)|failed to fetch/i.test(message);
+}
+
+async function postMatchmake(payload, { timeoutMs = 1500 } = {}) {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeout = controller && timeoutMs > 0
+    ? setTimeout(() => controller.abort(), timeoutMs)
+    : null;
+  try {
+    const response = await fetch('/api/matchmake', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller?.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`matchmake returned ${response.status}`);
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+      throw new Error('matchmake returned non-json');
+    }
+    return await response.json();
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('matchmake unavailable: request timed out');
+    }
+    throw error;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function buildRoomUrl(roomId, { isPrivate = false } = {}) {
@@ -93,20 +128,9 @@ async function resolveBootRoomId() {
   const wantsPrivate = isTruthyFlag(url.searchParams.get('private'));
   if (matchmakeEndpointAvailable !== false) {
     try {
-      const response = await fetch('/api/matchmake', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mode: wantsPrivate ? 'private' : 'public',
-        }),
+      const payload = await postMatchmake({
+        mode: wantsPrivate ? 'private' : 'public',
       });
-      if (!response.ok) {
-        throw new Error(`matchmake returned ${response.status}`);
-      }
-      const payload = await response.json();
       const roomId = sanitizeRoomId(payload?.roomId);
       if (roomId) {
         matchmakeEndpointAvailable = true;
@@ -140,18 +164,7 @@ async function resolveBootRoomId() {
 async function requestMatchmake({ mode = 'public', excludeRoomId = '' } = {}) {
   if (matchmakeEndpointAvailable !== false) {
     try {
-      const response = await fetch('/api/matchmake', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ mode, excludeRoomId }),
-      });
-      if (!response.ok) {
-        throw new Error(`matchmake returned ${response.status}`);
-      }
-      const payload = await response.json();
+      const payload = await postMatchmake({ mode, excludeRoomId });
       const roomId = sanitizeRoomId(payload?.roomId);
       if (!roomId) {
         throw new Error('matchmake returned no room id');

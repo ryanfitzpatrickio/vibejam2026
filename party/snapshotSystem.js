@@ -29,6 +29,7 @@ function hasRoundStatsValue(rs) {
     || Number(rs.grabsInitiated)
     || Number(rs.throwsLanded)
     || Number(rs.maxChaseStreak)
+    || Number(rs.totalChaseSeconds)
     || Number(rs.finalScore)
     || Number(rs.xpAwarded)
     || rs.tasksCompleted?.length

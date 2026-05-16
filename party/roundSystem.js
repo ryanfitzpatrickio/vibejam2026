@@ -80,6 +80,9 @@ export function finishRound(runtime) {
       throwsLanded: Math.max(0, Math.floor(Number(state.roundStats.throwsLanded) || 0)),
       mischiefEvents: Math.max(0, Math.floor(Number(state.roundStats.mischiefEvents) || 0)),
       maxCombo: Math.max(0, Math.floor(Number(state.roundStats.mischiefCombo) || 0)),
+      chaseSeconds: Math.round(Math.max(0, Number(state.roundStats.totalChaseSeconds) || 0)),
+      cheeseCollected: Math.max(0, Math.floor(Number(state.roundStats.cheeseCollected) || 0)),
+      deaths: Math.max(0, Math.floor(Number(state.deaths) || 0)),
       tasksCompletedCount: Array.isArray(br.completedTaskIds) ? br.completedTaskIds.length : 0,
       adversarySafeSeconds: Math.round(Math.max(0, Number(state.adversarySafeSeconds) || 0) * 10) / 10,
     });
